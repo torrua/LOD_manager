@@ -198,6 +198,16 @@ pub fn migrate_event_columns_if_needed(conn: &Connection) -> rusqlite::Result<()
 
 // ─── Words ────────────────────────────────────────────────────────────────────
 
+#[inline]
+fn map_wli(r: &rusqlite::Row<'_>) -> rusqlite::Result<WordListItem> {
+    Ok(WordListItem {
+        id: r.get(0)?,
+        name: r.get(1)?,
+        type_name: r.get(2)?,
+        def_count: r.get(3)?,
+    })
+}
+
 pub fn list_words(
     conn: &Connection,
     q: &str,
@@ -221,41 +231,30 @@ pub fn list_words(
         None => "",
     };
 
-    let type_clause = if type_filter.is_empty() {
-        String::new()
-    } else {
-        format!(" AND t.name='{}'", type_filter.replace('\'', "''"))
-    };
+    // Use parameterized type filter to avoid any SQL injection risk.
+    // Four combinations: (search, event_id) × (type_filter present/absent).
+    let sql_base = "SELECT w.id, w.name, t.name,
+                    (SELECT COUNT(*) FROM definitions d WHERE d.word_id=w.id)
+                    FROM words w
+                    LEFT JOIN types t ON t.id=w.type_id";
 
-    let sql = format!(
-        "SELECT w.id, w.name, t.name, (SELECT COUNT(*) FROM definitions d WHERE d.word_id=w.id)
-         FROM words w
-         LEFT JOIN types t ON t.id=w.type_id
-         WHERE LOWER(w.name) LIKE ?1{ev_clause}{type_clause}
-         ORDER BY LOWER(w.name)"
-    );
-
-    let mut stmt = conn.prepare(&sql)?;
-    let rows = if let Some(eid) = event_id {
-        stmt.query_map(params![pattern, eid], |r| {
-            Ok(WordListItem {
-                id: r.get(0)?,
-                name: r.get(1)?,
-                type_name: r.get(2)?,
-                def_count: r.get(3)?,
-            })
-        })?
-        .collect()
-    } else {
-        stmt.query_map(params![pattern], |r| {
-            Ok(WordListItem {
-                id: r.get(0)?,
-                name: r.get(1)?,
-                type_name: r.get(2)?,
-                def_count: r.get(3)?,
-            })
-        })?
-        .collect()
+    let rows: rusqlite::Result<Vec<WordListItem>> = match (event_id, type_filter.is_empty()) {
+        (None, true) => {
+            let sql = format!("{sql_base} WHERE LOWER(w.name) LIKE ?1 ORDER BY LOWER(w.name)");
+            conn.prepare(&sql)?.query_map(params![pattern], map_wli)?.collect()
+        }
+        (None, false) => {
+            let sql = format!("{sql_base} WHERE LOWER(w.name) LIKE ?1 AND t.name=?2 ORDER BY LOWER(w.name)");
+            conn.prepare(&sql)?.query_map(params![pattern, type_filter], map_wli)?.collect()
+        }
+        (Some(eid), true) => {
+            let sql = format!("{sql_base} WHERE LOWER(w.name) LIKE ?1{ev_clause} ORDER BY LOWER(w.name)");
+            conn.prepare(&sql)?.query_map(params![pattern, eid], map_wli)?.collect()
+        }
+        (Some(eid), false) => {
+            let sql = format!("{sql_base} WHERE LOWER(w.name) LIKE ?1{ev_clause} AND t.name=?3 ORDER BY LOWER(w.name)");
+            conn.prepare(&sql)?.query_map(params![pattern, eid, type_filter], map_wli)?.collect()
+        }
     };
     rows
 }

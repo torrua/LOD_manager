@@ -1,4 +1,12 @@
-use rusqlite::{params, Connection};
+//! HTML export for the Loglan Online Dictionary.
+//!
+//! # Performance
+//! Uses 4 bulk queries (words, definitions, affixes, used-in) instead of N+1
+//! per-word queries. With 10 000 words the old approach ran ~30 000 individual
+//! SQL statements; the new approach runs exactly 4.
+
+use rusqlite::{Connection, params};
+use std::collections::HashMap;
 use std::fmt::Write;
 
 struct WordRow {
@@ -13,7 +21,7 @@ struct WordRow {
     origin_x: Option<String>,
 }
 
-// moved out of function to appease clippy `items_after_statements`
+// Moved out of function to appease clippy `items_after_statements`.
 type DefRow = (Option<String>, Option<String>, String, Option<String>);
 
 fn esc(s: &str) -> String {
@@ -26,10 +34,12 @@ fn esc(s: &str) -> String {
 fn fmt_body(s: &str) -> String {
     let s = esc(s).replace("--", "\u{2014}");
     let s = s.replace(" % ", " \u{2014} ").replace("% ", "\u{2014} ");
-    regex_replace_kw(&s)
+    render_kw_spans(&s)
 }
 
-fn regex_replace_kw(s: &str) -> String {
+/// Replace «keyword» markers with `<em class="kw">` spans.
+/// Named `render_kw_spans` because it does NOT use the `regex` crate.
+fn render_kw_spans(s: &str) -> String {
     let mut out = String::with_capacity(s.len() + 32);
     let mut chars = s.char_indices().peekable();
     while let Some((_i, c)) = chars.next() {
@@ -103,40 +113,114 @@ document.getElementById('lod-search').addEventListener('input',function(){doSear
 </script>";
 
 pub fn generate_html(conn: &Connection, event_name: Option<&str>) -> rusqlite::Result<String> {
-    let words_sql = "SELECT w.id, w.name, t.name, w.source, w.year, w.rank, w.match_,
-                            w.origin, w.origin_x
-                     FROM words w
-                     LEFT JOIN types t ON t.id=w.type_id
-                     LEFT JOIN events es ON es.id=w.event_start_id
-                     WHERE (?1 IS NULL OR es.name=?1)
-                     ORDER BY LOWER(w.name)";
+    // ── 1. Load all words in ONE query ────────────────────────────────────────
+    // Two variants because rusqlite can't bind Optional<&str> to conditional SQL branches
+    // cleanly without a macro. Splitting here is explicit and avoids the ?1 IS NULL trick
+    // which prevents the query planner from using the event index.
+    let rows: Vec<WordRow> = if let Some(ev) = event_name {
+        let mut stmt = conn.prepare(
+            "SELECT w.id, w.name, t.name, w.source, w.year, w.rank, w.match_,
+                    w.origin, w.origin_x
+             FROM words w
+             LEFT JOIN types t ON t.id = w.type_id
+             JOIN events es ON es.id = w.event_start_id
+             WHERE es.name = ?1
+             ORDER BY LOWER(w.name)",
+        )?;
+        stmt.query_map(params![ev], map_word_row)?
+            .filter_map(std::result::Result::ok)
+            .collect()
+    } else {
+        let mut stmt = conn.prepare(
+            "SELECT w.id, w.name, t.name, w.source, w.year, w.rank, w.match_,
+                    w.origin, w.origin_x
+             FROM words w
+             LEFT JOIN types t ON t.id = w.type_id
+             ORDER BY LOWER(w.name)",
+        )?;
+        stmt.query_map([], map_word_row)?
+            .filter_map(std::result::Result::ok)
+            .collect()
+    };
 
-    let mut stmt = conn.prepare(words_sql)?;
-    let rows: Vec<WordRow> = stmt
-        .query_map(params![event_name], |r| {
-            Ok(WordRow {
-                id: r.get(0)?,
-                name: r.get(1)?,
-                type_name: r.get(2)?,
-                source: r.get(3)?,
-                year: r.get(4)?,
-                rank: r.get(5)?,
-                match_: r.get(6)?,
-                origin: r.get(7)?,
-                origin_x: r.get(8)?,
-            })
-        })?
-        .filter_map(|r: rusqlite::Result<WordRow>| r.ok())
-        .collect();
+    if rows.is_empty() {
+        return Ok(
+            "<!DOCTYPE html><html lang=\"en\"><body><p>No words found.</p></body></html>"
+                .to_string(),
+        );
+    }
 
+    // Collect the IDs we actually need for the next 3 queries.
+    let ids: Vec<i64> = rows.iter().map(|w| w.id).collect();
+
+    // ── 2. Bulk-load ALL definitions for these words (1 query) ───────────────
+    let mut defs_map: HashMap<i64, Vec<DefRow>> = HashMap::with_capacity(ids.len());
+    {
+        let mut stmt = conn.prepare(
+            "SELECT word_id, grammar, usage, body, tags
+             FROM definitions
+             ORDER BY word_id, position",
+        )?;
+        let iter = stmt.query_map([], |r| {
+            Ok((
+                r.get::<_, i64>(0)?,
+                r.get::<_, Option<String>>(1)?,
+                r.get::<_, Option<String>>(2)?,
+                r.get::<_, String>(3)?,
+                r.get::<_, Option<String>>(4)?,
+            ))
+        })?;
+        for row in iter.filter_map(std::result::Result::ok) {
+            defs_map.entry(row.0).or_default().push((row.1, row.2, row.3, row.4));
+        }
+    }
+
+    // ── 3. Bulk-load ALL affixes for these words (1 query) ───────────────────
+    let mut afx_map: HashMap<i64, Vec<String>> = HashMap::with_capacity(ids.len() / 4);
+    {
+        let mut stmt =
+            conn.prepare("SELECT word_id, affix FROM word_affixes ORDER BY word_id, id")?;
+        let iter =
+            stmt.query_map([], |r| Ok((r.get::<_, i64>(0)?, r.get::<_, String>(1)?)))?;
+        for row in iter.filter_map(std::result::Result::ok) {
+            afx_map.entry(row.0).or_default().push(row.1);
+        }
+    }
+
+    // ── 4. Bulk-load "used in" for all words that have affixes (1 query) ─────
+    // One JOIN across word_affixes × words — vastly faster than N correlated subqueries.
+    let mut used_map: HashMap<i64, Vec<String>> = HashMap::new();
+    {
+        let mut stmt = conn.prepare(
+            "SELECT wa.word_id, w2.name
+             FROM word_affixes wa
+             JOIN words w2
+               ON LOWER(w2.name) LIKE '%' || LOWER(wa.affix) || '%'
+              AND w2.id != wa.word_id
+             GROUP BY wa.word_id, w2.name
+             ORDER BY wa.word_id, w2.name",
+        )?;
+        let iter =
+            stmt.query_map([], |r| Ok((r.get::<_, i64>(0)?, r.get::<_, String>(1)?)))?;
+        for row in iter.filter_map(std::result::Result::ok) {
+            let v = used_map.entry(row.0).or_default();
+            if v.len() < 60 {
+                v.push(row.1);
+            }
+        }
+    }
+
+    // ── 5. Build HTML string ──────────────────────────────────────────────────
     let letters: Vec<char> = rows
         .iter()
-        .filter_map(|w| w.name.chars().next().map(|c: char| c.to_ascii_uppercase()))
+        .filter_map(|w| w.name.chars().next().map(|c| c.to_ascii_uppercase()))
         .collect::<std::collections::BTreeSet<_>>()
         .into_iter()
         .collect();
 
-    let mut html = String::with_capacity(rows.len() * 300);
+    // Pre-allocate generously: ~400 bytes per entry on average
+    let mut html = String::with_capacity(rows.len() * 400);
+
     let title = match event_name {
         Some(ev) => format!("LOD — {}", esc(ev)),
         None => "Loglan Online Dictionary".to_string(),
@@ -156,111 +240,60 @@ pub fn generate_html(conn: &Connection, event_name: Option<&str>) -> rusqlite::R
     }
     html.push_str("</div>\n</nav>\n<main class=\"content\">\n");
 
-    let mut def_stmt = conn.prepare(
-        "SELECT grammar, usage, body, tags FROM definitions WHERE word_id=?1 ORDER BY position",
-    )?;
-    let mut afx_stmt =
-        conn.prepare("SELECT affix FROM word_affixes WHERE word_id=?1 ORDER BY id")?;
-    // EXISTS subquery avoids binding ?1 twice (rusqlite requires unique param count)
-    let mut used_stmt = conn.prepare(
-        "SELECT DISTINCT w2.name FROM words w2
-         WHERE w2.id != ?1
-           AND EXISTS (
-             SELECT 1 FROM word_affixes wa
-             WHERE wa.word_id = ?1
-               AND LOWER(w2.name) LIKE '%'||LOWER(wa.affix)||'%'
-           )
-         ORDER BY w2.name LIMIT 60",
-    )?;
-
+    let empty_strs: Vec<String> = Vec::new();
+    let empty_defs: Vec<DefRow> = Vec::new();
     let mut cur_letter = '\0';
+
     for w in &rows {
-        let first = w
-            .name
-            .chars()
-            .next()
-            .map_or('?', |c: char| c.to_ascii_uppercase());
+        let first = w.name.chars().next().map_or('?', |c| c.to_ascii_uppercase());
         if first != cur_letter {
             if cur_letter != '\0' {
                 html.push_str("</div></div>\n");
             }
             cur_letter = first;
-            let _ = write!(html,
-                "<div class=\"letter-section\" id=\"L{first}\">\n<div class=\"letter-head\">{first}</div>\n<div>\n");
-        }
-
-        let affixes: Vec<String> = afx_stmt
-            .query_map(params![w.id], |r| r.get(0))?
-            .filter_map(|r: rusqlite::Result<String>| r.ok())
-            .collect();
-
-        let used_in: Vec<String> = used_stmt
-            .query_map(params![w.id], |r| r.get(0))?
-            .filter_map(|r: rusqlite::Result<String>| r.ok())
-            .collect();
-
-        let _ = writeln!(
-            html,
-            "<div class=\"entry\" data-name=\"{}\">",
-            w.name.to_lowercase()
-        );
-        let _ = write!(html, "<div class=\"entry-name\">{}", esc(&w.name));
-        for a in &affixes {
-            let _ = write!(html,
-                " <span style=\"font-size:.7rem;color:#5a8040;border:1px solid #5a8040;border-radius:2px;padding:0 3px\">{}</span>",
-                esc(a));
-        }
-        html.push_str("</div>\n");
-
-        // Meta
-        let mut meta_parts: Vec<String> = Vec::new();
-        if let Some(ref origin) = w.origin {
-            let ox = w.origin_x.as_deref().unwrap_or("");
-            let ox_part = if ox.is_empty() {
-                String::new()
-            } else {
-                format!(" = {}", esc(ox))
-            };
-            meta_parts.push(format!(
-                "<span class=\"origin\">&lt;{}{}&gt;</span>",
-                esc(origin),
-                ox_part
-            ));
-        }
-        if let Some(ref m) = w.match_ {
-            meta_parts.push(esc(m));
-        }
-        if let Some(ref t) = w.type_name {
-            meta_parts.push(esc(t));
-        }
-        if let Some(ref s) = w.source {
-            meta_parts.push(esc(s));
-        }
-        if let Some(ref y) = w.year {
-            meta_parts.push(esc(y));
-        }
-        if let Some(ref r) = w.rank {
-            meta_parts.push(esc(r));
-        }
-        if !meta_parts.is_empty() {
-            let _ = writeln!(
+            let _ = write!(
                 html,
-                "<div class=\"entry-meta\">{}</div>",
-                meta_parts.join(" · ")
+                "<div class=\"letter-section\" id=\"L{first}\">\
+                 \n<div class=\"letter-head\">{first}</div>\n<div>\n"
             );
         }
 
-        // Definitions
-        let defs: Vec<DefRow> = def_stmt
-            .query_map(params![w.id], |r| {
-                Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?))
-            })?
-            .filter_map(|r: rusqlite::Result<DefRow>| r.ok())
-            .collect();
+        let affixes = afx_map.get(&w.id).unwrap_or(&empty_strs);
+        let used_in = used_map.get(&w.id).unwrap_or(&empty_strs);
+        let defs = defs_map.get(&w.id).unwrap_or(&empty_defs);
 
+        let _ = writeln!(html, "<div class=\"entry\" data-name=\"{}\">", w.name.to_lowercase());
+        let _ = write!(html, "<div class=\"entry-name\">{}", esc(&w.name));
+        for a in affixes {
+            let _ = write!(
+                html,
+                " <span style=\"font-size:.7rem;color:#5a8040;\
+                 border:1px solid #5a8040;border-radius:2px;padding:0 3px\">{}</span>",
+                esc(a)
+            );
+        }
+        html.push_str("</div>\n");
+
+        // Meta line
+        let mut meta: Vec<String> = Vec::new();
+        if let Some(ref origin) = w.origin {
+            let ox = w.origin_x.as_deref().unwrap_or("");
+            let ox_part = if ox.is_empty() { String::new() } else { format!(" = {}", esc(ox)) };
+            meta.push(format!("<span class=\"origin\">&lt;{}{}&gt;</span>", esc(origin), ox_part));
+        }
+        if let Some(ref m) = w.match_     { meta.push(esc(m)); }
+        if let Some(ref t) = w.type_name  { meta.push(esc(t)); }
+        if let Some(ref s) = w.source     { meta.push(esc(s)); }
+        if let Some(ref y) = w.year       { meta.push(esc(y)); }
+        if let Some(ref r) = w.rank       { meta.push(esc(r)); }
+        if !meta.is_empty() {
+            let _ = writeln!(html, "<div class=\"entry-meta\">{}</div>", meta.join(" · "));
+        }
+
+        // Definitions
         if !defs.is_empty() {
             html.push_str("<div class=\"defs\">\n");
-            for (grammar, usage, body, tags) in &defs {
+            for (grammar, usage, body, tags) in defs {
                 html.push_str("<div class=\"def\">");
                 if let Some(u) = usage {
                     let u2 = u.replace('%', &esc(&w.name));
@@ -286,8 +319,12 @@ pub fn generate_html(conn: &Connection, event_name: Option<&str>) -> rusqlite::R
                     html.push_str("; ");
                 }
                 let eu = esc(u);
-                let _ = write!(html,
-                    "<a href=\"#\" onclick=\"document.getElementById('lod-search').value='{eu}';doSearch('{eu}');return false\">{eu}</a>");
+                let _ = write!(
+                    html,
+                    "<a href=\"#\" onclick=\"\
+                     document.getElementById('lod-search').value='{eu}';\
+                     doSearch('{eu}');return false\">{eu}</a>"
+                );
             }
             html.push_str("</div>\n");
         }
@@ -304,7 +341,24 @@ pub fn generate_html(conn: &Connection, event_name: Option<&str>) -> rusqlite::R
     Ok(html)
 }
 
-/// Write HTML to a file on disk (bypasses FS plugin permissions)
+#[inline]
+fn map_word_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<WordRow> {
+    Ok(WordRow {
+        id: r.get(0)?,
+        name: r.get(1)?,
+        type_name: r.get(2)?,
+        source: r.get(3)?,
+        year: r.get(4)?,
+        rank: r.get(5)?,
+        match_: r.get(6)?,
+        origin: r.get(7)?,
+        origin_x: r.get(8)?,
+    })
+}
+
+/// Write the generated HTML directly to a file path.
+/// Uses `std::fs::write` to bypass the Tauri FS plugin permission layer,
+/// which is intentional — the path was chosen by the user via a save dialog.
 pub fn write_html_to_file(
     conn: &Connection,
     path: &str,
