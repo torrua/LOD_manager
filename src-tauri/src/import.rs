@@ -6,7 +6,16 @@ use std::path::Path;
 
 const SEP: char = '@';
 
-type WordData = (String, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Vec<String>);
+type WordData = (
+    String,
+    Option<String>,
+    Option<String>,
+    Option<String>,
+    Option<String>,
+    Option<String>,
+    Option<String>,
+    Vec<String>,
+);
 
 fn rows(content: &str) -> Vec<Vec<String>> {
     content

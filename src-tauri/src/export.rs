@@ -199,7 +199,11 @@ pub fn generate_html(conn: &Connection, event_name: Option<&str>) -> rusqlite::R
             .filter_map(|r: rusqlite::Result<String>| r.ok())
             .collect();
 
-        let _ = writeln!(html, "<div class=\"entry\" data-name=\"{}\">", w.name.to_lowercase());
+        let _ = writeln!(
+            html,
+            "<div class=\"entry\" data-name=\"{}\">",
+            w.name.to_lowercase()
+        );
         let _ = write!(html, "<div class=\"entry-name\">{}", esc(&w.name));
         for a in &affixes {
             let _ = write!(html,
@@ -239,9 +243,11 @@ pub fn generate_html(conn: &Connection, event_name: Option<&str>) -> rusqlite::R
             meta_parts.push(esc(r));
         }
         if !meta_parts.is_empty() {
-            let _ = writeln!(html,
+            let _ = writeln!(
+                html,
                 "<div class=\"entry-meta\">{}</div>",
-                meta_parts.join(" · "));
+                meta_parts.join(" · ")
+            );
         }
 
         // Definitions

@@ -206,12 +206,16 @@ fn fts_is_ready(state: Db) -> bool {
 
 #[tauri::command]
 fn export_html(state: Db, event_name: Option<String>) -> Res<String> {
-    with_db(&state, |conn| export::generate_html(conn, event_name.as_deref()))
+    with_db(&state, |conn| {
+        export::generate_html(conn, event_name.as_deref())
+    })
 }
 
 #[tauri::command]
 fn export_html_to_file(state: Db, path: String, event_name: Option<String>) -> Res<()> {
-    with_db(&state, |conn| export::write_html_to_file(conn, &path, event_name.as_deref()))
+    with_db(&state, |conn| {
+        export::write_html_to_file(conn, &path, event_name.as_deref())
+    })
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -219,13 +223,36 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
-        .manage(AppState { db: Mutex::new(None), db_path: Mutex::new(String::new()) })
+        .manage(AppState {
+            db: Mutex::new(None),
+            db_path: Mutex::new(String::new()),
+        })
         .invoke_handler(tauri::generate_handler![
-            open_database, create_database, get_db_stats, get_words, get_word, save_word,
-            delete_word, save_definition, delete_definition, get_events, save_event,
-            delete_event, get_types, save_type, delete_type, get_authors, save_author,
-            delete_author, import_lod_files, get_event_words, search_english, rebuild_fts,
-            fts_is_ready, export_html, export_html_to_file
+            open_database,
+            create_database,
+            get_db_stats,
+            get_words,
+            get_word,
+            save_word,
+            delete_word,
+            save_definition,
+            delete_definition,
+            get_events,
+            save_event,
+            delete_event,
+            get_types,
+            save_type,
+            delete_type,
+            get_authors,
+            save_author,
+            delete_author,
+            import_lod_files,
+            get_event_words,
+            search_english,
+            rebuild_fts,
+            fts_is_ready,
+            export_html,
+            export_html_to_file
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -240,7 +267,11 @@ mod tests {
         let conn = rusqlite::Connection::open_in_memory().unwrap();
         db::init_schema(&conn).unwrap();
         db::init_fts(&conn).unwrap();
-        let count: i64 = conn.query_row("SELECT COUNT(*) FROM events WHERE name='Start'", [], |r| r.get(0)).unwrap();
+        let count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM events WHERE name='Start'", [], |r| {
+                r.get(0)
+            })
+            .unwrap();
         assert_eq!(count, 1);
     }
 }
