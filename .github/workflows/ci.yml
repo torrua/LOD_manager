@@ -1,6 +1,7 @@
 name: CI
 
-# Run on every push and PR to main / develop
+# Run on every push and PR to main / develop.
+# Skip if the commit was made by the autoformat bot to avoid infinite loops.
 on:
   push:
     branches: [main, develop]
@@ -9,11 +10,13 @@ on:
 
 jobs:
   # ─────────────────────────────────────────────────────────────
-  # Frontend: ESLint + Prettier + svelte-check (TypeScript)
+  # Frontend: ESLint + Prettier check + svelte-check (TypeScript)
   # ─────────────────────────────────────────────────────────────
   frontend:
     name: Frontend checks
     runs-on: ubuntu-latest
+    # Skip auto-format commits — they are already formatted.
+    if: "!contains(github.event.head_commit.message, '[autoformat]')"
 
     steps:
       - uses: actions/checkout@v4
@@ -36,11 +39,12 @@ jobs:
         run: npm run check
 
   # ─────────────────────────────────────────────────────────────
-  # Rust: rustfmt + Clippy + cargo test
+  # Rust: rustfmt check + Clippy + cargo test
   # ─────────────────────────────────────────────────────────────
   rust:
     name: Rust checks
     runs-on: ubuntu-latest
+    if: "!contains(github.event.head_commit.message, '[autoformat]')"
 
     steps:
       - uses: actions/checkout@v4
@@ -55,7 +59,7 @@ jobs:
         with:
           workspaces: src-tauri
 
-      # Install system dependencies required by Tauri on Linux
+      # System libs required by Tauri on Linux
       - name: Install Tauri system deps
         run: |
           sudo apt-get update
