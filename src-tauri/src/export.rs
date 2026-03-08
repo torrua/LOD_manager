@@ -139,7 +139,7 @@ pub fn generate_html(conn: &Connection, event_name: Option<&str>) -> rusqlite::R
     };
     html.push_str("<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"UTF-8\">\n");
     html.push_str("<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">\n");
-    html.push_str(&format!("<title>{}</title>\n", title));
+    html.push_str(&format!("<title>{title}</title>\n"));
     html.push_str(STYLE);
     html.push_str("</head>\n<body>\n<div class=\"wrap\">\n<nav class=\"sidebar\">\n");
     html.push_str("<h2>LOD</h2>\n");
@@ -148,7 +148,7 @@ pub fn generate_html(conn: &Connection, event_name: Option<&str>) -> rusqlite::R
     );
     html.push_str("<div class=\"alpha\">\n");
     for c in &letters {
-        html.push_str(&format!("<a href=\"#L{}\">{}</a>\n", c, c));
+        html.push_str(&format!("<a href=\"#L{c}\">{c}</a>\n"));
     }
     html.push_str("</div>\n</nav>\n<main class=\"content\">\n");
 
@@ -175,15 +175,14 @@ pub fn generate_html(conn: &Connection, event_name: Option<&str>) -> rusqlite::R
             .name
             .chars()
             .next()
-            .map(|c: char| c.to_ascii_uppercase())
-            .unwrap_or('?');
+            .map_or('?', |c: char| c.to_ascii_uppercase());
         if first != cur_letter {
             if cur_letter != '\0' {
                 html.push_str("</div></div>\n");
             }
             cur_letter = first;
             html.push_str(&format!(
-                "<div class=\"letter-section\" id=\"L{0}\">\n<div class=\"letter-head\">{0}</div>\n<div>\n", first));
+                "<div class=\"letter-section\" id=\"L{first}\">\n<div class=\"letter-head\">{first}</div>\n<div>\n"));
         }
 
         let affixes: Vec<String> = afx_stmt
@@ -212,10 +211,10 @@ pub fn generate_html(conn: &Connection, event_name: Option<&str>) -> rusqlite::R
         let mut meta_parts: Vec<String> = Vec::new();
         if let Some(ref origin) = w.origin {
             let ox = w.origin_x.as_deref().unwrap_or("");
-            let ox_part = if !ox.is_empty() {
-                format!(" = {}", esc(ox))
-            } else {
+            let ox_part = if ox.is_empty() {
                 String::new()
+            } else {
+                format!(" = {}", esc(ox))
             };
             meta_parts.push(format!(
                 "<span class=\"origin\">&lt;{}{}&gt;</span>",

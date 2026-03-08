@@ -82,8 +82,8 @@ pub fn init_schema(conn: &Connection) -> rusqlite::Result<()> {
     )
 }
 
-/// One-time migration: ensure words table has UNIQUE(name, type_id) and NOT a
-/// standalone UNIQUE(name). SQLite can't drop constraints directly — we use
+/// One-time migration: ensure words table has UNIQUE(name, `type_id`) and NOT a
+/// standalone UNIQUE(name). `SQLite` can't drop constraints directly — we use
 /// CREATE TABLE + INSERT + DROP + RENAME if the old unique index exists.
 /// Safe to call multiple times (checks flag first).
 pub fn migrate_words_unique_if_needed(conn: &Connection) -> rusqlite::Result<()> {
@@ -169,7 +169,7 @@ pub fn migrate_words_unique_if_needed(conn: &Connection) -> rusqlite::Result<()>
 
 /// One-time migration: swap annotation ↔ notes in events table.
 /// Needed because earlier import had the columns in wrong order.
-/// Runs only if settings flag 'ev_col_migrated' is not set.
+/// Runs only if settings flag '`ev_col_migrated`' is not set.
 pub fn migrate_event_columns_if_needed(conn: &Connection) -> rusqlite::Result<()> {
     let already: i64 = conn
         .query_row(
@@ -230,10 +230,8 @@ pub fn list_words(
         "SELECT w.id, w.name, t.name, (SELECT COUNT(*) FROM definitions d WHERE d.word_id=w.id)
          FROM words w
          LEFT JOIN types t ON t.id=w.type_id
-         WHERE LOWER(w.name) LIKE ?1{ev}{ty}
-         ORDER BY LOWER(w.name)",
-        ev = ev_clause,
-        ty = type_clause
+         WHERE LOWER(w.name) LIKE ?1{ev_clause}{type_clause}
+         ORDER BY LOWER(w.name)"
     );
 
     let mut stmt = conn.prepare(&sql)?;
@@ -300,14 +298,14 @@ pub fn get_word(conn: &Connection, id: i64) -> rusqlite::Result<WordDetail> {
     let mut s = conn.prepare("SELECT affix FROM word_affixes WHERE word_id=?1 ORDER BY id")?;
     word.affixes = s
         .query_map(params![id], |r| r.get(0))?
-        .filter_map(|r| r.ok())
+        .filter_map(std::result::Result::ok)
         .collect();
 
     // spellings
     let mut s = conn.prepare("SELECT spelling FROM word_spellings WHERE word_id=?1 ORDER BY id")?;
     word.spellings = s
         .query_map(params![id], |r| r.get(0))?
-        .filter_map(|r| r.ok())
+        .filter_map(std::result::Result::ok)
         .collect();
 
     // definitions
@@ -324,7 +322,7 @@ pub fn get_word(conn: &Connection, id: i64) -> rusqlite::Result<WordDetail> {
                 tags: r.get(5)?,
             })
         })?
-        .filter_map(|r| r.ok())
+        .filter_map(std::result::Result::ok)
         .collect();
 
     // used_in: words that contain this word's affixes in their name
@@ -340,7 +338,7 @@ pub fn get_word(conn: &Connection, id: i64) -> rusqlite::Result<WordDetail> {
     )?;
     word.used_in = s
         .query_map(params![id], |r| r.get(0))?
-        .filter_map(|r| r.ok())
+        .filter_map(std::result::Result::ok)
         .collect();
 
     Ok(word)
@@ -723,10 +721,10 @@ pub fn search_english_fts(
     let q_clean = q.trim().replace('"', "\"\"");
     let fts_query = if q_clean.contains(' ') {
         // phrase search
-        format!("\"{}\"", q_clean)
+        format!("\"{q_clean}\"")
     } else {
         // prefix
-        format!("{}*", q_clean)
+        format!("{q_clean}*")
     };
 
     let sql = "
@@ -817,7 +815,7 @@ pub fn search_english_like(
             match_count: r.get(5)?,
         })
     })?;
-    let mut results: Vec<ELResult> = rows.filter_map(|r| r.ok()).collect();
+    let mut results: Vec<ELResult> = rows.filter_map(std::result::Result::ok).collect();
     results.truncate(limit as usize);
     Ok(results)
 }
@@ -837,7 +835,7 @@ pub fn fts_is_ready(conn: &Connection) -> bool {
             > 0
 }
 
-/// Words added (event_start) and removed (event_end) for a given event.
+/// Words added (`event_start`) and removed (`event_end`) for a given event.
 pub fn get_event_words(
     conn: &Connection,
     event_id: i64,
@@ -849,14 +847,14 @@ pub fn get_event_words(
     )?;
     let added: Vec<String> = s
         .query_map(params![event_id], |r| r.get(0))?
-        .filter_map(|r| r.ok())
+        .filter_map(std::result::Result::ok)
         .collect();
 
     let mut s =
         conn.prepare("SELECT w.name FROM words w WHERE w.event_end_id = ?1 ORDER BY w.name")?;
     let removed: Vec<String> = s
         .query_map(params![event_id], |r| r.get(0))?
-        .filter_map(|r| r.ok())
+        .filter_map(std::result::Result::ok)
         .collect();
 
     Ok((added, removed))
