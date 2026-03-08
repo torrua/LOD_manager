@@ -83,7 +83,14 @@ pub fn import_files(conn: &mut Connection, paths: &[String]) -> ImportResult {
                 if let Some(name) = r.first().filter(|s| !s.is_empty()) {
                     let type_x = r.get(1).and_then(|s| opt(s));
                     let group = r.get(2).and_then(|s| opt(s));
-                    if tx.execute("INSERT OR IGNORE INTO types (name, type_x, group_) VALUES (?1,?2,?3)", params![name, type_x, group]).is_ok() && tx.changes() > 0 {
+                    if tx
+                        .execute(
+                            "INSERT OR IGNORE INTO types (name, type_x, group_) VALUES (?1,?2,?3)",
+                            params![name, type_x, group],
+                        )
+                        .is_ok()
+                        && tx.changes() > 0
+                    {
                         result.types += 1;
                     }
                 }
@@ -98,7 +105,14 @@ pub fn import_files(conn: &mut Connection, paths: &[String]) -> ImportResult {
             for r in rows(&content) {
                 if let Some(initials) = r.first().filter(|s| !s.is_empty()) {
                     let full_name = r.get(1).and_then(|s| opt(s));
-                    if tx.execute("INSERT OR IGNORE INTO authors (initials, full_name) VALUES (?1,?2)", params![initials, full_name]).is_ok() && tx.changes() > 0 {
+                    if tx
+                        .execute(
+                            "INSERT OR IGNORE INTO authors (initials, full_name) VALUES (?1,?2)",
+                            params![initials, full_name],
+                        )
+                        .is_ok()
+                        && tx.changes() > 0
+                    {
                         result.authors += 1;
                     }
                 }
@@ -112,10 +126,14 @@ pub fn import_files(conn: &mut Connection, paths: &[String]) -> ImportResult {
     if let Some(p) = event_file {
         if let Ok(content) = fs::read_to_string(&p) {
             for r in rows(&content) {
-                if r.len() < 2 { continue; }
+                if r.len() < 2 {
+                    continue;
+                }
                 let old_id = &r[0];
                 let name = &r[1];
-                if name.is_empty() { continue; }
+                if name.is_empty() {
+                    continue;
+                }
                 let date = r.get(2).and_then(|s| opt(s));
                 let notes = r.get(3).and_then(|s| opt(s));
                 let suffix = r.get(4).and_then(|s| opt(s));
@@ -138,29 +156,70 @@ pub fn import_files(conn: &mut Connection, paths: &[String]) -> ImportResult {
     if let Some(p) = word_file {
         if let Ok(content) = fs::read_to_string(&p) {
             for r in rows(&content) {
-                if r.len() < 2 { continue; }
+                if r.len() < 2 {
+                    continue;
+                }
                 let old_id = r[0].clone();
                 let type_name = r.get(1).map_or("", String::as_str).to_string();
-                let affixes = r.get(3).map_or("", String::as_str).split_whitespace().map(String::from).collect();
-                word_staging.insert(old_id, (type_name, r.get(4).and_then(|s| opt(s)), r.get(5).and_then(|s| opt(s)), r.get(6).and_then(|s| opt(s)), r.get(7).and_then(|s| opt(s)), r.get(8).and_then(|s| opt(s)), r.get(9).and_then(|s| opt(s)), affixes));
+                let affixes = r
+                    .get(3)
+                    .map_or("", String::as_str)
+                    .split_whitespace()
+                    .map(String::from)
+                    .collect();
+                word_staging.insert(
+                    old_id,
+                    (
+                        type_name,
+                        r.get(4).and_then(|s| opt(s)),
+                        r.get(5).and_then(|s| opt(s)),
+                        r.get(6).and_then(|s| opt(s)),
+                        r.get(7).and_then(|s| opt(s)),
+                        r.get(8).and_then(|s| opt(s)),
+                        r.get(9).and_then(|s| opt(s)),
+                        affixes,
+                    ),
+                );
             }
         }
     }
 
     if let Some(p) = spell_file {
         if let Ok(content) = fs::read_to_string(&p) {
-            let start_id = tx.query_row("SELECT id FROM events WHERE name='Start'", [], |r| r.get(0)).unwrap_or(1);
+            let start_id = tx
+                .query_row("SELECT id FROM events WHERE name='Start'", [], |r| r.get(0))
+                .unwrap_or(1);
             for r in rows(&content) {
-                if r.len() < 2 { continue; }
+                if r.len() < 2 {
+                    continue;
+                }
                 let old_id = &r[0];
                 let name = &r[1];
-                if name.is_empty() { continue; }
-                
-                let ev_start = event_id_map.get(r.get(4).map_or("1", String::as_str)).copied().unwrap_or(start_id);
-                let ev_end = r.get(5).and_then(|s| opt(s)).and_then(|s| event_id_map.get(&s).copied());
+                if name.is_empty() {
+                    continue;
+                }
 
-                let (type_name, match_, source, year, rank, origin, origin_x, affixes) = word_staging.get(old_id).cloned().unwrap_or_default();
-                let type_id: Option<i64> = if type_name.is_empty() { None } else { tx.query_row("SELECT id FROM types WHERE name=?1", params![type_name], |r| r.get(0)).ok() };
+                let ev_start = event_id_map
+                    .get(r.get(4).map_or("1", String::as_str))
+                    .copied()
+                    .unwrap_or(start_id);
+                let ev_end = r
+                    .get(5)
+                    .and_then(|s| opt(s))
+                    .and_then(|s| event_id_map.get(&s).copied());
+
+                let (type_name, match_, source, year, rank, origin, origin_x, affixes) =
+                    word_staging.get(old_id).cloned().unwrap_or_default();
+                let type_id: Option<i64> = if type_name.is_empty() {
+                    None
+                } else {
+                    tx.query_row(
+                        "SELECT id FROM types WHERE name=?1",
+                        params![type_name],
+                        |r| r.get(0),
+                    )
+                    .ok()
+                };
 
                 if tx.execute("INSERT OR IGNORE INTO words (name, type_id, match_, source, year, rank, origin, origin_x, event_start_id, event_end_id) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10)", params![name, type_id, match_, source, year, rank, origin, origin_x, ev_start, ev_end]).is_ok() {
                     let db_id = if tx.changes() > 0 {
@@ -183,29 +242,41 @@ pub fn import_files(conn: &mut Connection, paths: &[String]) -> ImportResult {
         if let Ok(content) = fs::read_to_string(&p) {
             let mut def_count = 0usize;
             for r in rows(&content) {
-                if r.len() < 5 { continue; }
+                if r.len() < 5 {
+                    continue;
+                }
                 let old_word_id = &r[0];
                 let position: i64 = r[1].parse().unwrap_or(0);
                 let usage = r.get(2).and_then(|s| opt(s));
                 let grammar = r.get(3).and_then(|s| opt(s));
                 let body = r.get(4).map_or("", String::as_str);
-                if body.is_empty() { continue; }
+                if body.is_empty() {
+                    continue;
+                }
                 let tags = r.get(6).and_then(|s| opt(s));
 
-                if let Some(wid) = old_id_to_db_id.get(old_word_id).copied().or_else(|| old_word_id.parse().ok()) {
+                if let Some(wid) = old_id_to_db_id
+                    .get(old_word_id)
+                    .copied()
+                    .or_else(|| old_word_id.parse().ok())
+                {
                     if tx.execute("INSERT OR IGNORE INTO definitions (word_id, position, grammar, usage, body, tags) VALUES (?1,?2,?3,?4,?5,?6)", params![wid, position, grammar, usage, body, tags]).is_ok() && tx.changes() > 0 {
                         def_count += 1;
                     }
                 }
             }
             result.definitions = def_count;
-            result.messages.push(format!("Definitions: {}", result.definitions));
+            result
+                .messages
+                .push(format!("Definitions: {}", result.definitions));
         }
     }
 
     let _ = tx.commit();
     if let Some(p) = &settings_file {
-        if let Ok(n) = import_settings(conn, p) { result.settings += n; }
+        if let Ok(n) = import_settings(conn, p) {
+            result.settings += n;
+        }
     }
     result
 }
@@ -213,8 +284,15 @@ pub fn import_files(conn: &mut Connection, paths: &[String]) -> ImportResult {
 fn import_settings(conn: &Connection, path: &str) -> Result<usize, Box<dyn std::error::Error>> {
     let content = fs::read_to_string(path)?;
     let mut count = 0usize;
-    for line in content.lines().map(str::trim).filter(|l| !l.is_empty() && !l.starts_with('#') && !l.starts_with("//")) {
-        let (k, v) = line.split_once('=').or_else(|| line.split_once('\t')).map_or(("", ""), |(a, b)| (a.trim(), b.trim()));
+    for line in content
+        .lines()
+        .map(str::trim)
+        .filter(|l| !l.is_empty() && !l.starts_with('#') && !l.starts_with("//"))
+    {
+        let (k, v) = line
+            .split_once('=')
+            .or_else(|| line.split_once('\t'))
+            .map_or(("", ""), |(a, b)| (a.trim(), b.trim()));
         if !k.is_empty() {
             conn.execute("INSERT INTO settings(key,value) VALUES(?1,?2) ON CONFLICT(key) DO UPDATE SET value=excluded.value", params![k, v])?;
             count += 1;

@@ -78,8 +78,15 @@ fn get_db_stats(state: Db) -> Res<DbStats> {
 }
 
 #[tauri::command]
-fn get_words(state: Db, q: String, type_filter: String, event_id: Option<i64>) -> Res<Vec<WordListItem>> {
-    with_db(&state, |conn| db::list_words(conn, &q, &type_filter, event_id))
+fn get_words(
+    state: Db,
+    q: String,
+    type_filter: String,
+    event_id: Option<i64>,
+) -> Res<Vec<WordListItem>> {
+    with_db(&state, |conn| {
+        db::list_words(conn, &q, &type_filter, event_id)
+    })
 }
 
 #[tauri::command]
@@ -99,7 +106,12 @@ fn delete_word(state: Db, id: i64) -> Res<()> {
 }
 
 #[tauri::command]
-fn save_definition(state: Db, id: Option<i64>, word_id: i64, data: SaveDefinition) -> Res<WordDetail> {
+fn save_definition(
+    state: Db,
+    id: Option<i64>,
+    word_id: i64,
+    data: SaveDefinition,
+) -> Res<WordDetail> {
     with_db(&state, |conn| db::save_definition(conn, id, word_id, &data))?;
     with_db(&state, |conn| db::get_word(conn, word_id))
 }
@@ -122,7 +134,16 @@ fn save_event(state: Db, id: Option<i64>, data: SaveEvent) -> Res<EventItem> {
         conn.query_row(
             "SELECT id,name,date,annotation,suffix,notes FROM events WHERE id=?1",
             rusqlite::params![eid],
-            |r| Ok(EventItem { id: r.get(0)?, name: r.get(1)?, date: r.get(2)?, annotation: r.get(3)?, suffix: r.get(4)?, notes: r.get(5)? }),
+            |r| {
+                Ok(EventItem {
+                    id: r.get(0)?,
+                    name: r.get(1)?,
+                    date: r.get(2)?,
+                    annotation: r.get(3)?,
+                    suffix: r.get(4)?,
+                    notes: r.get(5)?,
+                })
+            },
         )
     })
 }
@@ -180,13 +201,19 @@ fn get_event_words(state: Db, event_id: i64) -> Res<(Vec<String>, Vec<String>)> 
 
 #[tauri::command]
 fn search_english(state: Db, params: ELSearchParams) -> Res<Vec<ELResult>> {
-    if params.query.trim().is_empty() { return Ok(vec![]); }
+    if params.query.trim().is_empty() {
+        return Ok(vec![]);
+    }
     if params.use_like {
-        with_db(&state, |conn| db::search_english_like(conn, &params.query, params.limit))
+        with_db(&state, |conn| {
+            db::search_english_like(conn, &params.query, params.limit)
+        })
     } else {
-        with_db(&state, |conn| match db::search_english_fts(conn, &params.query, params.limit) {
-            Ok(r) if !r.is_empty() => Ok(r),
-            _ => db::search_english_like(conn, &params.query, params.limit),
+        with_db(&state, |conn| {
+            match db::search_english_fts(conn, &params.query, params.limit) {
+                Ok(r) if !r.is_empty() => Ok(r),
+                _ => db::search_english_like(conn, &params.query, params.limit),
+            }
         })
     }
 }
@@ -201,7 +228,12 @@ fn rebuild_fts(state: Db) -> Res<i64> {
 
 #[tauri::command]
 fn fts_is_ready(state: Db) -> bool {
-    state.db.lock().ok().and_then(|g| g.as_ref().map(db::fts_is_ready)).unwrap_or(false)
+    state
+        .db
+        .lock()
+        .ok()
+        .and_then(|g| g.as_ref().map(db::fts_is_ready))
+        .unwrap_or(false)
 }
 
 #[tauri::command]
