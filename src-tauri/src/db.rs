@@ -241,19 +241,30 @@ pub fn list_words(
     let rows: rusqlite::Result<Vec<WordListItem>> = match (event_id, type_filter.is_empty()) {
         (None, true) => {
             let sql = format!("{sql_base} WHERE LOWER(w.name) LIKE ?1 ORDER BY LOWER(w.name)");
-            conn.prepare(&sql)?.query_map(params![pattern], map_wli)?.collect()
+            conn.prepare(&sql)?
+                .query_map(params![pattern], map_wli)?
+                .collect()
         }
         (None, false) => {
-            let sql = format!("{sql_base} WHERE LOWER(w.name) LIKE ?1 AND t.name=?2 ORDER BY LOWER(w.name)");
-            conn.prepare(&sql)?.query_map(params![pattern, type_filter], map_wli)?.collect()
+            let sql = format!(
+                "{sql_base} WHERE LOWER(w.name) LIKE ?1 AND t.name=?2 ORDER BY LOWER(w.name)"
+            );
+            conn.prepare(&sql)?
+                .query_map(params![pattern, type_filter], map_wli)?
+                .collect()
         }
         (Some(eid), true) => {
-            let sql = format!("{sql_base} WHERE LOWER(w.name) LIKE ?1{ev_clause} ORDER BY LOWER(w.name)");
-            conn.prepare(&sql)?.query_map(params![pattern, eid], map_wli)?.collect()
+            let sql =
+                format!("{sql_base} WHERE LOWER(w.name) LIKE ?1{ev_clause} ORDER BY LOWER(w.name)");
+            conn.prepare(&sql)?
+                .query_map(params![pattern, eid], map_wli)?
+                .collect()
         }
         (Some(eid), false) => {
             let sql = format!("{sql_base} WHERE LOWER(w.name) LIKE ?1{ev_clause} AND t.name=?3 ORDER BY LOWER(w.name)");
-            conn.prepare(&sql)?.query_map(params![pattern, eid, type_filter], map_wli)?.collect()
+            conn.prepare(&sql)?
+                .query_map(params![pattern, eid, type_filter], map_wli)?
+                .collect()
         }
     };
     rows
