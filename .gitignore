@@ -1,0 +1,23 @@
+# Node
+node_modules/
+dist/
+
+# Rust / Tauri build artifacts
+src-tauri/target/
+src-tauri/gen/
+
+# Svelte
+.svelte-kit/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.iml
+
+# Env files with secrets
+.env
+.env.local

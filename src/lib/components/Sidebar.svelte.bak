@@ -1,0 +1,269 @@
+<script lang="ts">
+  import { app, applyFilter, selectWord, selectEvent } from '../store.svelte';
+  import type { Tab } from '../../types';
+
+  // Resize
+  let sbWidth = $state(parseInt(localStorage.getItem('sb-w') || '252'));
+  let dragging = $state(false);
+  function dragStart(e: MouseEvent) {
+    dragging = true;
+    const sx = e.clientX, sw = sbWidth;
+    const mm = (e2: MouseEvent) => sbWidth = Math.max(180, Math.min(480, sw + e2.clientX - sx));
+    const mu = () => {
+      dragging = false; localStorage.setItem('sb-w', String(sbWidth));
+      document.removeEventListener('mousemove', mm); document.removeEventListener('mouseup', mu);
+    };
+    document.addEventListener('mousemove', mm); document.addEventListener('mouseup', mu);
+    e.preventDefault();
+  }
+
+  // Tab switch
+  function setTab(t: Tab) {
+    app.tab = t; app.editing = false; app.searchQ = ''; app.typeFilter = ''; applyFilter();
+    if (t === 'types')   app.panel = 'types';
+    else if (t === 'authors') app.panel = 'authors';
+    else if (t === 'words')   app.panel = app.curWord  ? 'word'  : 'welcome';
+    else if (t === 'events')  app.panel = app.curEvent ? 'event' : 'welcome';
+    // On mobile, switching to list tab shows the list
+    app.mobileShowList = true;
+  }
+
+  // Virtual scroll
+  const ROW_H = 28; // slightly bigger for touch
+  let listEl = $state<HTMLElement | undefined>(undefined);
+  let scrollTop = $state(0), clientH = $state(600);
+  let vStart = $derived(Math.max(0, Math.floor(scrollTop / ROW_H) - 10));
+  let vEnd   = $derived(Math.min(app.filteredWords.length, Math.ceil((scrollTop + clientH) / ROW_H) + 10));
+  let topPad = $derived(vStart * ROW_H);
+  let botPad = $derived(Math.max(0, (app.filteredWords.length - vEnd) * ROW_H));
+
+  $effect(() => {
+    const id = app.curWord?.id;
+    if (!id || !listEl || app.tab !== 'words') return;
+    const idx = app.filteredWords.findIndex(x => x.id === id);
+    if (idx < 0) return;
+    const itemTop = idx * ROW_H;
+    if (itemTop < listEl.scrollTop || itemTop + ROW_H > listEl.scrollTop + clientH)
+      listEl.scrollTop = Math.max(0, itemTop - clientH / 2 + ROW_H / 2);
+  });
+
+  // Keyboard nav
+  function searchKeydown(e: KeyboardEvent) {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (app.filteredWords.length > 0) selectWord(app.filteredWords[0].id);
+    }
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (app.filteredWords[0]) selectWord(app.filteredWords[0].id);
+    }
+  }
+  function itemKeydown(e: KeyboardEvent, absIdx: number) {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      const nxt = absIdx + 1;
+      if (nxt < app.filteredWords.length) {
+        selectWord(app.filteredWords[nxt].id);
+        scrollToIdx(nxt);
+      }
+    }
+    if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (absIdx === 0) document.getElementById('wsearch')?.focus();
+      else { selectWord(app.filteredWords[absIdx-1].id); scrollToIdx(absIdx-1); }
+    }
+    if (e.key === 'Enter') { e.preventDefault(); selectWord(app.filteredWords[absIdx].id); }
+  }
+  function scrollToIdx(idx: number) {
+    if (!listEl) return;
+    const top = idx * ROW_H;
+    if (top < listEl.scrollTop || top + ROW_H > listEl.scrollTop + clientH)
+      listEl.scrollTop = Math.max(0, top - clientH / 2 + ROW_H / 2);
+  }
+
+  // Filters
+  let groups = $derived([...new Set(app.types.map(t => t.group_ || 'Other'))].sort());
+  function wordCount() {
+    const f = app.filteredWords.length, t = app.words.length;
+    return f < t ? `${f}/${t}` : String(t);
+  }
+  function clearFilters() { app.searchQ = ''; app.typeFilter = ''; applyFilter(); }
+</script>
+
+<aside class="sb" style="width:{sbWidth}px">
+  <div class="sb-resize" class:drag={dragging} onmousedown={dragStart}></div>
+
+  <!-- 4 main tabs -->
+  <nav class="sb-nav">
+    {#each (['words','events','types','authors'] as Tab[]) as t}
+      <button class="ntab" class:on={app.tab===t} onclick={() => setTab(t)}>
+        {t.charAt(0).toUpperCase() + t.slice(1)}
+      </button>
+    {/each}
+  </nav>
+
+  <!-- filter bar for words/events -->
+  {#if app.tab === 'words' || app.tab === 'events'}
+    <div class="sb-filter">
+      {#if app.tab === 'words'}
+        <div class="filter-row">
+          <select class="sb-sel" bind:value={app.typeFilter} onchange={() => applyFilter()}>
+            <option value="">All types</option>
+            {#each groups as g}
+              <option value="__g__{g}">▶ {g}</option>
+              {#each app.types.filter(t => (t.group_||'Other') === g) as t}
+                <option value={t.name}>&nbsp;&nbsp;{t.name}</option>
+              {/each}
+            {/each}
+          </select>
+          {#if app.typeFilter || app.searchQ}
+            <button class="clr-btn" onclick={clearFilters} title="Clear filters">×</button>
+          {/if}
+        </div>
+      {/if}
+      <div class="search-wrap">
+        <input id="wsearch" type="text" class="sb-fi"
+          placeholder={app.tab==='words' ? 'Prefix… (* wildcard)' : 'Search events…'}
+          autocomplete="off"
+          bind:value={app.searchQ}
+          oninput={() => applyFilter()}
+          onkeydown={searchKeydown}
+        />
+        {#if app.searchQ}
+          <button class="fi-clr" onclick={() => { app.searchQ=''; applyFilter(); }}>×</button>
+        {:else if app.tab === 'words'}
+          <span class="wcnt">{wordCount()}</span>
+        {/if}
+      </div>
+    </div>
+  {/if}
+
+  <!-- list -->
+  <div class="sb-list" id="sb-list"
+    bind:this={listEl} bind:clientHeight={clientH}
+    onscroll={e => scrollTop = (e.currentTarget as HTMLElement).scrollTop}>
+
+    {#if app.tab === 'words'}
+      {#if app.filteredWords.length === 0}
+        <div class="empty" style="padding:1.2rem"><p>No words found</p></div>
+      {:else}
+        <div style="height:{topPad}px;flex-shrink:0"></div>
+        {#each app.filteredWords.slice(vStart, vEnd) as w (w.id)}
+          <div class="si" class:on={app.curWord?.id === w.id} id="wi{w.id}"
+            tabindex="-1"
+            onclick={() => selectWord(w.id)}
+            onkeydown={e => itemKeydown(e, app.filteredWords.indexOf(w))}>
+            <span class="sn">{w.name}</span>
+            {#if w.type_name}<span class="st">{w.type_name}</span>{/if}
+          </div>
+        {/each}
+        <div style="height:{botPad}px;flex-shrink:0"></div>
+      {/if}
+
+    {:else if app.tab === 'events'}
+      {#each app.events as ev, i}
+        <div class="si" class:on={app.curEvent?.id === ev.id}
+          tabindex="-1"
+          onclick={() => selectEvent(ev.id)}
+          onkeydown={e => itemKeydown(e, i)}>
+          <span class="sn">{ev.name}</span>
+          {#if ev.annotation}<span class="st">{ev.annotation}</span>{/if}
+        </div>
+      {:else}
+        <div class="empty" style="padding:1.2rem"><p>No events</p></div>
+      {/each}
+
+    {:else if app.tab === 'types'}
+      <div class="sb-placeholder">
+        <span>Types panel →</span>
+      </div>
+    {:else if app.tab === 'authors'}
+      <div class="sb-placeholder">
+        <span>Authors panel →</span>
+      </div>
+    {/if}
+  </div>
+
+  <!-- bottom: ⚙ Tools -->
+  <div class="sb-bottom">
+    <button class="tools-btn" class:on={app.toolsOpen}
+      onclick={() => app.toolsOpen = !app.toolsOpen}>
+      ⚙ Tools
+    </button>
+  </div>
+</aside>
+
+<style>
+  .sb{height:100%;background:var(--sb-bg);border-right:1px solid var(--sb-border);
+    display:flex;flex-direction:column;position:relative;flex-shrink:0;overflow:hidden;
+    min-width:180px;max-width:480px}
+  @media(max-width:640px){.sb{width:100%!important;min-width:100%;max-width:100%;border-right:none}}
+  .sb-resize{position:absolute;top:0;right:-3px;bottom:0;width:7px;cursor:col-resize;z-index:10}
+  .sb-resize:hover,.drag{background:rgba(106,170,112,.25)}
+  @media(max-width:640px){.sb-resize{display:none}}
+
+  .sb-nav{display:grid;grid-template-columns:repeat(4,1fr);gap:2px;
+    padding:.22rem .22rem .16rem;border-bottom:1px solid var(--sb-border);flex-shrink:0}
+  .ntab{padding:.26rem .06rem;font-size:.55rem;font-weight:600;letter-spacing:.04em;
+    text-transform:uppercase;color:var(--sb-text2);background:transparent;
+    border:1px solid transparent;border-radius:3px;cursor:pointer;font-family:inherit;
+    transition:all 140ms;text-align:center;min-height:32px;
+    -webkit-tap-highlight-color:transparent;touch-action:manipulation}
+  .ntab:hover:not(.on){color:var(--sb-text);border-color:var(--sb-border);background:var(--sb-hover)}
+  .ntab.on{color:var(--gold);border-color:var(--gold-d);background:var(--gold-g)}
+  @media(max-width:640px){.ntab{font-size:.65rem;min-height:44px;padding:.3rem .1rem}}
+
+  .sb-filter{padding:.22rem .3rem .14rem;display:flex;flex-direction:column;gap:.14rem;flex-shrink:0}
+  .filter-row{display:flex;align-items:center;gap:.2rem}
+  .sb-sel{flex:1;min-width:0;background:var(--inp-bg);border:1px solid var(--inp-border);
+    color:var(--sb-text);padding:.22rem .3rem;padding-right:18px;border-radius:4px;
+    font-family:inherit;font-size:.66rem;outline:none;-webkit-appearance:none;appearance:none;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5'%3E%3Cpath d='M0 0l4 5 4-5z' fill='%23605848'/%3E%3C/svg%3E");
+    background-repeat:no-repeat;background-position:right 6px center;background-size:6px 4px}
+  .sb-sel:focus{border-color:var(--gold-d)}
+  .sb-sel option{background:var(--surf2)}
+  .clr-btn{padding:.14rem .3rem;font-size:.65rem;color:var(--text3);background:transparent;
+    border:1px solid var(--border);border-radius:3px;cursor:pointer;font-family:inherit;
+    transition:all 140ms;flex-shrink:0;line-height:1;min-height:28px;min-width:24px}
+  .clr-btn:hover{color:var(--red);border-color:var(--red-d)}
+  .search-wrap{position:relative;display:flex;align-items:center}
+  .sb-fi{width:100%;background:var(--inp-bg);border:1px solid var(--inp-border);
+    color:var(--sb-text);padding:.22rem .42rem;padding-right:1.8rem;border-radius:4px;
+    font-family:inherit;font-size:.68rem;outline:none;-webkit-appearance:none;appearance:none}
+  .sb-fi:focus{border-color:var(--gold-d)}
+  .sb-fi::placeholder{color:var(--sb-text2)}
+  @media(max-width:640px){.sb-fi{font-size:.82rem;padding:.3rem .5rem;padding-right:2rem}}
+  .fi-clr{position:absolute;right:.3rem;background:none;border:none;
+    color:var(--sb-text2);cursor:pointer;font-size:.72rem;padding:.1rem;line-height:1;min-height:28px}
+  .fi-clr:hover{color:var(--text)}
+  .wcnt{position:absolute;right:.38rem;font-size:.5rem;color:var(--sb-text2);pointer-events:none}
+
+  .sb-list{flex:1;overflow-y:auto;display:flex;flex-direction:column;padding:.02rem 0}
+  .si{height:{ROW_H}px;display:flex;align-items:center;gap:.24rem;
+    padding:0 .52rem 0 .32rem;cursor:pointer;
+    border-left:2px solid transparent;
+    transition:background 100ms,border-color 100ms;outline:none;flex-shrink:0;
+    -webkit-tap-highlight-color:transparent;touch-action:manipulation}
+  .si:hover,.si:focus{background:var(--sb-hover)}
+  .si.on{background:var(--gold-g);border-left-color:var(--gold)}
+  .sn{font-size:.73rem;font-weight:500;color:var(--sb-text);flex:1;min-width:0;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .si.on .sn{color:var(--gold)}
+  .st{font-size:.5rem;color:var(--sb-text2);background:rgba(128,128,128,.1);
+    padding:1px 4px;border-radius:2px;flex-shrink:0}
+  @media(max-width:640px){
+    .si{height:44px}
+    .sn{font-size:.84rem}
+  }
+  .sb-placeholder{flex:1;display:flex;align-items:center;justify-content:center;
+    font-size:.68rem;color:var(--sb-text2);padding:1rem}
+
+  .sb-bottom{padding:.22rem .28rem .26rem;border-top:1px solid var(--sb-border);flex-shrink:0}
+  .tools-btn{width:100%;padding:.26rem;font-size:.6rem;font-weight:600;letter-spacing:.05em;
+    text-transform:uppercase;color:var(--sb-text2);background:transparent;
+    border:1px solid transparent;border-radius:3px;cursor:pointer;font-family:inherit;
+    transition:all 140ms;min-height:32px;-webkit-tap-highlight-color:transparent}
+  .tools-btn:hover{color:var(--sb-text);border-color:var(--sb-border);background:var(--sb-hover)}
+  .tools-btn.on{color:var(--gold);border-color:var(--gold-d);background:var(--gold-g)}
+  @media(max-width:640px){.tools-btn{font-size:.72rem;min-height:40px}}
+</style>

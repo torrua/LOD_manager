@@ -1,0 +1,40 @@
+{
+  "productName": "LOD Manager",
+  "version": "1.0.0",
+  "identifier": "com.lod.manager",
+  "build": {
+    "frontendDist": "../dist",
+    "devUrl": "http://localhost:5173",
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "LOD Manager",
+        "width": 1280,
+        "height": 820,
+        "minWidth": 360,
+        "minHeight": 500,
+        "resizable": true,
+        "fullscreen": false
+      }
+    ],
+    "security": { "csp": null }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [],
+    "android": {
+      "minSdkVersion": 24
+    },
+    "iOS": {
+      "minimumSystemVersion": "16"
+    }
+  },
+  "plugins": {
+    "dialog": null,
+    "fs": {}
+  }
+}
