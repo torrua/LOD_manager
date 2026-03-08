@@ -1,5 +1,6 @@
 use crate::models::*;
 use rusqlite::{params, Connection};
+use std::convert::TryInto;
 
 pub fn init_schema(conn: &Connection) -> rusqlite::Result<()> {
     // journal_mode returns a value, so must be queried separately
@@ -816,7 +817,8 @@ pub fn search_english_like(
         })
     })?;
     let mut results: Vec<ELResult> = rows.filter_map(std::result::Result::ok).collect();
-    results.truncate(limit as usize);
+    let lim: usize = limit.try_into().unwrap_or(0);
+    results.truncate(lim);
     Ok(results)
 }
 

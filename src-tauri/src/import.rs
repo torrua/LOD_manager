@@ -6,6 +6,8 @@ use std::path::Path;
 
 const SEP: char = '@';
 
+type WordData = (String, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Vec<String>);
+
 fn rows(content: &str) -> Vec<Vec<String>> {
     content
         .lines()
@@ -121,7 +123,6 @@ pub fn import_files(conn: &mut Connection, paths: &[String]) -> ImportResult {
     }
 
     // 4. Words
-    type WordData = (String, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Vec<String>);
     let mut word_staging: HashMap<String, WordData> = HashMap::new();
     let mut old_id_to_db_id: HashMap<String, i64> = HashMap::new();
 

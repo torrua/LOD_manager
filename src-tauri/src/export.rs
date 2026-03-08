@@ -1,4 +1,20 @@
 use rusqlite::{params, Connection};
+use std::fmt::Write;
+
+struct WordRow {
+    id: i64,
+    name: String,
+    type_name: Option<String>,
+    source: Option<String>,
+    year: Option<String>,
+    rank: Option<String>,
+    match_: Option<String>,
+    origin: Option<String>,
+    origin_x: Option<String>,
+}
+
+// moved out of function to appease clippy `items_after_statements`
+type DefRow = (Option<String>, Option<String>, String, Option<String>);
 
 fn esc(s: &str) -> String {
     s.replace('&', "&amp;")
@@ -86,18 +102,6 @@ function doSearch(q){
 document.getElementById('lod-search').addEventListener('input',function(){doSearch(this.value);});
 </script>";
 
-struct WordRow {
-    id: i64,
-    name: String,
-    type_name: Option<String>,
-    source: Option<String>,
-    year: Option<String>,
-    rank: Option<String>,
-    match_: Option<String>,
-    origin: Option<String>,
-    origin_x: Option<String>,
-}
-
 pub fn generate_html(conn: &Connection, event_name: Option<&str>) -> rusqlite::Result<String> {
     let words_sql = "SELECT w.id, w.name, t.name, w.source, w.year, w.rank, w.match_,
                             w.origin, w.origin_x
@@ -139,7 +143,7 @@ pub fn generate_html(conn: &Connection, event_name: Option<&str>) -> rusqlite::R
     };
     html.push_str("<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"UTF-8\">\n");
     html.push_str("<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">\n");
-    html.push_str(&format!("<title>{title}</title>\n"));
+    let _ = writeln!(html, "<title>{title}</title>");
     html.push_str(STYLE);
     html.push_str("</head>\n<body>\n<div class=\"wrap\">\n<nav class=\"sidebar\">\n");
     html.push_str("<h2>LOD</h2>\n");
@@ -148,7 +152,7 @@ pub fn generate_html(conn: &Connection, event_name: Option<&str>) -> rusqlite::R
     );
     html.push_str("<div class=\"alpha\">\n");
     for c in &letters {
-        html.push_str(&format!("<a href=\"#L{c}\">{c}</a>\n"));
+        let _ = writeln!(html, "<a href=\"#L{c}\">{c}</a>");
     }
     html.push_str("</div>\n</nav>\n<main class=\"content\">\n");
 
@@ -181,8 +185,8 @@ pub fn generate_html(conn: &Connection, event_name: Option<&str>) -> rusqlite::R
                 html.push_str("</div></div>\n");
             }
             cur_letter = first;
-            html.push_str(&format!(
-                "<div class=\"letter-section\" id=\"L{first}\">\n<div class=\"letter-head\">{first}</div>\n<div>\n"));
+            let _ = write!(html,
+                "<div class=\"letter-section\" id=\"L{first}\">\n<div class=\"letter-head\">{first}</div>\n<div>\n");
         }
 
         let affixes: Vec<String> = afx_stmt
@@ -195,15 +199,12 @@ pub fn generate_html(conn: &Connection, event_name: Option<&str>) -> rusqlite::R
             .filter_map(|r: rusqlite::Result<String>| r.ok())
             .collect();
 
-        html.push_str(&format!(
-            "<div class=\"entry\" data-name=\"{}\">\n",
-            w.name.to_lowercase()
-        ));
-        html.push_str(&format!("<div class=\"entry-name\">{}", esc(&w.name)));
+        let _ = writeln!(html, "<div class=\"entry\" data-name=\"{}\">", w.name.to_lowercase());
+        let _ = write!(html, "<div class=\"entry-name\">{}", esc(&w.name));
         for a in &affixes {
-            html.push_str(&format!(
+            let _ = write!(html,
                 " <span style=\"font-size:.7rem;color:#5a8040;border:1px solid #5a8040;border-radius:2px;padding:0 3px\">{}</span>",
-                esc(a)));
+                esc(a));
         }
         html.push_str("</div>\n");
 
@@ -238,14 +239,12 @@ pub fn generate_html(conn: &Connection, event_name: Option<&str>) -> rusqlite::R
             meta_parts.push(esc(r));
         }
         if !meta_parts.is_empty() {
-            html.push_str(&format!(
-                "<div class=\"entry-meta\">{}</div>\n",
-                meta_parts.join(" · ")
-            ));
+            let _ = writeln!(html,
+                "<div class=\"entry-meta\">{}</div>",
+                meta_parts.join(" · "));
         }
 
         // Definitions
-        type DefRow = (Option<String>, Option<String>, String, Option<String>);
         let defs: Vec<DefRow> = def_stmt
             .query_map(params![w.id], |r| {
                 Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?))
@@ -259,14 +258,14 @@ pub fn generate_html(conn: &Connection, event_name: Option<&str>) -> rusqlite::R
                 html.push_str("<div class=\"def\">");
                 if let Some(u) = usage {
                     let u2 = u.replace('%', &esc(&w.name));
-                    html.push_str(&format!("<span class=\"usage\">{} </span>", esc(&u2)));
+                    let _ = write!(html, "<span class=\"usage\">{} </span>", esc(&u2));
                 }
                 if let Some(g) = grammar {
-                    html.push_str(&format!("<span class=\"grammar\">({})</span> ", esc(g)));
+                    let _ = write!(html, "<span class=\"grammar\">({})</span> ", esc(g));
                 }
                 html.push_str(&fmt_body(body));
                 if let Some(t) = tags {
-                    html.push_str(&format!(" <span class=\"tags\">[{}]</span>", esc(t)));
+                    let _ = write!(html, " <span class=\"tags\">[{}]</span>", esc(t));
                 }
                 html.push_str("</div>\n");
             }
@@ -281,8 +280,8 @@ pub fn generate_html(conn: &Connection, event_name: Option<&str>) -> rusqlite::R
                     html.push_str("; ");
                 }
                 let eu = esc(u);
-                html.push_str(&format!(
-                    "<a href=\"#\" onclick=\"document.getElementById('lod-search').value='{eu}';doSearch('{eu}');return false\">{eu}</a>"));
+                let _ = write!(html,
+                    "<a href=\"#\" onclick=\"document.getElementById('lod-search').value='{eu}';doSearch('{eu}');return false\">{eu}</a>");
             }
             html.push_str("</div>\n");
         }
