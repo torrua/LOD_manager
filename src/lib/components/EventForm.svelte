@@ -2,7 +2,7 @@
   import { app, saveEvent } from '../store.svelte';
 
   const ev = app.curEvent;
-  let form = $state({
+  const form = $state({
     name: ev?.name ?? '',
     date: ev?.date ?? '',
     annotation: ev?.annotation ?? '',

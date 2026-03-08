@@ -3,7 +3,7 @@
   import { app, deleteEvent, selectWord } from '../store.svelte';
   import type { EventItem } from '../../types';
 
-  let { event }: { event: EventItem } = $props();
+  const { event }: { event: EventItem } = $props();
 
   let confirmDel = $state(false);
   let wordsAdded = $state<string[]>([]);

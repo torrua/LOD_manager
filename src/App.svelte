@@ -118,7 +118,7 @@
       },
     },
   ];
-  let sheetItems = $derived(app.readonly ? [] : ALL_ITEMS);
+  const sheetItems = $derived(app.readonly ? [] : ALL_ITEMS);
 
   function handleNew() {
     if (app.tab === 'words') {
@@ -151,7 +151,7 @@
     app.panel = app.curWord ? 'word' : 'welcome';
     newSheetOpen = false;
   }
-  let canNew = $derived(
+  const canNew = $derived(
     app.dbOpen &&
       !app.readonly &&
       (app.tab === 'words' || app.tab === 'events' || app.tab === 'types' || app.tab === 'authors')

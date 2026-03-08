@@ -1,3 +1,4 @@
+<!-- eslint-disable svelte/no-at-html-tags -->
 <script lang="ts">
   import { app, selectWord, searchEnglishNow } from '../store.svelte';
   import type { ELResult } from '../../types';
@@ -22,13 +23,13 @@
       // Keep up to first <mark>
       const mi = t.indexOf('<mark>');
       const start = Math.max(0, mi - 30);
-      t = (start > 0 ? '…' : '') + t.slice(start, start + 160) + '…';
+      t = `${(start > 0 ? '…' : '') + t.slice(start, start + 160)}…`;
     }
     return t;
   }
 
-  let results = $derived(app.elResults);
-  let hasMore = $derived(results.length >= 300);
+  const results = $derived(app.elResults);
+  const hasMore = $derived(results.length >= 300);
 </script>
 
 <div class="el-root">
@@ -62,7 +63,10 @@
         </div>
 
         {#if app.prefs.elShowDetails && app.prefs.elShowSnippet && r.snippet}
-          <div class="el-snip">{@html renderSnippet(r.snippet, app.elQuery)}</div>
+          <div class="el-snip">
+            <!-- eslint-disable-next-line svelte/no-at-html-tags -->
+            {@html renderSnippet(r.snippet, app.elQuery)}
+          </div>
         {/if}
       </div>
     {/each}

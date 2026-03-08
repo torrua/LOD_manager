@@ -282,7 +282,7 @@
         >
           <option value="">— All words —</option>
           {#each app.events as ev}
-            <option value={ev.id}>{ev.name}{ev.annotation ? ' · ' + ev.annotation : ''}</option>
+            <option value={ev.id}>{ev.name}{ev.annotation ? ` · ${ev.annotation}` : ''}</option>
           {/each}
         </select>
         <p class="td-hint" style="margin:.25rem 0 0">
