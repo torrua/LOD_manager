@@ -1,2 +1,4 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
-fn main() { lod_manager::run(); }
+fn main() {
+    lod_manager::run();
+}

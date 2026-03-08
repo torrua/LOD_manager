@@ -1,7 +1,10 @@
-use rusqlite::{Connection, params};
+use rusqlite::{params, Connection};
 
 fn esc(s: &str) -> String {
-    s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;")
+    s.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
 }
 
 fn fmt_body(s: &str) -> String {
@@ -17,7 +20,9 @@ fn regex_replace_kw(s: &str) -> String {
         if c == '\u{AB}' {
             out.push_str("<em class=\"kw\">");
             for (_, c2) in chars.by_ref() {
-                if c2 == '\u{BB}' { break; }
+                if c2 == '\u{BB}' {
+                    break;
+                }
                 out.push(c2);
             }
             out.push_str("</em>");
@@ -82,9 +87,15 @@ document.getElementById('lod-search').addEventListener('input',function(){doSear
 </script>"#;
 
 struct WordRow {
-    id: i64, name: String, type_name: Option<String>,
-    source: Option<String>, year: Option<String>, rank: Option<String>,
-    match_: Option<String>, origin: Option<String>, origin_x: Option<String>,
+    id: i64,
+    name: String,
+    type_name: Option<String>,
+    source: Option<String>,
+    year: Option<String>,
+    rank: Option<String>,
+    match_: Option<String>,
+    origin: Option<String>,
+    origin_x: Option<String>,
 }
 
 pub fn generate_html(conn: &Connection, event_name: Option<&str>) -> rusqlite::Result<String> {
@@ -97,15 +108,29 @@ pub fn generate_html(conn: &Connection, event_name: Option<&str>) -> rusqlite::R
                      ORDER BY LOWER(w.name)";
 
     let mut stmt = conn.prepare(words_sql)?;
-    let rows: Vec<WordRow> = stmt.query_map(params![event_name], |r| Ok(WordRow {
-        id: r.get(0)?, name: r.get(1)?, type_name: r.get(2)?,
-        source: r.get(3)?, year: r.get(4)?, rank: r.get(5)?,
-        match_: r.get(6)?, origin: r.get(7)?, origin_x: r.get(8)?,
-    }))?.filter_map(|r: rusqlite::Result<WordRow>| r.ok()).collect();
+    let rows: Vec<WordRow> = stmt
+        .query_map(params![event_name], |r| {
+            Ok(WordRow {
+                id: r.get(0)?,
+                name: r.get(1)?,
+                type_name: r.get(2)?,
+                source: r.get(3)?,
+                year: r.get(4)?,
+                rank: r.get(5)?,
+                match_: r.get(6)?,
+                origin: r.get(7)?,
+                origin_x: r.get(8)?,
+            })
+        })?
+        .filter_map(|r: rusqlite::Result<WordRow>| r.ok())
+        .collect();
 
-    let letters: Vec<char> = rows.iter()
+    let letters: Vec<char> = rows
+        .iter()
         .filter_map(|w| w.name.chars().next().map(|c: char| c.to_ascii_uppercase()))
-        .collect::<std::collections::BTreeSet<_>>().into_iter().collect();
+        .collect::<std::collections::BTreeSet<_>>()
+        .into_iter()
+        .collect();
 
     let mut html = String::with_capacity(rows.len() * 300);
     let title = match event_name {
@@ -118,7 +143,9 @@ pub fn generate_html(conn: &Connection, event_name: Option<&str>) -> rusqlite::R
     html.push_str(STYLE);
     html.push_str("</head>\n<body>\n<div class=\"wrap\">\n<nav class=\"sidebar\">\n");
     html.push_str("<h2>LOD</h2>\n");
-    html.push_str("<input id=\"lod-search\" class=\"search-box\" type=\"text\" placeholder=\"Search…\">\n");
+    html.push_str(
+        "<input id=\"lod-search\" class=\"search-box\" type=\"text\" placeholder=\"Search…\">\n",
+    );
     html.push_str("<div class=\"alpha\">\n");
     for c in &letters {
         html.push_str(&format!("<a href=\"#L{}\">{}</a>\n", c, c));
@@ -126,9 +153,10 @@ pub fn generate_html(conn: &Connection, event_name: Option<&str>) -> rusqlite::R
     html.push_str("</div>\n</nav>\n<main class=\"content\">\n");
 
     let mut def_stmt = conn.prepare(
-        "SELECT grammar, usage, body, tags FROM definitions WHERE word_id=?1 ORDER BY position")?;
-    let mut afx_stmt = conn.prepare(
-        "SELECT affix FROM word_affixes WHERE word_id=?1 ORDER BY id")?;
+        "SELECT grammar, usage, body, tags FROM definitions WHERE word_id=?1 ORDER BY position",
+    )?;
+    let mut afx_stmt =
+        conn.prepare("SELECT affix FROM word_affixes WHERE word_id=?1 ORDER BY id")?;
     // EXISTS subquery avoids binding ?1 twice (rusqlite requires unique param count)
     let mut used_stmt = conn.prepare(
         "SELECT DISTINCT w2.name FROM words w2
@@ -138,13 +166,21 @@ pub fn generate_html(conn: &Connection, event_name: Option<&str>) -> rusqlite::R
              WHERE wa.word_id = ?1
                AND LOWER(w2.name) LIKE '%'||LOWER(wa.affix)||'%'
            )
-         ORDER BY w2.name LIMIT 60")?;
+         ORDER BY w2.name LIMIT 60",
+    )?;
 
     let mut cur_letter = '\0';
     for w in &rows {
-        let first = w.name.chars().next().map(|c: char| c.to_ascii_uppercase()).unwrap_or('?');
+        let first = w
+            .name
+            .chars()
+            .next()
+            .map(|c: char| c.to_ascii_uppercase())
+            .unwrap_or('?');
         if first != cur_letter {
-            if cur_letter != '\0' { html.push_str("</div></div>\n"); }
+            if cur_letter != '\0' {
+                html.push_str("</div></div>\n");
+            }
             cur_letter = first;
             html.push_str(&format!(
                 "<div class=\"letter-section\" id=\"L{0}\">\n<div class=\"letter-head\">{0}</div>\n<div>\n", first));
@@ -152,13 +188,18 @@ pub fn generate_html(conn: &Connection, event_name: Option<&str>) -> rusqlite::R
 
         let affixes: Vec<String> = afx_stmt
             .query_map(params![w.id], |r| r.get(0))?
-            .filter_map(|r: rusqlite::Result<String>| r.ok()).collect();
+            .filter_map(|r: rusqlite::Result<String>| r.ok())
+            .collect();
 
         let used_in: Vec<String> = used_stmt
             .query_map(params![w.id], |r| r.get(0))?
-            .filter_map(|r: rusqlite::Result<String>| r.ok()).collect();
+            .filter_map(|r: rusqlite::Result<String>| r.ok())
+            .collect();
 
-        html.push_str(&format!("<div class=\"entry\" data-name=\"{}\">\n", w.name.to_lowercase()));
+        html.push_str(&format!(
+            "<div class=\"entry\" data-name=\"{}\">\n",
+            w.name.to_lowercase()
+        ));
         html.push_str(&format!("<div class=\"entry-name\">{}", esc(&w.name)));
         for a in &affixes {
             html.push_str(&format!(
@@ -171,23 +212,47 @@ pub fn generate_html(conn: &Connection, event_name: Option<&str>) -> rusqlite::R
         let mut meta_parts: Vec<String> = Vec::new();
         if let Some(ref origin) = w.origin {
             let ox = w.origin_x.as_deref().unwrap_or("");
-            let ox_part = if !ox.is_empty() { format!(" = {}", esc(ox)) } else { String::new() };
-            meta_parts.push(format!("<span class=\"origin\">&lt;{}{}&gt;</span>", esc(origin), ox_part));
+            let ox_part = if !ox.is_empty() {
+                format!(" = {}", esc(ox))
+            } else {
+                String::new()
+            };
+            meta_parts.push(format!(
+                "<span class=\"origin\">&lt;{}{}&gt;</span>",
+                esc(origin),
+                ox_part
+            ));
         }
-        if let Some(ref m) = w.match_   { meta_parts.push(esc(m)); }
-        if let Some(ref t) = w.type_name{ meta_parts.push(esc(t)); }
-        if let Some(ref s) = w.source   { meta_parts.push(esc(s)); }
-        if let Some(ref y) = w.year     { meta_parts.push(esc(y)); }
-        if let Some(ref r) = w.rank     { meta_parts.push(esc(r)); }
+        if let Some(ref m) = w.match_ {
+            meta_parts.push(esc(m));
+        }
+        if let Some(ref t) = w.type_name {
+            meta_parts.push(esc(t));
+        }
+        if let Some(ref s) = w.source {
+            meta_parts.push(esc(s));
+        }
+        if let Some(ref y) = w.year {
+            meta_parts.push(esc(y));
+        }
+        if let Some(ref r) = w.rank {
+            meta_parts.push(esc(r));
+        }
         if !meta_parts.is_empty() {
-            html.push_str(&format!("<div class=\"entry-meta\">{}</div>\n", meta_parts.join(" · ")));
+            html.push_str(&format!(
+                "<div class=\"entry-meta\">{}</div>\n",
+                meta_parts.join(" · ")
+            ));
         }
 
         // Definitions
         type DefRow = (Option<String>, Option<String>, String, Option<String>);
         let defs: Vec<DefRow> = def_stmt
-            .query_map(params![w.id], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)))?
-            .filter_map(|r: rusqlite::Result<DefRow>| r.ok()).collect();
+            .query_map(params![w.id], |r| {
+                Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?))
+            })?
+            .filter_map(|r: rusqlite::Result<DefRow>| r.ok())
+            .collect();
 
         if !defs.is_empty() {
             html.push_str("<div class=\"defs\">\n");
@@ -213,7 +278,9 @@ pub fn generate_html(conn: &Connection, event_name: Option<&str>) -> rusqlite::R
         if !used_in.is_empty() {
             html.push_str("<div class=\"used-in\">Used in: ");
             for (i, u) in used_in.iter().enumerate() {
-                if i > 0 { html.push_str("; "); }
+                if i > 0 {
+                    html.push_str("; ");
+                }
                 let eu = esc(u);
                 html.push_str(&format!(
                     "<a href=\"#\" onclick=\"document.getElementById('lod-search').value='{eu}';doSearch('{eu}');return false\">{eu}</a>"));
@@ -224,7 +291,9 @@ pub fn generate_html(conn: &Connection, event_name: Option<&str>) -> rusqlite::R
         html.push_str("</div>\n"); // .entry
     }
 
-    if cur_letter != '\0' { html.push_str("</div></div>\n"); }
+    if cur_letter != '\0' {
+        html.push_str("</div></div>\n");
+    }
     html.push_str("</main>\n</div>\n");
     html.push_str(SCRIPT);
     html.push_str("\n</body>\n</html>\n");
@@ -232,7 +301,11 @@ pub fn generate_html(conn: &Connection, event_name: Option<&str>) -> rusqlite::R
 }
 
 /// Write HTML to a file on disk (bypasses FS plugin permissions)
-pub fn write_html_to_file(conn: &Connection, path: &str, event_name: Option<&str>) -> rusqlite::Result<()> {
+pub fn write_html_to_file(
+    conn: &Connection,
+    path: &str,
+    event_name: Option<&str>,
+) -> rusqlite::Result<()> {
     let html = generate_html(conn, event_name)?;
     std::fs::write(path, html.as_bytes())
         .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))

@@ -8,7 +8,10 @@
 #![allow(clippy::wildcard_imports)]
 #![allow(clippy::too_many_lines)]
 
-mod models; mod db; mod import; mod export;
+mod db;
+mod export;
+mod import;
+mod models;
 use models::*;
 use rusqlite::Connection;
 use std::sync::Mutex;
@@ -21,13 +24,18 @@ pub struct AppState {
 
 type Db<'a> = State<'a, AppState>;
 type Res<T> = Result<T, String>;
-fn err(e: impl std::fmt::Display) -> String { e.to_string() }
+fn err(e: impl std::fmt::Display) -> String {
+    e.to_string()
+}
 fn with_db<T, F: FnOnce(&Connection) -> rusqlite::Result<T>>(state: &AppState, f: F) -> Res<T> {
     let guard = state.db.lock().map_err(err)?;
     let conn = guard.as_ref().ok_or("No database open.")?;
     f(conn).map_err(err)
 }
-fn with_db_mut<T, F: FnOnce(&mut Connection) -> rusqlite::Result<T>>(state: &AppState, f: F) -> Res<T> {
+fn with_db_mut<T, F: FnOnce(&mut Connection) -> rusqlite::Result<T>>(
+    state: &AppState,
+    f: F,
+) -> Res<T> {
     let mut guard = state.db.lock().map_err(err)?;
     let conn = guard.as_mut().ok_or("No database open.")?;
     f(conn).map_err(err)
@@ -36,7 +44,8 @@ fn with_db_mut<T, F: FnOnce(&mut Connection) -> rusqlite::Result<T>>(state: &App
 #[tauri::command]
 fn open_database(state: Db, path: String) -> Res<AppInfo> {
     let conn = Connection::open(&path).map_err(err)?;
-    conn.query_row("PRAGMA journal_mode=WAL", [], |_| Ok(())).map_err(err)?;
+    conn.query_row("PRAGMA journal_mode=WAL", [], |_| Ok(()))
+        .map_err(err)?;
     conn.execute_batch("PRAGMA foreign_keys=ON;").map_err(err)?;
     db::init_schema(&conn).map_err(err)?;
     db::init_fts(&conn).map_err(err)?;
@@ -67,8 +76,15 @@ fn get_db_stats(state: Db) -> Res<DbStats> {
 }
 
 #[tauri::command]
-fn get_words(state: Db, q: String, type_filter: String, event_id: Option<i64>) -> Res<Vec<WordListItem>> {
-    with_db(&state, |conn| db::list_words(conn, &q, &type_filter, event_id))
+fn get_words(
+    state: Db,
+    q: String,
+    type_filter: String,
+    event_id: Option<i64>,
+) -> Res<Vec<WordListItem>> {
+    with_db(&state, |conn| {
+        db::list_words(conn, &q, &type_filter, event_id)
+    })
 }
 
 #[tauri::command]
@@ -88,7 +104,12 @@ fn delete_word(state: Db, id: i64) -> Res<()> {
 }
 
 #[tauri::command]
-fn save_definition(state: Db, id: Option<i64>, word_id: i64, data: SaveDefinition) -> Res<WordDetail> {
+fn save_definition(
+    state: Db,
+    id: Option<i64>,
+    word_id: i64,
+    data: SaveDefinition,
+) -> Res<WordDetail> {
     with_db(&state, |conn| db::save_definition(conn, id, word_id, &data))?;
     with_db(&state, |conn| db::get_word(conn, word_id))
 }
@@ -108,11 +129,20 @@ fn get_events(state: Db) -> Res<Vec<EventItem>> {
 fn save_event(state: Db, id: Option<i64>, data: SaveEvent) -> Res<EventItem> {
     let eid = with_db(&state, |conn| db::save_event(conn, id, &data))?;
     with_db(&state, |conn| {
-        conn.query_row("SELECT id,name,date,annotation,suffix,notes FROM events WHERE id=?1",
-            rusqlite::params![eid], |r| Ok(EventItem {
-                id: r.get(0)?, name: r.get(1)?, date: r.get(2)?,
-                annotation: r.get(3)?, suffix: r.get(4)?, notes: r.get(5)?,
-            }))
+        conn.query_row(
+            "SELECT id,name,date,annotation,suffix,notes FROM events WHERE id=?1",
+            rusqlite::params![eid],
+            |r| {
+                Ok(EventItem {
+                    id: r.get(0)?,
+                    name: r.get(1)?,
+                    date: r.get(2)?,
+                    annotation: r.get(3)?,
+                    suffix: r.get(4)?,
+                    notes: r.get(5)?,
+                })
+            },
+        )
     })
 }
 
@@ -174,9 +204,13 @@ fn get_event_words(state: Db, event_id: i64) -> Res<(Vec<String>, Vec<String>)> 
 
 #[tauri::command]
 fn search_english(state: Db, params: ELSearchParams) -> Res<Vec<ELResult>> {
-    if params.query.trim().is_empty() { return Ok(vec![]); }
+    if params.query.trim().is_empty() {
+        return Ok(vec![]);
+    }
     if params.use_like {
-        with_db(&state, |conn| db::search_english_like(conn, &params.query, params.limit))
+        with_db(&state, |conn| {
+            db::search_english_like(conn, &params.query, params.limit)
+        })
     } else {
         with_db(&state, |conn| {
             match db::search_english_fts(conn, &params.query, params.limit) {
@@ -198,7 +232,10 @@ fn rebuild_fts(state: Db) -> Res<i64> {
 
 #[tauri::command]
 fn fts_is_ready(state: Db) -> bool {
-    state.db.lock().ok()
+    state
+        .db
+        .lock()
+        .ok()
         .and_then(|g| g.as_ref().map(|c| db::fts_is_ready(c)))
         .unwrap_or(false)
 }
@@ -207,13 +244,17 @@ fn fts_is_ready(state: Db) -> bool {
 
 #[tauri::command]
 fn export_html(state: Db, event_name: Option<String>) -> Res<String> {
-    with_db(&state, |conn| export::generate_html(conn, event_name.as_deref()))
+    with_db(&state, |conn| {
+        export::generate_html(conn, event_name.as_deref())
+    })
 }
 
 /// Write HTML directly to disk — no FS plugin scope issues
 #[tauri::command]
 fn export_html_to_file(state: Db, path: String, event_name: Option<String>) -> Res<()> {
-    with_db(&state, |conn| export::write_html_to_file(conn, &path, event_name.as_deref()))
+    with_db(&state, |conn| {
+        export::write_html_to_file(conn, &path, event_name.as_deref())
+    })
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -221,18 +262,36 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
-        .manage(AppState { db: Mutex::new(None), db_path: Mutex::new(String::new()) })
+        .manage(AppState {
+            db: Mutex::new(None),
+            db_path: Mutex::new(String::new()),
+        })
         .invoke_handler(tauri::generate_handler![
-            open_database, create_database, get_db_stats,
-            get_words, get_word, save_word, delete_word,
-            save_definition, delete_definition,
-            get_events, save_event, delete_event,
-            get_types, save_type, delete_type,
-            get_authors, save_author, delete_author,
+            open_database,
+            create_database,
+            get_db_stats,
+            get_words,
+            get_word,
+            save_word,
+            delete_word,
+            save_definition,
+            delete_definition,
+            get_events,
+            save_event,
+            delete_event,
+            get_types,
+            save_type,
+            delete_type,
+            get_authors,
+            save_author,
+            delete_author,
             import_lod_files,
             get_event_words,
-            search_english, rebuild_fts, fts_is_ready,
-            export_html, export_html_to_file,
+            search_english,
+            rebuild_fts,
+            fts_is_ready,
+            export_html,
+            export_html_to_file,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -251,7 +310,9 @@ mod tests {
 
         // Should have a "Start" event after init
         let count: i64 = conn
-            .query_row("SELECT COUNT(*) FROM events WHERE name='Start'", [], |r| r.get(0))
+            .query_row("SELECT COUNT(*) FROM events WHERE name='Start'", [], |r| {
+                r.get(0)
+            })
             .unwrap();
         assert_eq!(count, 1, "Start event must exist after init_schema");
     }
@@ -264,19 +325,19 @@ mod tests {
         db::init_fts(&conn).unwrap();
 
         let data = crate::models::SaveWord {
-            name:        "test".to_string(),
-            type_name:   None,
-            source:      None,
-            year:        None,
-            rank:        None,
-            match_:      None,
-            origin:      None,
-            origin_x:    None,
-            notes:       None,
+            name: "test".to_string(),
+            type_name: None,
+            source: None,
+            year: None,
+            rank: None,
+            match_: None,
+            origin: None,
+            origin_x: None,
+            notes: None,
             event_start: Some("Start".to_string()),
-            event_end:   None,
-            affixes:     vec![],
-            spellings:   vec![],
+            event_end: None,
+            affixes: vec![],
+            spellings: vec![],
         };
         let id = db::save_word(&conn, None, &data).unwrap();
         assert!(id > 0);
