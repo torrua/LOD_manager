@@ -96,6 +96,7 @@
   .el-snip{
     font-size:.63rem;color:var(--sb-text2);line-height:1.5;
     overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;
+    line-clamp:2;
   }
   /* highlighted match */
   :global(.el-snip mark){

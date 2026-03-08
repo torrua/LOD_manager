@@ -270,13 +270,13 @@ export async function goBack() {
   }
   if (app.historyIdx <= 0) return;
   app.historyIdx--;
-  const e = app.history[app.historyIdx];
+  const e = app.history[app.historyIdx]!;
   if (e.tab === 'words')  await selectWord(e.id, false);
   if (e.tab === 'events') await selectEvent(e.id, false);
 }
 export async function goForward() {
   if (app.historyIdx >= app.history.length - 1) return; app.historyIdx++;
-  const e = app.history[app.historyIdx];
+  const e = app.history[app.historyIdx]!;
   if (e.tab === 'words')  await selectWord(e.id, false);
   if (e.tab === 'events') await selectEvent(e.id, false);
 }

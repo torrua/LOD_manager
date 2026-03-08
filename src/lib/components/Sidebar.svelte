@@ -62,14 +62,22 @@
     if (e.key === 'ArrowDown') {
       e.preventDefault();
       const nxt = absIdx + 1;
-      if (nxt < app.filteredWords.length) { selectWord(app.filteredWords[nxt].id); scrollToIdx(nxt); }
+      const nxtWord = app.filteredWords[nxt];
+      if (nxt < app.filteredWords.length && nxtWord) { selectWord(nxtWord.id); scrollToIdx(nxt); }
     }
     if (e.key === 'ArrowUp') {
       e.preventDefault();
       if (absIdx === 0) document.getElementById('wsearch')?.focus();
-      else { selectWord(app.filteredWords[absIdx-1].id); scrollToIdx(absIdx-1); }
+      else {
+        const prevWord = app.filteredWords[absIdx - 1];
+        if (prevWord) { selectWord(prevWord.id); scrollToIdx(absIdx - 1); }
+      }
     }
-    if (e.key === 'Enter') { e.preventDefault(); selectWord(app.filteredWords[absIdx].id); }
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const cur = app.filteredWords[absIdx];
+      if (cur) selectWord(cur.id);
+    }
   }
   function scrollToIdx(idx: number) {
     if (!listEl) return;

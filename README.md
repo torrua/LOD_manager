@@ -30,8 +30,9 @@ Pre-built binaries are on the [Releases](../../releases) page:
 ### Run in development
 
 ```bash
-npm install
-npm run tauri      # starts Vite + Tauri dev window
+npm install                         # install JS deps + linters
+rustup component add rustfmt clippy # install Rust tools (once)
+npm run tauri                       # starts Vite + Tauri dev window
 ```
 
 ### Build for Windows

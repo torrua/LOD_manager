@@ -12,7 +12,12 @@ const GRAMMAR_TIPS: Record<string,string> = {
 };
 function grammarTip(code: string): string {
   const m = code.match(/^(\d+)(.+)$/);
-  if (m) { const name = GRAMMAR_TIPS[m[2]] ?? m[2]; return `${m[1]}-place ${name.toLowerCase()}`; }
+  if (m) {
+    const num = m[1] ?? '';
+    const base = m[2] ?? code;
+    const name = GRAMMAR_TIPS[base] ?? base;
+    return `${num}-place ${name.toLowerCase()}`;
+  }
   return GRAMMAR_TIPS[code] ?? code;
 }
 const TAG_TIPS: Record<string,string> = {
@@ -223,7 +228,8 @@ function usageTip(u: string | null | undefined): string | null {
   <div class="modal-overlay" onclick={() => confirmDel=false}
   onkeydown={(e) => e.key==="Escape" && (confirmDel=false)}
   role="dialog" aria-modal="true" tabindex="-1">
-    <div class="modal" onclick={e => e.stopPropagation()}>
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div class="modal" role="presentation" onclick={e => e.stopPropagation()}>
       <div class="modal-title">Delete "{word.name}"?</div>
       <p class="modal-body">This will also delete all definitions. Cannot be undone.</p>
       <div class="modal-actions">
