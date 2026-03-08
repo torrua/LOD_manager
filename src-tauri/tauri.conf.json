@@ -26,12 +26,8 @@
     "active": true,
     "targets": "all",
     "icon": [],
-    "android": {
-      "minSdkVersion": 24
-    },
-    "iOS": {
-      "minimumSystemVersion": "16"
-    }
+    "android": { "minSdkVersion": 24 },
+    "iOS": { "minimumSystemVersion": "16" }
   },
   "plugins": {
     "dialog": null,

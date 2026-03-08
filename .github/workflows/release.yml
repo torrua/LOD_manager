@@ -26,16 +26,17 @@ jobs:
         with:
           toolchain: stable-x86_64-pc-windows-msvc
 
-      - name: Rust cache
-        uses: swatinem/rust-cache@v2
-        with:
-          workspaces: src-tauri
-
       - name: Install npm dependencies
         run: npm ci
 
-      - name: Build Windows
-        run: npm run tauri build -- --no-daemon
+      - name: Build Frontend
+        run: npm run build
+
+      - name: Build Tauri App
+
+        run: npx tauri build --release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload Windows Assets
         uses: softprops/action-gh-release@v2
@@ -53,50 +54,27 @@ jobs:
     needs: windows
     steps:
       - uses: actions/checkout@v4
-
       - name: Install Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
-
       - name: Install Rust stable + Android targets
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-linux-android,armv7-linux-androideabi,x86_64-linux-android,i686-linux-android
-
-      - name: Rust cache
-        uses: swatinem/rust-cache@v2
-        with:
-          workspaces: src-tauri
-
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: temurin
-
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
-
-      - name: Install Android NDK r26
-        run: |
-          sdkmanager --install "ndk;26.3.11579264"
-          echo "NDK_HOME=$ANDROID_HOME/ndk/26.3.11579264" >> $GITHUB_ENV
-
-      - name: Install cargo-ndk
-        run: cargo install cargo-ndk --locked
-
-      - name: Install npm dependencies
-        run: npm ci
-
       - name: Build Android
         run: |
+          npm ci
           npx tauri android init
-          npx tauri android build --debug --target aarch64
-        env:
-          NDK_HOME: ${{ env.NDK_HOME }}
-
+          npx tauri android build --release
       - name: Upload Android APK
         uses: softprops/action-gh-release@v2
         with:
