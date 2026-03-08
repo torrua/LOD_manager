@@ -10,11 +10,11 @@ Built with [Tauri v2](https://tauri.app) · Svelte 5 · Rust · SQLite (FTS5)
 
 Pre-built binaries are on the [Releases](../../releases) page:
 
-| Platform | File |
-|----------|------|
+| Platform          | File                        |
+| ----------------- | --------------------------- |
 | Windows installer | `lod-manager_x64-setup.exe` |
-| Windows MSI | `lod-manager_x64.msi` |
-| Android (debug) | `lod-manager-debug.apk` |
+| Windows MSI       | `lod-manager_x64.msi`       |
+| Android (debug)   | `lod-manager-debug.apk`     |
 
 ---
 
@@ -84,6 +84,7 @@ GitHub Actions builds Windows MSI + debug APK and attaches them to a new GitHub 
 For Google Play or direct signed distribution:
 
 1. Generate a keystore:
+
 ```bash
 keytool -genkey -v -keystore release.jks \
         -alias lod-manager -keyalg RSA -keysize 2048 -validity 10000
@@ -91,12 +92,12 @@ keytool -genkey -v -keystore release.jks \
 
 2. Add **repository secrets** (Settings → Secrets → Actions):
 
-| Secret | Value |
-|--------|-------|
-| `ANDROID_KEYSTORE_BASE64` | `base64 -w0 release.jks` |
-| `ANDROID_KEYSTORE_PASSWORD` | keystore password |
-| `ANDROID_KEY_ALIAS` | `lod-manager` |
-| `ANDROID_KEY_PASSWORD` | key password |
+| Secret                      | Value                    |
+| --------------------------- | ------------------------ |
+| `ANDROID_KEYSTORE_BASE64`   | `base64 -w0 release.jks` |
+| `ANDROID_KEYSTORE_PASSWORD` | keystore password        |
+| `ANDROID_KEY_ALIAS`         | `lod-manager`            |
+| `ANDROID_KEY_PASSWORD`      | key password             |
 
 3. Run **"Android Signed Release"** workflow manually from the Actions tab.
 
@@ -106,13 +107,13 @@ keytool -genkey -v -keystore release.jks \
 
 The app reads original LOD text files (@ delimited):
 
-| File | Contents |
-|------|----------|
-| `Words.txt` | Word metadata (type, rank, match %, origins) |
-| `WordSpell.txt` | Spellings and event references |
-| `WordDefinition.txt` | Definitions |
-| `LexEvent.txt` | Lexical events |
-| `Author.txt` | Authors |
-| `Type.txt` | Word types |
+| File                 | Contents                                     |
+| -------------------- | -------------------------------------------- |
+| `Words.txt`          | Word metadata (type, rank, match %, origins) |
+| `WordSpell.txt`      | Spellings and event references               |
+| `WordDefinition.txt` | Definitions                                  |
+| `LexEvent.txt`       | Lexical events                               |
+| `Author.txt`         | Authors                                      |
+| `Type.txt`           | Word types                                   |
 
 Use **Tools → Import** and select all files at once.

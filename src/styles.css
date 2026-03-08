@@ -1,13 +1,66 @@
-:root { --bg: #0d0c09; --text: #ddd0b8; --gold: #c8a454; --border: #333; }
-body { font-family: 'JetBrains Mono', monospace; background: var(--bg); color: var(--text); display: flex; height: 100vh; margin: 0; }
-#sb { width: 250px; background: #111; border-right: 1px solid var(--border); display: flex; flex-direction: column; }
-.sb-logo { padding: 15px; border-bottom: 1px solid var(--border); }
-.sb-logo-title { color: var(--gold); font-weight: bold; }
-.sb-logo-sub { font-size: 0.6em; color: gray; }
-#sb-list { flex: 1; overflow-y: auto; padding: 10px 0; }
-.si { padding: 8px 15px; cursor: pointer; display: flex; justify-content: space-between; }
-.si:hover { background: #222; }
-.si.on { color: var(--gold); background: #222; border-left: 3px solid var(--gold); }
-#main { flex: 1; display: flex; flex-direction: column; }
-.top-bar { padding: 15px; border-bottom: 1px solid var(--border); font-weight: bold; }
-#cnt { padding: 20px; overflow-y: auto; }
+:root {
+  --bg: #0d0c09;
+  --text: #ddd0b8;
+  --gold: #c8a454;
+  --border: #333;
+}
+body {
+  font-family: 'JetBrains Mono', monospace;
+  background: var(--bg);
+  color: var(--text);
+  display: flex;
+  height: 100vh;
+  margin: 0;
+}
+#sb {
+  width: 250px;
+  background: #111;
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+}
+.sb-logo {
+  padding: 15px;
+  border-bottom: 1px solid var(--border);
+}
+.sb-logo-title {
+  color: var(--gold);
+  font-weight: bold;
+}
+.sb-logo-sub {
+  font-size: 0.6em;
+  color: gray;
+}
+#sb-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px 0;
+}
+.si {
+  padding: 8px 15px;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+}
+.si:hover {
+  background: #222;
+}
+.si.on {
+  color: var(--gold);
+  background: #222;
+  border-left: 3px solid var(--gold);
+}
+#main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+.top-bar {
+  padding: 15px;
+  border-bottom: 1px solid var(--border);
+  font-weight: bold;
+}
+#cnt {
+  padding: 20px;
+  overflow-y: auto;
+}

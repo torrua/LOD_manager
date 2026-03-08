@@ -3,9 +3,9 @@
   import { app, importFiles, toast } from '../store.svelte';
   import type { ImportResult } from '../../types';
 
-  let paths    = $state<string[]>([]);
-  let result   = $state<ImportResult | null>(null);
-  let running  = $state(false);
+  let paths = $state<string[]>([]);
+  let result = $state<ImportResult | null>(null);
+  let running = $state(false);
 
   async function pickFiles() {
     const selected = await open({
@@ -19,18 +19,25 @@
     }
   }
 
-  function remove(p: string) { paths = paths.filter(x => x !== p); }
-  function basename(p: string) { return p.split(/[\\/]/).pop() || p; }
+  function remove(p: string) {
+    paths = paths.filter((x) => x !== p);
+  }
+  function basename(p: string) {
+    return p.split(/[\\/]/).pop() || p;
+  }
 
   async function run() {
     if (!paths.length || running) return;
-    running = true; result = null;
+    running = true;
+    result = null;
     try {
-      result = await importFiles(paths) as ImportResult;
+      result = (await importFiles(paths)) as ImportResult;
       toast(`Import complete: ${result.words} words`, result.errors ? 'err' : 'ok');
-    } catch(e) {
+    } catch (e) {
       toast(String(e), 'err');
-    } finally { running = false; }
+    } finally {
+      running = false;
+    }
   }
 </script>
 
@@ -41,8 +48,8 @@
 
   <p class="ip-help">
     Select the LOD export files (<code>Word.txt</code>, <code>WordSpell.txt</code>,
-    <code>WordDef.txt</code>, <code>LexEvent.txt</code>, <code>type.txt</code>, <code>author.txt</code>).
-    Files are matched by name — you can select any subset.
+    <code>WordDef.txt</code>, <code>LexEvent.txt</code>, <code>type.txt</code>,
+    <code>author.txt</code>). Files are matched by name — you can select any subset.
   </p>
 
   <div class="file-zone" class:has-files={paths.length > 0}>
@@ -75,7 +82,9 @@
 
   {#if result}
     <div class="result" class:has-err={result.errors > 0}>
-      <div class="res-title">{result.errors ? '⚠ Import complete (with errors)' : '✓ Import complete'}</div>
+      <div class="res-title">
+        {result.errors ? '⚠ Import complete (with errors)' : '✓ Import complete'}
+      </div>
       <div class="res-grid">
         <span>Words</span><strong>{result.words}</strong>
         <span>Definitions</span><strong>{result.definitions}</strong>
@@ -94,27 +103,110 @@
 </div>
 
 <style>
-  .ip{max-width:560px}
-  .ip-help{font-size:.72rem;color:var(--text2);margin-bottom:.7rem;line-height:1.65}
-  .ip-help code{color:var(--gold);background:var(--gold-g);padding:0 3px;border-radius:2px;font-size:.88em}
-  .file-zone{border:1px dashed var(--border2);border-radius:6px;
-    padding:.8rem;margin-bottom:.3rem;min-height:80px}
-  .fz-empty{display:flex;flex-direction:column;align-items:center;gap:.4rem;padding:.3rem 0}
-  .fz-hint{font-size:.65rem;color:var(--text3)}
-  .file-list{display:flex;flex-direction:column;gap:.18rem}
-  .file-item{display:flex;align-items:center;gap:.38rem;background:var(--surf2);
-    border:1px solid var(--border);border-radius:4px;padding:.22rem .45rem}
-  .fi-name{font-size:.7rem;font-weight:600;color:var(--gold);white-space:nowrap}
-  .fi-path{font-size:.57rem;color:var(--text3);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .result{margin-top:.8rem;background:var(--surf2);border:1px solid var(--border);
-    border-radius:5px;padding:.7rem .85rem}
-  .result.has-err{border-color:var(--red-d)}
-  .res-title{font-size:.72rem;font-weight:600;color:var(--green);margin-bottom:.4rem}
-  .has-err .res-title{color:var(--red)}
-  .res-grid{display:grid;grid-template-columns:max-content auto;gap:.08rem .6rem;font-size:.7rem;
-    color:var(--text2);margin-bottom:.4rem}
-  .res-grid strong{color:var(--text);font-weight:600}
-  .res-grid strong.err{color:var(--red)}
-  .res-log{font-size:.65rem;color:var(--text3);background:var(--surf);border-radius:3px;
-    padding:.3rem .4rem;max-height:120px;overflow-y:auto;line-height:1.6}
+  .ip {
+    max-width: 560px;
+  }
+  .ip-help {
+    font-size: 0.72rem;
+    color: var(--text2);
+    margin-bottom: 0.7rem;
+    line-height: 1.65;
+  }
+  .ip-help code {
+    color: var(--gold);
+    background: var(--gold-g);
+    padding: 0 3px;
+    border-radius: 2px;
+    font-size: 0.88em;
+  }
+  .file-zone {
+    border: 1px dashed var(--border2);
+    border-radius: 6px;
+    padding: 0.8rem;
+    margin-bottom: 0.3rem;
+    min-height: 80px;
+  }
+  .fz-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.3rem 0;
+  }
+  .fz-hint {
+    font-size: 0.65rem;
+    color: var(--text3);
+  }
+  .file-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.18rem;
+  }
+  .file-item {
+    display: flex;
+    align-items: center;
+    gap: 0.38rem;
+    background: var(--surf2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 0.22rem 0.45rem;
+  }
+  .fi-name {
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--gold);
+    white-space: nowrap;
+  }
+  .fi-path {
+    font-size: 0.57rem;
+    color: var(--text3);
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .result {
+    margin-top: 0.8rem;
+    background: var(--surf2);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 0.7rem 0.85rem;
+  }
+  .result.has-err {
+    border-color: var(--red-d);
+  }
+  .res-title {
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--green);
+    margin-bottom: 0.4rem;
+  }
+  .has-err .res-title {
+    color: var(--red);
+  }
+  .res-grid {
+    display: grid;
+    grid-template-columns: max-content auto;
+    gap: 0.08rem 0.6rem;
+    font-size: 0.7rem;
+    color: var(--text2);
+    margin-bottom: 0.4rem;
+  }
+  .res-grid strong {
+    color: var(--text);
+    font-weight: 600;
+  }
+  .res-grid strong.err {
+    color: var(--red);
+  }
+  .res-log {
+    font-size: 0.65rem;
+    color: var(--text3);
+    background: var(--surf);
+    border-radius: 3px;
+    padding: 0.3rem 0.4rem;
+    max-height: 120px;
+    overflow-y: auto;
+    line-height: 1.6;
+  }
 </style>

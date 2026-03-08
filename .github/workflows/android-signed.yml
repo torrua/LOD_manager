@@ -62,10 +62,10 @@ jobs:
         env:
           NDK_HOME: ${{ env.NDK_HOME }}
           # These env vars are picked up by Tauri's Gradle config
-          TAURI_ANDROID_KEYSTORE:          $HOME/release.jks
+          TAURI_ANDROID_KEYSTORE: $HOME/release.jks
           TAURI_ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          TAURI_ANDROID_KEY_ALIAS:         ${{ secrets.ANDROID_KEY_ALIAS }}
-          TAURI_ANDROID_KEY_PASSWORD:      ${{ secrets.ANDROID_KEY_PASSWORD }}
+          TAURI_ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          TAURI_ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
 
       - name: Upload signed APK to release
         uses: softprops/action-gh-release@v2
