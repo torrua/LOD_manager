@@ -1,0 +1,6 @@
+# Project-level Clippy configuration
+# These are picked up by `cargo clippy` automatically.
+
+# Allow slightly long lines in generated/complex match arms
+too-many-lines-threshold = 60
+cognitive-complexity-threshold = 20

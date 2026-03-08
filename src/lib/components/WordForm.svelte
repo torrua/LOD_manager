@@ -237,8 +237,8 @@
   }
   .btn-add:hover{
     background:var(--green-g,rgba(90,160,80,.12));
-    border-color:var(--green-d,#5a8040);
-    color:var(--green,#6aa850);
+    border-color:var(--green-d,color-mix(in srgb, var(--green) 70%, black));
+    color:var(--green,var(--green));
   }
 
   .badge{
@@ -246,7 +246,7 @@
     font-size:var(--fs-label);padding:2px 5px;border-radius:var(--r-sm);
     line-height:1.4;
   }
-  .bd-afx  { background:rgba(106,170,112,.12);color:var(--green,#6aa850);border:1px solid rgba(106,170,112,.25) }
+  .bd-afx  { background:rgba(106,170,112,.12);color:var(--green,var(--green));border:1px solid rgba(106,170,112,.25) }
   .bd-spell{ background:rgba(106,154,200,.12);color:var(--blue);        border:1px solid rgba(106,154,200,.25) }
   .tag-rm{
     background:none;border:none;color:currentColor;cursor:pointer;

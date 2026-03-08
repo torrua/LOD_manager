@@ -168,9 +168,8 @@ pub fn migrate_event_columns_if_needed(conn: &Connection) -> rusqlite::Result<()
 
 // ─── Words ────────────────────────────────────────────────────────────────────
 
-pub fn list_words(conn: &Connection, q: &str, type_filter: &str) -> rusqlite::Result<Vec<WordListItem>> {
+pub fn list_words(conn: &Connection, q: &str, type_filter: &str, event_id: Option<i64>) -> rusqlite::Result<Vec<WordListItem>> {
     let pattern = if q.contains('*') || q.contains('?') {
-        // wildcard: convert to GLOB pattern (already glob syntax)
         q.to_lowercase().replace('*', "%").replace('?', "_")
     } else if q.is_empty() {
         "%".to_string()
@@ -178,26 +177,38 @@ pub fn list_words(conn: &Connection, q: &str, type_filter: &str) -> rusqlite::Re
         format!("%{}%", q.to_lowercase())
     };
 
-    let sql = if type_filter.is_empty() {
-        "SELECT w.id, w.name, t.name, (SELECT COUNT(*) FROM definitions d WHERE d.word_id=w.id) FROM words w
-         LEFT JOIN types t ON t.id=w.type_id
-         WHERE LOWER(w.name) LIKE ?1
-         ORDER BY LOWER(w.name)".to_string()
-    } else {
-        format!(
-            "SELECT w.id, w.name, t.name, (SELECT COUNT(*) FROM definitions d WHERE d.word_id=w.id) FROM words w
-             LEFT JOIN types t ON t.id=w.type_id
-             WHERE LOWER(w.name) LIKE ?1 AND t.name='{}'
-             ORDER BY LOWER(w.name)",
-            type_filter.replace('\'', "''")
-        )
+    // Event filter: word appeared at or before this event AND has not ended before it.
+    // event_start_id <= event_id  AND  (event_end_id IS NULL OR event_end_id > event_id)
+    let ev_clause = match event_id {
+        Some(_) => " AND w.event_start_id <= ?2 AND (w.event_end_id IS NULL OR w.event_end_id > ?2)",
+        None    => "",
     };
 
+    let type_clause = if type_filter.is_empty() { String::new() }
+    else { format!(" AND t.name='{}'", type_filter.replace('\'', "''")) };
+
+    let sql = format!(
+        "SELECT w.id, w.name, t.name, (SELECT COUNT(*) FROM definitions d WHERE d.word_id=w.id)
+         FROM words w
+         LEFT JOIN types t ON t.id=w.type_id
+         WHERE LOWER(w.name) LIKE ?1{ev}{ty}
+         ORDER BY LOWER(w.name)",
+        ev = ev_clause, ty = type_clause
+    );
+
     let mut stmt = conn.prepare(&sql)?;
-    let rows = stmt.query_map(params![pattern], |r| {
-        Ok(WordListItem { id: r.get(0)?, name: r.get(1)?, type_name: r.get(2)?, def_count: r.get(3)? })
-    })?;
-    rows.collect()
+    let rows = if let Some(eid) = event_id {
+        stmt.query_map(params![pattern, eid], |r| {
+            Ok(WordListItem { id: r.get(0)?, name: r.get(1)?, type_name: r.get(2)?, def_count: r.get(3)? })
+        })?
+        .collect()
+    } else {
+        stmt.query_map(params![pattern], |r| {
+            Ok(WordListItem { id: r.get(0)?, name: r.get(1)?, type_name: r.get(2)?, def_count: r.get(3)? })
+        })?
+        .collect()
+    };
+    rows
 }
 
 pub fn get_word(conn: &Connection, id: i64) -> rusqlite::Result<WordDetail> {

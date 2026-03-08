@@ -1,5 +1,59 @@
 <script lang="ts">
   import { app, deleteWord, saveDef, deleteDef, selectWord, applyFilter } from '../store.svelte';
+
+// ── Tooltip lookup tables ─────────────────────────────────────────────────────
+const GRAMMAR_TIPS: Record<string,string> = {
+  'n':   'Noun', 'a': 'Adjective', 'av': 'Adverb', 'v': 'Verb',
+  'va':  'Verb auxiliary', 'c': 'Conjunction', 'p': 'Pronoun',
+  'pp':  'Preposition', 'i': 'Interjection', 'h': 'Honorific',
+  'l':   'Letter', 'ms': 'Mathematical sign', 'na': 'Name (proper noun)',
+  'op':  'Operator', 'ph': 'Phrase', 'pm': 'Punctuation mark',
+  'voc': 'Vocative', 'af': 'Affix (combining form)', 'art': 'Article',
+};
+function grammarTip(code: string): string {
+  const m = code.match(/^(\d+)(.+)$/);
+  if (m) { const name = GRAMMAR_TIPS[m[2]] ?? m[2]; return `${m[1]}-place ${name.toLowerCase()}`; }
+  return GRAMMAR_TIPS[code] ?? code;
+}
+const TAG_TIPS: Record<string,string> = {
+  'B': 'B (beu) — object: patient, part, property',
+  'C': 'C (cau) — quantity: amount, value',
+  'D': 'D (dio) — direction: recipient, destination',
+  'F': 'F (foa) — whole: set, collectivity',
+  'G': 'G (goa) — greater in a comparison',
+  'J': 'J (jui) — lesser in a comparison',
+  'K': 'K (kao) — actor: agent, doer',
+  'N': 'N (neu) — condition: field, circumstance',
+  'P': 'P (pou) — product: output, purpose',
+  'S': 'S (sau) — source: origin, reason, cause',
+  'V': 'V (veu) — event: means, route, effect',
+};
+function tagsTip(tagStr: string): string {
+  return tagStr.replace(/[\[\]]/g,'').split('')
+    .filter(c => /[A-Z]/.test(c)).map(c => TAG_TIPS[c] ?? c).join('\n');
+}
+const USAGE_TIPS: Record<string,string> = {
+  'le':   'le — specific instance: "the X I have in mind"',
+  'lo':   'lo — mass term: X-stuff in general',
+  'la':   'la — used as a name',
+  'lio':  'lio — used as a number',
+  'nu':   'nu — swap 1st & 2nd argument (conversion)',
+  'fu':   'fu — move 3rd argument to front',
+  'ju':   'ju — move 4th argument to front',
+  'po':   'po — event abstraction: "the event of …"',
+  'pu':   'pu — property abstraction: "the property of being …"',
+  'zo':   'zo — quantity abstraction: "the amount of …"',
+  'lopo': 'lopo — mass term of event',
+  'lepo': 'lepo — specific event',
+  'lopu': 'lopu — mass term of property',
+  'lepu': 'lepu — specific property',
+};
+function usageTip(u: string | null | undefined): string | null {
+  if (!u) return null;
+  const key = u.replace(/[\s—%-].*$/,'').trim().toLowerCase();
+  return USAGE_TIPS[key] ?? null;
+}
+
   import { renderBody } from '../text';
   import type { WordDetail, Definition } from '../../types';
 
@@ -62,12 +116,10 @@
         {/each}
       </div>
     {/if}
-    {#if !app.readonly}
-      <div class="wd-acts edit-only">
-        <button class="btn btn-au btn-sm" onclick={() => { app.panel='word-form'; app.editing=true; }}>✎ Edit</button>
-        <button class="btn btn-icon-sm btn-r" onclick={() => confirmDel=true}>🗑</button>
-      </div>
-    {/if}
+    <div class="wd-acts" style:visibility={app.readonly ? 'hidden' : 'visible'} aria-hidden={app.readonly}>
+      <button class="btn btn-au btn-sm" onclick={() => { app.panel='word-form'; app.editing=true; }}>✎ Edit</button>
+      <button class="btn btn-icon-sm btn-r" onclick={() => confirmDel=true}>🗑</button>
+    </div>
   </div>
 
   <!-- ── META CHIPS ─────────────────────────────────────────────── -->
@@ -94,9 +146,10 @@
   <!-- sec-row: symmetric padding so + Add button has equal space top/bottom from divider line -->
   <div class="sec-row">
     <span class="sec-title">Definitions</span>
-    {#if !app.readonly}
-      <button class="btn btn-g btn-sm edit-only" onclick={startNewDef}>+ Add</button>
-    {/if}
+    <button class="btn btn-g btn-sm"
+      style:visibility={app.readonly ? 'hidden' : 'visible'}
+      aria-hidden={app.readonly}
+      onclick={startNewDef}>+ Add</button>
   </div>
 
   <ol class="def-list">
@@ -106,16 +159,29 @@
       {:else}
         <li class="def-item">
           <div class="def-head">
-            {#if d.usage}<span class="def-usage">{d.usage.replace('%', word.name)}</span>{/if}
-            {#if d.grammar}<span class="def-grammar">({d.grammar})</span>{/if}
-            {#if d.tags}<span class="def-tags">[{d.tags}]</span>{/if}
-            {#if !app.readonly}
-              <!-- btn-icon-sm: fixed 26×26px square regardless of glyph width -->
-              <div class="def-acts edit-only">
-                <button class="btn btn-icon-sm btn-ghost" onclick={() => startEditDef(d)}>✎</button>
-                <button class="btn btn-icon-sm btn-ghost btn-r" onclick={() => deleteDef(d.id, word.id)}>🗑</button>
-              </div>
+            {#if d.usage}
+              {@const tip = app.prefs.showTooltips ? usageTip(d.usage) : null}
+              <span class="def-usage" class:has-tip={!!tip} title={tip ?? undefined}>
+                {d.usage.replace('%', word.name)}
+              </span>
             {/if}
+            {#if d.grammar}
+              {@const tip = app.prefs.showTooltips ? grammarTip(d.grammar) : null}
+              <span class="def-grammar" class:has-tip={!!tip} title={tip ?? undefined}>
+                ({d.grammar})
+              </span>
+            {/if}
+            {#if d.tags}
+              {@const tip = app.prefs.showTooltips ? tagsTip(d.tags) : null}
+              <span class="def-tags" class:has-tip={!!tip} title={tip ?? undefined}>
+                [{d.tags}]
+              </span>
+            {/if}
+            <!-- btn-icon-sm: fixed 26×26px square regardless of glyph width -->
+            <div class="def-acts" style:visibility={app.readonly ? 'hidden' : 'visible'} aria-hidden={app.readonly}>
+              <button class="btn btn-icon-sm btn-ghost" onclick={() => startEditDef(d)}>✎</button>
+              <button class="btn btn-icon-sm btn-ghost btn-r" onclick={() => deleteDef(d.id, word.id)}>🗑</button>
+            </div>
           </div>
           <!-- svelte-ignore a11y_no_static_element_interactions -->
           <div class="def-body" onclick={handleXref} onkeydown={handleXref}>{@html renderBody(d.body)}</div>
@@ -197,7 +263,7 @@
     margin-bottom:.75rem;
   }
   .wd-name{
-    font-size:1.4rem;font-weight:700;color:var(--text);
+    font-size:var(--fs-xl);font-weight:700;color:var(--text);
     font-style:italic;line-height:1.2;
   }
   .wd-badges{
@@ -247,6 +313,7 @@
   .def-usage{ font-size:var(--fs-sm);color:var(--gold);font-weight:600 }
   .def-grammar{ font-size:var(--fs-sm);color:var(--teal) }
   .def-tags{ font-size:var(--fs-xs);color:var(--text3) }
+  .has-tip{ cursor:help }
 
   /* ── Def action buttons ── */
   /* margin-left:auto pushes to right; gap:.1rem between edit+delete */

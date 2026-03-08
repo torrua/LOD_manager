@@ -42,9 +42,12 @@ export const app = $state({
     elShowCount:    (loadPrefs().elShowCount    ?? true)  as boolean,
     elUseLike:      (loadPrefs().elUseLike      ?? false) as boolean,
     elShowDetails:  (loadPrefs().elShowDetails  ?? true)  as boolean,
+    eventFilter:    (loadPrefs().eventFilter    ?? null)  as number | null,
+    showTooltips:   (loadPrefs().showTooltips   ?? true)  as boolean,
   } as { showTypeTag: boolean; showDefCount: boolean; visibleMeta: string[];
          elShowSnippet: boolean; elShowGrammar: boolean; elShowType: boolean;
-         elShowCount: boolean; elUseLike: boolean; elShowDetails: boolean; },
+         elShowCount: boolean; elUseLike: boolean; elShowDetails: boolean;
+         eventFilter: number | null; showTooltips: boolean; },
 });
 
 export function setPref<K extends keyof typeof app.prefs>(k: K, v: typeof app.prefs[K]) {
@@ -106,8 +109,15 @@ export async function loadDbStats() {
 async function loadAll() { try { await Promise.all([loadWords(), loadTypes(), loadEvents(), loadAuthors()]); } catch(e) { console.error("loadAll:", e); } }
 
 export async function loadWords() {
-  app.words = await invoke('get_words', { q: '', typeFilter: '' });
+  app.words = await invoke('get_words', {
+    q: '', typeFilter: '',
+    eventId: app.prefs.eventFilter ?? null,
+  });
   app.wordCount = app.words.length; applyFilter();
+}
+export function activeEvent(): import('../types').EventItem | null {
+  if (!app.prefs.eventFilter) return null;
+  return app.events.find(e => e.id === app.prefs.eventFilter) ?? null;
 }
 export function applyFilter() {
   if (!app.words) { app.filteredWords = []; return; }

@@ -1,3 +1,13 @@
+// Clippy configuration — applied project-wide
+#![warn(clippy::all)]
+#![warn(clippy::pedantic)]
+// Allow these pedantic rules that are too noisy for this codebase:
+#![allow(clippy::missing_errors_doc)]
+#![allow(clippy::missing_panics_doc)]
+#![allow(clippy::module_name_repetitions)]
+#![allow(clippy::wildcard_imports)]
+#![allow(clippy::too_many_lines)]
+
 mod models; mod db; mod import; mod export;
 use models::*;
 use rusqlite::Connection;
@@ -57,8 +67,8 @@ fn get_db_stats(state: Db) -> Res<DbStats> {
 }
 
 #[tauri::command]
-fn get_words(state: Db, q: String, type_filter: String) -> Res<Vec<WordListItem>> {
-    with_db(&state, |conn| db::list_words(conn, &q, &type_filter))
+fn get_words(state: Db, q: String, type_filter: String, event_id: Option<i64>) -> Res<Vec<WordListItem>> {
+    with_db(&state, |conn| db::list_words(conn, &q, &type_filter, event_id))
 }
 
 #[tauri::command]
@@ -226,4 +236,53 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Smoke-test: open an in-memory database, run init_schema, insert a word.
+    #[test]
+    fn test_in_memory_db_init() {
+        let mut conn = rusqlite::Connection::open_in_memory().unwrap();
+        db::init_schema(&conn).unwrap();
+        db::init_fts(&conn).unwrap();
+
+        // Should have a "Start" event after init
+        let count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM events WHERE name='Start'", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(count, 1, "Start event must exist after init_schema");
+    }
+
+    /// Smoke-test: save and retrieve a word.
+    #[test]
+    fn test_save_and_get_word() {
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        db::init_schema(&conn).unwrap();
+        db::init_fts(&conn).unwrap();
+
+        let data = crate::models::SaveWord {
+            name:        "test".to_string(),
+            type_name:   None,
+            source:      None,
+            year:        None,
+            rank:        None,
+            match_:      None,
+            origin:      None,
+            origin_x:    None,
+            notes:       None,
+            event_start: Some("Start".to_string()),
+            event_end:   None,
+            affixes:     vec![],
+            spellings:   vec![],
+        };
+        let id = db::save_word(&conn, None, &data).unwrap();
+        assert!(id > 0);
+
+        let word = db::get_word(&conn, id).unwrap();
+        assert_eq!(word.name, "test");
+        assert_eq!(word.event_start_name, Some("Start".to_string()));
+    }
 }

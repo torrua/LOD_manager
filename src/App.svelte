@@ -3,7 +3,8 @@
   import { open as openDialog, save as saveDialog } from '@tauri-apps/plugin-dialog';
   import {
     app, toggleTheme, toggleReadonly, toast,
-    goBack, goForward, canGoBack, canGoForward, getLastDbPath, openDb, createDb
+    goBack, goForward, canGoBack, canGoForward, getLastDbPath, openDb, createDb,
+    activeEvent
   } from './lib/store.svelte';
   import Sidebar      from './lib/components/Sidebar.svelte';
   import WordDetail   from './lib/components/WordDetail.svelte';
@@ -87,6 +88,10 @@
           title="Back">←</button>
       {/if}
       <button class="logo" onclick={handleLogoClick} aria-label="Home">LOD</button>
+      {#if app.dbOpen && activeEvent()}
+        {@const ev = activeEvent()}
+        <span class="ev-badge" title="Filtered to: {ev?.name}">{ev?.annotation || ev?.name}</span>
+      {/if}
     </div>
     <div class="tbr">
       {#if app.dbOpen}
@@ -222,6 +227,8 @@
     --sp-1:4px; --sp-2:8px; --sp-3:12px; --sp-4:16px; --sp-5:24px;
     --r-sm:3px; --r-md:4px; --r-lg:6px; --r-xl:8px;
     --fs-label:.52rem; --fs-xs:.65rem; --fs-sm:.72rem; --fs-base:.78rem; --fs-md:.82rem;
+    --fs-lg:1rem; --fs-xl:1.4rem;
+    --red:#c44444; --green:#5a8;
   }
   :global([data-theme="light"]){
     --bg:#f0ebe0;--surf:#faf6ee;--surf2:#f3ede2;--surf3:#ece5d8;
@@ -240,6 +247,8 @@
     --sp-1:4px; --sp-2:8px; --sp-3:12px; --sp-4:16px; --sp-5:24px;
     --r-sm:3px; --r-md:4px; --r-lg:6px; --r-xl:8px;
     --fs-label:.52rem; --fs-xs:.65rem; --fs-sm:.72rem; --fs-base:.78rem; --fs-md:.82rem;
+    --fs-lg:1rem; --fs-xl:1.4rem;
+    --red:#c44444; --green:#5a8;
   }
 
   /* ── Buttons ── */
@@ -368,6 +377,14 @@
     height:42px;flex-shrink:0;gap:.4rem}
   .tbl{display:flex;align-items:center;gap:.35rem;min-width:0;flex:1;overflow:hidden}
   .tbr{display:flex;align-items:center;gap:.1rem;flex-shrink:0}
+  .ev-badge{
+    font-size:.5rem;font-weight:600;letter-spacing:.04em;
+    padding:2px 5px;border-radius:var(--r-sm);
+    background:rgba(128,128,128,.1);color:var(--text2);
+    flex-shrink:0;max-width:80px;overflow:hidden;
+    text-overflow:ellipsis;white-space:nowrap;cursor:default;
+    font-family:'JetBrains Mono','Cascadia Code','Consolas',monospace;
+  }
   .logo{font-size:.8rem;font-weight:700;color:var(--gold);cursor:pointer;
     letter-spacing:.04em;flex-shrink:0;user-select:none;
     background:none;border:none;padding:0;font-family:inherit;

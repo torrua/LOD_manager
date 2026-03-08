@@ -4,7 +4,7 @@
   import { open as openDbDialog } from '@tauri-apps/plugin-dialog';
   import {
     app, openDb, createDb, closeDb, importFiles, exportHtmlToFile,
-    toast, loadDbStats, setPref, toggleMetaField, rebuildFts
+    toast, loadDbStats, setPref, toggleMetaField, rebuildFts, loadWords
   } from '../store.svelte';
   import type { ImportResult } from '../../types';
 
@@ -218,6 +218,37 @@
 
     <!-- ── SETTINGS ── -->
     {:else if app.toolsTab==='settings'}
+      <!-- Word list event filter -->
+      <div class="settings-group">
+        <div class="sg-title">Word List Filter</div>
+        <label class="sg-label" for="td-ev-filter">Show words active at event</label>
+        <select id="td-ev-filter" class="td-select"
+          value={app.prefs.eventFilter ?? ''}
+          onchange={async e => {
+            const v = (e.target as HTMLSelectElement).value;
+            setPref('eventFilter', v ? parseInt(v) : null);
+            await loadWords();
+          }}>
+          <option value="">— All words —</option>
+          {#each app.events as ev}
+            <option value={ev.id}>{ev.name}{ev.annotation ? ' · ' + ev.annotation : ''}</option>
+          {/each}
+        </select>
+        <p class="td-hint" style="margin:.25rem 0 0">Hides words added after the selected event, and words that were removed by it.</p>
+      </div>
+
+      <!-- Tooltips -->
+      <div class="settings-group">
+        <div class="sg-title">Definitions Display</div>
+        <label class="ck-row">
+          <input type="checkbox" class="ck"
+            checked={app.prefs.showTooltips}
+            onchange={e => setPref('showTooltips', (e.target as HTMLInputElement).checked)} />
+          Show tooltips on grammar codes &amp; usages
+        </label>
+        <p class="td-hint" style="margin:.2rem 0">Hover over <code>(2v)</code>, <code>[G-J]</code>, <code>lo —</code> to see explanations.</p>
+      </div>
+
       <div class="settings-group">
         <div class="sg-title">Sidebar List</div>
         <label class="ck-row">
@@ -312,6 +343,15 @@
 </div>
 
 <style>
+  .td-select{
+    width:100%;padding:.3rem .5rem;font-size:var(--fs-sm);
+    background:var(--surf2);border:1px solid var(--border);border-radius:var(--r-md);
+    color:var(--text);cursor:pointer;margin-top:.25rem;
+    font-family:inherit;
+  }
+  .sg-label{
+    font-size:var(--fs-xs);color:var(--text2);display:block;
+  }
   .td-backdrop{position:fixed;inset:0;background:var(--overlay);z-index:200}
   .td{position:fixed;right:0;top:0;bottom:0;width:310px;max-width:94vw;
     background:var(--surf);border-left:1px solid var(--border);z-index:201;

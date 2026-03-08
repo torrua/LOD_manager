@@ -382,7 +382,7 @@
     /* already inside .sb-filter which is opaque */
   }
   .status-count{font-size:.58rem;color:var(--sb-text2);letter-spacing:.03em}
-  .fts-warn{font-size:.54rem;color:var(--red,#c44);cursor:help}
+  .fts-warn{font-size:.54rem;color:var(--red,var(--red));cursor:help}
   .clr-all{
     margin-left:auto;font-size:.52rem;color:var(--text3);background:none;border:none;
     cursor:pointer;padding:0;font-family:inherit;

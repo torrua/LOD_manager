@@ -1,0 +1,10 @@
+# Stable rustfmt options
+edition          = "2021"
+max_width        = 100
+tab_spaces       = 4
+newline_style    = "Unix"
+use_small_heuristics = "Default"
+
+# Imports
+imports_granularity = "Crate"   # group all imports from same crate
+group_imports       = "StdExternalCrate"
