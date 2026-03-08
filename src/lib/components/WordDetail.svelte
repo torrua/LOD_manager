@@ -1,3 +1,4 @@
+<!-- eslint-disable svelte/no-at-html-tags -->
 <script lang="ts">
   import { app, deleteWord, saveDef, deleteDef, selectWord, applyFilter } from '../store.svelte';
 
@@ -48,7 +49,8 @@
   };
   function tagsTip(tagStr: string): string {
     return tagStr
-      .replace(/[\[\]]/g, '')
+      // square brackets aren't allowed inside tag strings
+      .replace(/\[|\]/g, '')
       .split('')
       .filter((c) => /[A-Z]/.test(c))
       .map((c) => TAG_TIPS[c] ?? c)
@@ -82,7 +84,7 @@
   import { renderBody } from '../text';
   import type { WordDetail, Definition } from '../../types';
 
-  let { word }: { word: WordDetail } = $props();
+  const { word }: { word: WordDetail } = $props();
 
   let editingDef = $state<number | null>(null);
   let newDef = $state(false);
@@ -138,7 +140,7 @@
     { key: 'event', label: 'From', val: () => word.event_start_name },
     { key: 'until', label: 'Until', val: () => word.event_end_name },
   ] as const;
-  let visibleMeta = $derived(
+  const visibleMeta = $derived(
     META_FIELDS.filter((f) => app.prefs.visibleMeta.includes(f.key) && f.val())
   );
 </script>
@@ -189,7 +191,7 @@
   {#if word.origin || word.origin_x}
     <div class="origin-box">
       <div class="sec-title">Origins</div>
-      <div class="origin-text">{word.origin || ''}{word.origin_x ? ' = ' + word.origin_x : ''}</div>
+      <div class="origin-text">{word.origin || ''}{word.origin_x ? ` = ${  word.origin_x}` : ''}</div>
     </div>
   {/if}
 
@@ -245,6 +247,7 @@
           </div>
           <!-- svelte-ignore a11y_no_static_element_interactions -->
           <div class="def-body" onclick={handleXref} onkeydown={handleXref}>
+            <!-- eslint-disable-next-line svelte/no-at-html-tags -->
             {@html renderBody(d.body)}
           </div>
         </li>

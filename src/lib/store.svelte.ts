@@ -181,7 +181,7 @@ export async function loadWords() {
   app.wordCount = app.words.length;
   applyFilter();
 }
-export function activeEvent(): import('../types').EventItem | null {
+export function activeEvent(): EventItem | null {
   if (!app.prefs.eventFilter) return null;
   return app.events.find((e) => e.id === app.prefs.eventFilter) ?? null;
 }
@@ -196,12 +196,12 @@ export function applyFilter() {
   if (q) {
     if (q.includes('*') || q.includes('?')) {
       const pat = new RegExp(
-        '^' +
+        `^${ 
           q
             .replace(/[.+^${}()|[\]\\]/g, '\\$&')
             .replace(/\*/g, '.*')
-            .replace(/\?/g, '.') +
-          '$',
+            .replace(/\?/g, '.') 
+          }$`,
         'i'
       );
       ws = ws.filter((w) => pat.test(w.name));
@@ -422,7 +422,7 @@ function _scrollSidebarTo(id: number) {
   requestAnimationFrame(() => {
     const list = document.getElementById('sb-list');
     if (!list) return;
-    const item = document.getElementById('wi' + id);
+    const item = document.getElementById(`wi${  id}`);
     if (item) {
       item.scrollIntoView({ block: 'nearest' });
     } else {

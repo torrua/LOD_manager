@@ -2,7 +2,7 @@
   import { app, saveWord } from '../store.svelte';
 
   const w = app.curWord;
-  let form = $state({
+  const form = $state({
     name: w?.name ?? '',
     type_name: w?.type_name ?? '',
     source: w?.source ?? '',

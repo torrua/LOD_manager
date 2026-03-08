@@ -59,12 +59,12 @@
   let listEl = $state<HTMLElement | undefined>(undefined);
   let scrollTop = $state(0),
     clientH = $state(600);
-  let vStart = $derived(Math.max(0, Math.floor(scrollTop / ROW_H) - 10));
-  let vEnd = $derived(
+  const vStart = $derived(Math.max(0, Math.floor(scrollTop / ROW_H) - 10));
+  const vEnd = $derived(
     Math.min(app.filteredWords.length, Math.ceil((scrollTop + clientH) / ROW_H) + 10)
   );
-  let topPad = $derived(vStart * ROW_H);
-  let botPad = $derived(Math.max(0, (app.filteredWords.length - vEnd) * ROW_H));
+  const topPad = $derived(vStart * ROW_H);
+  const botPad = $derived(Math.max(0, (app.filteredWords.length - vEnd) * ROW_H));
 
   $effect(() => {
     const id = app.curWord?.id;
@@ -129,7 +129,7 @@
   }
 
   // ── Filter helpers ────────────────────────────────────────────────────────
-  let groups = $derived([...new Set(app.types.map((t) => t.group_ || 'Other'))].sort());
+  const groups = $derived([...new Set(app.types.map((t) => t.group_ || 'Other'))].sort());
 
   function clearFilters() {
     app.searchQ = '';
@@ -145,7 +145,7 @@
   }
 
   // Status line below search field
-  let statusLine = $derived((): string => {
+  const statusLine = $derived((): string => {
     if (app.tab !== 'words') return '';
     if (app.searchMode === 'el') {
       if (app.elSearching) return 'Searching…';
@@ -163,9 +163,9 @@
     return t > 0 ? t.toLocaleString() : '';
   });
 
-  let hasQuery = $derived(app.searchMode === 'el' ? !!app.elQuery : !!app.searchQ);
-  let searchVal = $derived(app.searchMode === 'el' ? app.elQuery : app.searchQ);
-  let placeholder = $derived(
+  const hasQuery = $derived(app.searchMode === 'el' ? !!app.elQuery : !!app.searchQ);
+  const searchVal = $derived(app.searchMode === 'el' ? app.elQuery : app.searchQ);
+  const placeholder = $derived(
     app.tab !== 'words'
       ? 'Search events…'
       : app.searchMode === 'el'
@@ -183,11 +183,11 @@
 
   // Single toggle: shows the OTHER mode you'd switch to (i.e. what clicking does)
   // Label = current mode letter for clarity — clicking flips
-  let modeLabel = $derived(app.searchMode === 'le' ? 'E' : 'L');
-  let modeTitle = $derived(
+  const modeLabel = $derived(app.searchMode === 'le' ? 'E' : 'L');
+  const modeTitle = $derived(
     app.searchMode === 'le' ? 'Switch to English→Loglan' : 'Switch to Loglan→English'
   );
-  let elMode = $derived(app.searchMode === 'el');
+  const elMode = $derived(app.searchMode === 'el');
   function toggleMode() {
     setSearchMode(app.searchMode === 'le' ? 'el' : 'le');
   }
