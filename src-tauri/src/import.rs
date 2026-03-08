@@ -204,7 +204,11 @@ fn import_settings(conn: &Connection, path: &str) -> Result<usize, Box<dyn std::
     let content = fs::read_to_string(path)?;
     let mut count = 0usize;
     for line in content.lines().map(str::trim).filter(|l| !l.is_empty() && !l.starts_with('#') && !l.starts_with("//")) {
+<<<<<<< HEAD
         let (k, v) = line.split_once('=').or_else(|| line.split_once('\t')).map_or(("", ""), |(a, b)| (a.trim(), b.trim()));
+=======
+        let (k, v) = line.split_once('=').or_else(|| line.split_once('\t')).map(|(a, b)| (a.trim(), b.trim())).unwrap_or(("", ""));
+>>>>>>> 24f9433fa0a95dc2e82dc9c236dcc3cc68b06531
         if !k.is_empty() {
             conn.execute("INSERT INTO settings(key,value) VALUES(?1,?2) ON CONFLICT(key) DO UPDATE SET value=excluded.value", params![k, v])?;
             count += 1;
