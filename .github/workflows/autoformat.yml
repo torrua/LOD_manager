@@ -49,8 +49,8 @@ jobs:
       - name: Commit formatting changes (if any)
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: "style: auto-format [autoformat]"
-          commit_author: "github-actions[bot] <github-actions[bot]@users.noreply.github.com>"
+          commit_message: 'style: auto-format [autoformat]'
+          commit_author: 'github-actions[bot] <github-actions[bot]@users.noreply.github.com>'
 
       # Skip CI on auto-format commits so we don't loop:
       # The [autoformat] tag is caught by the ci.yml skip filter below.
