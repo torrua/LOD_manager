@@ -141,6 +141,8 @@ jobs:
         env:
           JAVA_HOME: ${{ env.JAVA_HOME }}
           PKG_CONFIG_ALLOW_CROSS: 1
+          PKG_CONFIG_PATH: ''
+          PKG_CONFIG_LIBDIR: ''
           SKIP_WEBVIEW_INSTALL: 1
 
       - name: Upload Android APK

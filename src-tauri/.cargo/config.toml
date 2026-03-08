@@ -1,0 +1,11 @@
+[target.aarch64-linux-android]
+rustflags = ["--cfg", "disallow_gobject"] # Это поможет нам в коде
+
+[target.armv7-linux-androideabi]
+rustflags = ["--cfg", "disallow_gobject"]
+
+[target.x86_64-linux-android]
+rustflags = ["--cfg", "disallow_gobject"]
+
+[target.i686-linux-android]
+rustflags = ["--cfg", "disallow_gobject"]
