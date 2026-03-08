@@ -5,6 +5,11 @@ description = "Loglan Online Dictionary Manager"
 authors = ["You"]
 edition = "2021"
 
+[lib]
+# Required for Android builds — Tauri needs a shared library (.so)
+# cdylib: Android .so  |  staticlib: iOS .a  |  rlib: desktop tests
+crate-type = ["staticlib", "cdylib", "rlib"]
+
 [build-dependencies]
 tauri-build = { version = "2.0", features = [] }
 
