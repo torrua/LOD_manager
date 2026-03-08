@@ -33,7 +33,7 @@ fn regex_replace_kw(s: &str) -> String {
     out
 }
 
-const STYLE: &str = r#"<style>
+const STYLE: &str = r"<style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:Georgia,serif;font-size:14px;line-height:1.6;background:#faf8f2;color:#1e1a0e}
 .wrap{display:flex;min-height:100vh}
@@ -70,9 +70,9 @@ em.kw{color:#1a6860;font-style:italic}
   .sidebar{width:100%;height:auto;position:static}
   .content{padding:1rem}
 }
-</style>"#;
+</style>";
 
-const SCRIPT: &str = r#"<script>
+const SCRIPT: &str = r"<script>
 function doSearch(q){
   q=q.toLowerCase().trim();
   document.querySelectorAll('.entry').forEach(function(el){
@@ -84,7 +84,7 @@ function doSearch(q){
   });
 }
 document.getElementById('lod-search').addEventListener('input',function(){doSearch(this.value);});
-</script>"#;
+</script>";
 
 struct WordRow {
     id: i64,

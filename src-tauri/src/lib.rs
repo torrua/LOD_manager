@@ -243,17 +243,17 @@ fn fts_is_ready(state: Db) -> bool {
 // ─── Export ───────────────────────────────────────────────────────────────────
 
 #[tauri::command]
-fn export_html(state: Db, event_name: Option<String>) -> Res<String> {
+fn export_html(state: Db, event_name: Option<&str>) -> Res<String> {
     with_db(&state, |conn| {
-        export::generate_html(conn, event_name.as_deref())
+        export::generate_html(conn, event_name)
     })
 }
 
-/// Write HTML directly to disk — no FS plugin scope issues
+/// Smoke-test: open an in-memory database, run `init_schema`, insert a word.
 #[tauri::command]
-fn export_html_to_file(state: Db, path: String, event_name: Option<String>) -> Res<()> {
+fn export_html_to_file(state: Db, path: &str, event_name: Option<&str>) -> Res<()> {
     with_db(&state, |conn| {
-        export::write_html_to_file(conn, &path, event_name.as_deref())
+        export::write_html_to_file(conn, path, event_name)
     })
 }
 
