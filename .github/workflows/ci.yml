@@ -1,10 +1,12 @@
 name: CI
 
-# Run on every push and PR to main / develop.
-# Skip if the commit was made by the autoformat bot to avoid infinite loops.
+# Run after autoformat completes (to get the corrected code)
+# Or directly on PRs to check code before merge.
 on:
-  push:
+  workflow_run:
+    workflows: [Auto-format]
     branches: [main, develop]
+    types: [completed]
   pull_request:
     branches: [main, develop]
 
@@ -15,8 +17,8 @@ jobs:
   frontend:
     name: Frontend checks
     runs-on: ubuntu-latest
-    # Skip auto-format commits — they are already formatted.
-    if: "!contains(github.event.head_commit.message, '[autoformat]')"
+    # Run on PR or when triggered by completed autoformat workflow
+    if: github.event_name == 'pull_request' || github.event.workflow_run.conclusion != 'failure'
 
     steps:
       - uses: actions/checkout@v4
@@ -44,10 +46,10 @@ jobs:
   rust:
     name: Rust checks
     runs-on: ubuntu-latest
-    if: "!contains(github.event.head_commit.message, '[autoformat]')"
+    if: github.event_name == 'pull_request' || github.event.workflow_run.conclusion != 'failure'
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Install Rust stable + components
         uses: dtolnay/rust-toolchain@stable
