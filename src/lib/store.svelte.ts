@@ -206,7 +206,7 @@ export function activeEvent(): EventItem | null {
   return app.events.find((e) => e.id === app.prefs.eventFilter) ?? null;
 }
 // Cache for type-group lookups so applyFilter doesn't scan app.types on every word
-const _typeGroupCache = new Map<string, string | undefined>();
+const _typeGroupCache = new Map<string, string | null>();
 let _typeGroupCacheStamp = 0;
 
 export function applyFilter() {

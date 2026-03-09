@@ -18,8 +18,7 @@
     "rust:fmt": "cargo fmt --manifest-path src-tauri/Cargo.toml",
     "rust:fmt:check": "cargo fmt --manifest-path src-tauri/Cargo.toml -- --check",
     "rust:lint": "cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings",
-    "ci:check": "npm run format:check && npm run lint && npm run check && npm run rust:fmt:check && npm run rust:lint",
-    "prepare": "husky"
+    "ci:check": "npm run format:check && npm run lint && npm run check && npm run rust:fmt:check && npm run rust:lint"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.0.0",
