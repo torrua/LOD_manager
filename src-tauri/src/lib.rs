@@ -188,8 +188,8 @@ fn delete_author(state: Db, id: i64) -> Res<Vec<AuthorItem>> {
 }
 
 /// Android variant: receives file contents directly (content:// URIs can't be
-/// read by std::fs, so the frontend reads them via plugin-fs and sends content).
-/// `files` is a list of (filename, utf8_content) pairs.
+/// read by `std::fs`, so the frontend reads them via plugin-fs and sends content).
+/// `files` is a list of (filename, `utf8_content`) pairs.
 #[tauri::command]
 fn import_lod_contents(state: Db, files: Vec<(String, String)>) -> Res<ImportResult> {
     let result = with_db_mut(&state, |conn| Ok(import::import_contents(conn, &files)))?;
