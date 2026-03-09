@@ -5,8 +5,11 @@
 
   let paths = $state<string[]>([]);
   let names = $state<string[]>([]); // display filenames (for Android content:// URIs)
+  let editingIdx = $state<number | null>(null); // index of file being edited
   let result = $state<ImportResult | null>(null);
   let running = $state(false);
+  let downloading = $state(false);
+  let githubUrl = $state('https://github.com/torrua/LOD/tree/master/tables');
 
   async function pickFiles() {
     const selected = await open({
@@ -16,26 +19,42 @@
     });
     if (selected) {
       paths = Array.isArray(selected) ? selected : [selected];
-      // Extract display names — on Android these may just be the URI segment
-      names = paths.map((p) => {
+      // Extract display names — suggest common LOD files if detection fails
+      names = paths.map((p, idx) => {
+        const lodFileNames = [
+          'Word.txt',
+          'WordDef.txt',
+          'WordSpell.txt',
+          'LexEvent.txt',
+          'type.txt',
+          'author.txt',
+          'settings.txt',
+        ];
+
         const decoded = decodeURIComponent(p);
-        // For content URIs, try to extract filename from URI or use fallback
+
+        // Try standard file path extraction first
+        if (!p.startsWith('content://') && !p.startsWith('msf:') && !p.includes('%3A')) {
+          const basename = p.split(/[/\\]/).pop() || '';
+          if (basename && basename.includes('.')) {
+            return basename;
+          }
+        }
+
+        // For content:// URIs, try to extract real filename
         if (p.startsWith('content://')) {
-          // Try different strategies to extract filename from content URI
           const uriParts = decoded.split('/');
           const lastPart = uriParts[uriParts.length - 1];
-          // Remove query parameters and fragments
           const cleanName = lastPart?.split('?')[0]?.split('#')[0] || '';
-          // If it looks like a filename, use it; otherwise use generic name
           if (cleanName && (cleanName.includes('.') || cleanName.length > 10)) {
             return cleanName;
           }
-          // Fallback: try to get filename from document ID or use generic
-          const docId = uriParts.find((part) => part.includes('document'))?.split('document/')[1];
-          return docId ? `file_${docId}.txt` : `android_file_${Date.now()}.txt`;
         }
-        // For regular file paths
-        return decoded.split(/[/]/).pop()?.split('?')[0] || p;
+
+        // Fallback: suggest common LOD file names in order
+        // User can click to edit if wrong
+        const defaultName = idx < lodFileNames.length ? lodFileNames[idx] : `file_${idx + 1}.txt`;
+        return defaultName || 'file.txt';
       });
       result = null;
     }
@@ -48,6 +67,96 @@
   }
   function basename(p: string) {
     return p.split(/[\\/]/).pop() || p;
+  }
+
+  function updateName(idx: number, newName: string) {
+    if (!newName) return;
+    names[idx] = newName;
+    if (!newName.endsWith('.txt')) {
+      names[idx] = `${newName}.txt`;
+    }
+  }
+
+  async function downloadFromGitHub() {
+    if (downloading) return;
+    downloading = true;
+
+    try {
+      // Parse GitHub URL
+      const urlMatch = githubUrl.match(/github\.com\/([^/]+)\/([^/]+)\/tree\/([^/]+)\/(.+)/);
+      if (!urlMatch) {
+        throw new Error(
+          'Invalid GitHub URL format. Expected: https://github.com/owner/repo/tree/branch/path'
+        );
+      }
+
+      const [, owner, repo, branch, path] = urlMatch;
+
+      // Get directory contents from GitHub API
+      const apiUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${path}?ref=${branch}`;
+      const response = await fetch(apiUrl);
+
+      if (!response.ok) {
+        throw new Error(`GitHub API error: ${response.status} ${response.statusText}`);
+      }
+
+      const files: { type: string; name: string; download_url: string }[] = await response.json();
+
+      if (!Array.isArray(files)) {
+        throw new Error('Expected directory contents, got file');
+      }
+
+      // Filter only .txt files
+      const txtFiles = files.filter(
+        (file: { type: string; name: string; download_url: string }) =>
+          file.type === 'file' && file.name.endsWith('.txt')
+      );
+
+      if (txtFiles.length === 0) {
+        throw new Error('No .txt files found in the directory');
+      }
+
+      // Download each file
+      const downloadedFiles: string[] = [];
+      const downloadedNames: string[] = [];
+
+      for (const file of txtFiles) {
+        try {
+          const fileResponse = await fetch(file.download_url);
+          if (!fileResponse.ok) {
+            console.warn(`Failed to download ${file.name}: ${fileResponse.status}`);
+            continue;
+          }
+
+          const content = await fileResponse.text();
+
+          // Create a temporary file-like entry
+          // We'll store the content in a special format that importFiles can handle
+          const tempPath = `github://${file.name}:${content}`;
+          downloadedFiles.push(tempPath);
+          downloadedNames.push(file.name);
+        } catch (e) {
+          console.warn(`Error downloading ${file.name}:`, e);
+        }
+      }
+
+      if (downloadedFiles.length === 0) {
+        throw new Error('Failed to download any files');
+      }
+
+      // Add to existing files or replace
+      paths = [...paths, ...downloadedFiles];
+      names = [...names, ...downloadedNames];
+
+      toast(
+        `Downloaded ${downloadedFiles.length} file${downloadedFiles.length > 1 ? 's' : ''} from GitHub`,
+        'ok'
+      );
+    } catch (e) {
+      toast(`Download failed: ${String(e)}`, 'err');
+    } finally {
+      downloading = false;
+    }
   }
 
   async function run() {
@@ -76,6 +185,27 @@
     <code>author.txt</code>). Files are matched by name — you can select any subset.
   </p>
 
+  <!-- GitHub Download Section -->
+  <div class="github-section">
+    <div class="github-input-group">
+      <input
+        type="url"
+        class="github-url-input"
+        placeholder="https://github.com/owner/repo/tree/branch/path"
+        value={githubUrl}
+        onchange={(e) => {
+          const target = e.target as HTMLInputElement;
+          if (target) githubUrl = target.value;
+        }}
+        disabled={downloading}
+      />
+      <button class="btn btn-g" onclick={downloadFromGitHub} disabled={downloading}>
+        {downloading ? 'Downloading…' : 'Download from GitHub'}
+      </button>
+    </div>
+    <p class="github-help">Download LOD files directly from a GitHub repository directory</p>
+  </div>
+
   <div class="file-zone" class:has-files={paths.length > 0}>
     {#if paths.length === 0}
       <div class="fz-empty">
@@ -84,10 +214,36 @@
       </div>
     {:else}
       <div class="file-list">
-        {#each paths as p}
+        {#each paths as p, idx}
           <div class="file-item">
-            <span class="fi-name">{basename(p)}</span>
-            <span class="fi-path">{p}</span>
+            <div class="fi-left">
+              <span class="fi-name">{basename(p)}</span>
+              <span class="fi-path">{p}</span>
+            </div>
+            <div class="fi-middle">
+              {#if editingIdx === idx}
+                <input
+                  type="text"
+                  class="fi-input"
+                  value={names[idx]?.replace(/\.txt$/, '') || ''}
+                  onchange={(e) => {
+                    const target = e.target as HTMLInputElement;
+                    if (target) {
+                      updateName(idx, target.value);
+                    }
+                  }}
+                  onblur={() => (editingIdx = null)}
+                />
+              {:else}
+                <button
+                  class="fi-name-btn"
+                  onclick={() => (editingIdx = idx)}
+                  title="Click to edit filename"
+                >
+                  {names[idx] || 'unnamed.txt'}
+                </button>
+              {/if}
+            </div>
             <button class="btn btn-sm btn-r" onclick={() => remove(p)}>×</button>
           </div>
         {/each}
@@ -130,6 +286,48 @@
   .ip {
     max-width: 560px;
   }
+
+  .github-section {
+    margin-bottom: 1rem;
+    padding: 0.8rem;
+    background: var(--surf2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+  }
+
+  .github-input-group {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .github-url-input {
+    flex: 1;
+    padding: 0.4rem 0.6rem;
+    background: var(--surf);
+    border: 1px solid var(--border2);
+    border-radius: 4px;
+    color: var(--text);
+    font-size: 0.8rem;
+  }
+
+  .github-url-input:focus {
+    outline: none;
+    border-color: var(--gold);
+    box-shadow: 0 0 0 2px var(--gold-t);
+  }
+
+  .github-url-input:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .github-help {
+    font-size: 0.65rem;
+    color: var(--text3);
+    margin: 0;
+  }
+
   .ip-help {
     font-size: 0.72rem;
     color: var(--text2);
@@ -175,6 +373,13 @@
     border-radius: 4px;
     padding: 0.22rem 0.45rem;
   }
+  .fi-left {
+    display: flex;
+    flex-direction: column;
+    gap: 0.08rem;
+    flex: 1;
+    min-width: 0;
+  }
   .fi-name {
     font-size: 0.7rem;
     font-weight: 600;
@@ -184,10 +389,43 @@
   .fi-path {
     font-size: 0.57rem;
     color: var(--text3);
-    flex: 1;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+  .fi-middle {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    min-width: 120px;
+  }
+  .fi-input {
+    flex: 1;
+    padding: 0.2rem 0.3rem;
+    font-size: 0.65rem;
+    background: var(--surf);
+    border: 1px solid var(--gold);
+    border-radius: 3px;
+    color: var(--gold);
+  }
+  .fi-input:focus {
+    outline: none;
+    box-shadow: 0 0 0 2px var(--gold-t);
+  }
+  .fi-name-btn {
+    flex: 1;
+    padding: 0.2rem 0.3rem;
+    font-size: 0.65rem;
+    background: rgba(218, 165, 32, 0.1);
+    border: 1px solid var(--gold-d);
+    border-radius: 3px;
+    color: var(--gold);
+    cursor: pointer;
+    white-space: nowrap;
+    text-align: left;
+  }
+  .fi-name-btn:hover {
+    background: rgba(218, 165, 32, 0.15);
   }
   .result {
     margin-top: 0.8rem;

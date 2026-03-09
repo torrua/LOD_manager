@@ -1,6 +1,8 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { open as openDialog, save as saveDialog } from '@tauri-apps/plugin-dialog';
+  import { platform } from '@tauri-apps/plugin-os';
+  import { appDataDir } from '@tauri-apps/api/path';
   import {
     app,
     toggleTheme,
@@ -27,8 +29,26 @@
 
   onMount(() => {
     document.documentElement.dataset.theme = app.theme;
+
+    // Auto-create database on Android if no database exists
+    const currentPlatform = platform();
     const last = getLastDbPath();
-    if (last) openDb(last).catch(() => {});
+
+    if (currentPlatform === 'android' && !last) {
+      appDataDir()
+        .then((appDataPath) => {
+          const dbPath = `${appDataPath}lod.db`;
+          createDb(dbPath).catch((e) => {
+            console.error('Failed to auto-create Android database:', e);
+            // Fall back to normal behavior
+          });
+        })
+        .catch((e) => {
+          console.error('Failed to get app data directory:', e);
+        });
+    } else if (last) {
+      openDb(last).catch(() => {});
+    }
 
     const handler = (e: KeyboardEvent) => {
       if (e.ctrlKey && e.key === 'f') {

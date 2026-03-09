@@ -328,14 +328,31 @@ export async function deleteAuthor(id: number) {
 }
 
 export async function importFiles(paths: string[], fileNames?: string[]) {
-  // Android file picker returns content:// URIs that Rust's std::fs cannot open.
-  // Detect this and use import_lod_contents instead: read files in JS, send content.
+  // Check for different URI types
   const hasContentUris = paths.some(
     (p) => p.startsWith('content://') || p.startsWith('msf:') || p.includes('%3A')
   );
+  const hasGitHubUris = paths.some((p) => p.startsWith('github://'));
 
   let result;
-  if (hasContentUris) {
+  if (hasGitHubUris) {
+    // Handle GitHub downloads - content is embedded in the URI
+    const files: [string, string][] = [];
+    for (let i = 0; i < paths.length; i++) {
+      const p = paths[i];
+      if (!p || !p.startsWith('github://')) continue;
+
+      // Parse github://filename:content format
+      const colonIndex = p.indexOf(':', 9); // 9 = length of "github://"
+      if (colonIndex === -1) continue;
+
+      const name = p.substring(9, colonIndex);
+      const content = p.substring(colonIndex + 1);
+
+      files.push([name, content]);
+    }
+    result = await invoke('import_lod_contents', { files });
+  } else if (hasContentUris) {
     // Read each file as text in JS, pair with its name for the Rust importer
     const files: [string, string][] = [];
     for (let i = 0; i < paths.length; i++) {
