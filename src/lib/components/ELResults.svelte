@@ -1,7 +1,6 @@
 <!-- eslint-disable svelte/no-at-html-tags -->
 <script lang="ts">
-  import { app, selectWord, searchEnglishNow } from '../store.svelte';
-  import type { ELResult } from '../../types';
+  import { app, selectWord } from '../store.svelte';
 
   // Highlight «marked» tokens from FTS snippet, or the query in LIKE mode
   function renderSnippet(raw: string, query: string): string {

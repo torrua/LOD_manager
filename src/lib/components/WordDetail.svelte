@@ -300,7 +300,6 @@
     aria-modal="true"
     tabindex="-1"
   >
-    <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div class="modal" role="presentation" onclick={(e) => e.stopPropagation()}>
       <div class="modal-title">Delete "{word.name}"?</div>
       <p class="modal-body">This will also delete all definitions. Cannot be undone.</p>

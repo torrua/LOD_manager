@@ -89,7 +89,7 @@ export const app = $state({
 });
 
 export function setPref<K extends keyof typeof app.prefs>(k: K, v: (typeof app.prefs)[K]) {
-  (app.prefs as any)[k] = v;
+  app.prefs[k] = v;
   savePrefs();
 }
 export function toggleMetaField(field: string) {
@@ -126,7 +126,7 @@ export async function openDb(path: string) {
       const destName = `imported_${Date.now()}.db`;
       await writeFile(destName, bytes, { baseDir: BaseDirectory.AppData });
       const dir = await appDataDir();
-      actualPath = dir.endsWith('/') ? dir + destName : dir + '/' + destName;
+      actualPath = dir.endsWith('/') ? `${dir}${destName}` : `${dir}/${destName}`;
     } catch (e) {
       throw new Error(
         `Cannot read Android file: ${String(e)}. Try using "New Database" and importing your data instead.`
@@ -246,7 +246,7 @@ export async function selectWord(id: number, pushHist = true) {
     app.mobileShowList = false;
     if (pushHist) _pushHistory({ tab: 'words', id });
     _scrollSidebarTo(id);
-  } catch (e) {
+  } catch {
     toast('Word not found', 'err');
   }
 }
@@ -382,7 +382,7 @@ export async function searchEnglishNow(q = app.elQuery) {
     app.elResults = await invoke('search_english', {
       params: { query: q, use_like: app.prefs.elUseLike, limit: 300 },
     });
-  } catch (e) {
+  } catch {
     // FTS may fail on syntax error — re-try with LIKE
     try {
       app.elResults = await invoke('search_english', {
@@ -414,16 +414,16 @@ export async function goBack() {
   }
   if (app.historyIdx <= 0) return;
   app.historyIdx--;
-  const e = app.history[app.historyIdx]!;
-  if (e.tab === 'words') await selectWord(e.id, false);
-  if (e.tab === 'events') await selectEvent(e.id, false);
+  const e = app.history[app.historyIdx];
+  if (e?.tab === 'words') await selectWord(e.id, false);
+  if (e?.tab === 'events') await selectEvent(e.id, false);
 }
 export async function goForward() {
   if (app.historyIdx >= app.history.length - 1) return;
   app.historyIdx++;
-  const e = app.history[app.historyIdx]!;
-  if (e.tab === 'words') await selectWord(e.id, false);
-  if (e.tab === 'events') await selectEvent(e.id, false);
+  const e = app.history[app.historyIdx];
+  if (e?.tab === 'words') await selectWord(e.id, false);
+  if (e?.tab === 'events') await selectEvent(e.id, false);
 }
 // Can go back if: on types/authors tab (escape to words), or history has previous entry
 export function canGoBack() {
