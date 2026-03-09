@@ -53,7 +53,9 @@ pub fn import_contents(conn: &mut Connection, files: &[(String, String)]) -> Imp
     let tmp_dir = std::env::temp_dir().join(format!("lod_import_{}", std::process::id()));
     if std::fs::create_dir_all(&tmp_dir).is_err() {
         result.errors += 1;
-        result.messages.push("Could not create temp dir for import".into());
+        result
+            .messages
+            .push("Could not create temp dir for import".into());
         return result;
     }
     let mut tmp_paths: Vec<String> = Vec::new();
