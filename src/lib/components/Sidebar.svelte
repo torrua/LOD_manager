@@ -694,8 +694,12 @@
     pointer-events: none;
   }
   @keyframes si-pulse {
-    from { opacity: 1; }
-    to   { opacity: 0.5; }
+    from {
+      opacity: 1;
+    }
+    to {
+      opacity: 0.5;
+    }
   }
   .sn {
     font-size: 0.73rem;

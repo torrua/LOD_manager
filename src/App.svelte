@@ -770,21 +770,28 @@
   .sk-line {
     height: 13px;
     border-radius: 5px;
-    background: linear-gradient(
-      90deg,
-      var(--surf2) 0%,
-      var(--border) 40%,
-      var(--surf2) 80%
-    );
+    background: linear-gradient(90deg, var(--surf2) 0%, var(--border) 40%, var(--surf2) 80%);
     background-size: 250% 100%;
     animation: sk-sweep 1.4s ease-in-out infinite;
   }
-  .sk-title { height: 21px; width: 52%; }
-  .sk-meta  { height: 10px; width: 72%; }
-  .sk-short { width: 62%; }
+  .sk-title {
+    height: 21px;
+    width: 52%;
+  }
+  .sk-meta {
+    height: 10px;
+    width: 72%;
+  }
+  .sk-short {
+    width: 62%;
+  }
   @keyframes sk-sweep {
-    0%   { background-position: 200% 0; }
-    100% { background-position: -100% 0; }
+    0% {
+      background-position: 200% 0;
+    }
+    100% {
+      background-position: -100% 0;
+    }
   }
 
   /* ─ Meta chip labels (used in WordDetail, EventDetail) ─ */
