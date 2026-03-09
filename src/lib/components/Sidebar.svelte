@@ -197,8 +197,13 @@
 <aside class="sb" style="width:{sbWidth}px">
   <!-- Tabs -->
   <nav class="sb-nav">
-    {#each ([['words','words'],['events','events'],['types','types'],['authors','authors']] as const) as [t, icon]}
-      <button class="ntab" class:on={app.tab === t} onclick={() => setTab(t as Tab)} title={t.charAt(0).toUpperCase() + t.slice(1)}>
+    {#each [['words', 'words'], ['events', 'events'], ['types', 'types'], ['authors', 'authors']] as const as [t, icon]}
+      <button
+        class="ntab"
+        class:on={app.tab === t}
+        onclick={() => setTab(t as Tab)}
+        title={t.charAt(0).toUpperCase() + t.slice(1)}
+      >
         <Icon name={icon} size={14} />
         <span class="ntab-label">{t.charAt(0).toUpperCase() + t.slice(1)}</span>
       </button>
@@ -702,7 +707,14 @@
     animation: si-pulse 0.9s ease-in-out infinite alternate;
     pointer-events: none;
   }
-  @keyframes si-pulse { from { opacity:1; } to { opacity:0.5; } }
+  @keyframes si-pulse {
+    from {
+      opacity: 1;
+    }
+    to {
+      opacity: 0.5;
+    }
+  }
   .sn {
     font-size: 0.73rem;
     font-weight: 500;

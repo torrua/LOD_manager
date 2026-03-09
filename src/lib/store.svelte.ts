@@ -226,7 +226,10 @@ export function applyFilter() {
   const q = app.searchQ.trim().toLowerCase();
   const tf = app.typeFilter;
   // Fast path: no filters → assign reference directly (zero allocation)
-  if (!q && !tf) { app.filteredWords = app.words; return; }
+  if (!q && !tf) {
+    app.filteredWords = app.words;
+    return;
+  }
   let ws = app.words;
   if (q) {
     if (q.includes('*') || q.includes('?')) {

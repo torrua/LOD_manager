@@ -144,7 +144,8 @@
   ];
   // ── Swipe gesture (mobile) ────────────────────────────────────────────────
   // Swipe right → back to word list (or browser back if nothing to show)
-  let _swipeX = 0, _swipeT = 0;
+  let _swipeX = 0,
+    _swipeT = 0;
   function onTouchStart(e: TouchEvent) {
     const touch = e.touches[0];
     if (!touch) return;
@@ -220,7 +221,13 @@
   });
 </script>
 
-<div class="app" data-theme={app.theme} ontouchstart={onTouchStart} ontouchend={onTouchEnd} role="application">
+<div
+  class="app"
+  data-theme={app.theme}
+  ontouchstart={onTouchStart}
+  ontouchend={onTouchEnd}
+  role="application"
+>
   <header class="top-bar">
     <div class="tbl">
       {#if app.dbOpen && !app.mobileShowList}
@@ -231,7 +238,9 @@
           title="Back"><Icon name="arrow-left" /></button
         >
       {/if}
-      <button class="logo" onclick={handleLogoClick} aria-label="Home"><Icon name="logo" size={18} /><span class="logo-text">LOD</span></button>
+      <button class="logo" onclick={handleLogoClick} aria-label="Home"
+        ><Icon name="logo" size={18} /><span class="logo-text">LOD</span></button
+      >
       {#if app.dbOpen && activeEvent()}
         {@const ev = activeEvent()}
         <span class="ev-badge" title="Filtered to: {ev?.name}">{ev?.annotation || ev?.name}</span>
@@ -344,7 +353,12 @@
             {/if}
           </div>
         {:else if app.loadingWordId !== null && !app.curWord}
-          <div class="wd-skeleton" aria-busy="true"><div class="sk-line sk-title"></div><div class="sk-line sk-meta"></div><div class="sk-line"></div><div class="sk-line sk-short"></div></div>
+          <div class="wd-skeleton" aria-busy="true">
+            <div class="sk-line sk-title"></div>
+            <div class="sk-line sk-meta"></div>
+            <div class="sk-line"></div>
+            <div class="sk-line sk-short"></div>
+          </div>
         {:else if app.panel === 'word' && app.curWord}
           <WordDetail word={app.curWord} loading={app.loadingWordId !== null} />
         {:else if app.panel === 'word-form'}
@@ -781,10 +795,38 @@
     border: 1px solid var(--teal-d);
     color: var(--teal);
   }
-  .wd-skeleton { padding:1rem 1.1rem; display:flex; flex-direction:column; gap:0.6rem; }
-  .sk-line { height:13px; border-radius:4px; background:linear-gradient(90deg,var(--surf2) 0%,var(--border) 40%,var(--surf2) 80%); background-size:250% 100%; animation:sk-sweep 1.4s ease-in-out infinite; }
-  .sk-title { height:21px; width:52%; } .sk-meta { height:10px; width:72%; } .sk-short { width:62%; }
-  @keyframes sk-sweep { 0% { background-position:200% 0; } 100% { background-position:-100% 0; } }
+  .wd-skeleton {
+    padding: 1rem 1.1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+  }
+  .sk-line {
+    height: 13px;
+    border-radius: 4px;
+    background: linear-gradient(90deg, var(--surf2) 0%, var(--border) 40%, var(--surf2) 80%);
+    background-size: 250% 100%;
+    animation: sk-sweep 1.4s ease-in-out infinite;
+  }
+  .sk-title {
+    height: 21px;
+    width: 52%;
+  }
+  .sk-meta {
+    height: 10px;
+    width: 72%;
+  }
+  .sk-short {
+    width: 62%;
+  }
+  @keyframes sk-sweep {
+    0% {
+      background-position: 200% 0;
+    }
+    100% {
+      background-position: -100% 0;
+    }
+  }
   /* ─ Meta chip labels (used in WordDetail, EventDetail) ─ */
   :global(.mc-lbl) {
     font-size: var(--fs-label);

@@ -51,7 +51,9 @@
             app.editing = true;
           }}>✎ Edit</button
         >
-        <button class="btn btn-r btn-sm btn-icon" onclick={() => (confirmDel = true)}><Icon name="delete" size={14} /></button>
+        <button class="btn btn-r btn-sm btn-icon" onclick={() => (confirmDel = true)}
+          ><Icon name="delete" size={14} /></button
+        >
       </div>
     {/if}
   </div>

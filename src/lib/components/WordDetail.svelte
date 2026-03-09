@@ -174,7 +174,9 @@
           app.editing = true;
         }}>✎ Edit</button
       >
-      <button class="btn btn-icon-sm btn-r" onclick={() => (confirmDel = true)}><Icon name="delete" size={14} /></button>
+      <button class="btn btn-icon-sm btn-r" onclick={() => (confirmDel = true)}
+        ><Icon name="delete" size={14} /></button
+      >
     </div>
   </div>
 
@@ -241,7 +243,9 @@
               style:visibility={app.readonly ? 'hidden' : 'visible'}
               aria-hidden={app.readonly}
             >
-              <button class="btn btn-icon-sm btn-ghost" onclick={() => startEditDef(d)}><Icon name="edit" size={13} /></button>
+              <button class="btn btn-icon-sm btn-ghost" onclick={() => startEditDef(d)}
+                ><Icon name="edit" size={13} /></button
+              >
               <button
                 class="btn btn-icon-sm btn-ghost btn-r"
                 onclick={() => deleteDef(d.id, word.id)}><Icon name="delete" size={14} /></button
@@ -351,7 +355,10 @@
     padding: 0;
     transition: opacity 130ms;
   }
-  .wd-loading { opacity: 0.4; pointer-events: none; }
+  .wd-loading {
+    opacity: 0.4;
+    pointer-events: none;
+  }
   .wd-head {
     display: flex;
     align-items: flex-start;
