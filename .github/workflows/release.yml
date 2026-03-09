@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   # ─────────────────────────────────────────────────────────────────────────
-  # Windows: builds MSI + NSIS installer
+  # Windows: MSI + NSIS installer
   # ─────────────────────────────────────────────────────────────────────────
   windows:
     name: Windows Build
@@ -38,14 +38,10 @@ jobs:
       - name: Install npm dependencies
         run: npm ci
 
-      # Sync version from git tag (strips leading 'v') into tauri.conf.json
-      # so the installer shows the correct version (e.g. v1.2.3 → 1.2.3).
       - name: Sync version from tag
         shell: bash
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
-          echo "Building version: $VERSION"
-          # patch tauri.conf.json
           node -e "
             const fs = require('fs');
             const p = 'src-tauri/tauri.conf.json';
@@ -53,11 +49,9 @@ jobs:
             c.version = '$VERSION';
             fs.writeFileSync(p, JSON.stringify(c, null, 2));
           "
-          # also patch package.json so npm/node see the same version
           npm version "$VERSION" --no-git-tag-version --allow-same-version
 
-      # tauri build automatically runs beforeBuildCommand (npm run build).
-      # Do NOT run npm run build manually here — it would run twice.
+      # tauri build calls beforeBuildCommand (npm run build) automatically.
       - name: Build Tauri app
         run: npx tauri build
         env:
@@ -74,8 +68,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   # ─────────────────────────────────────────────────────────────────────────
-  # Android: builds a release APK
-  # Runs in parallel with Windows (no `needs: windows`).
+  # Android: release APK (parallel with Windows)
   # ─────────────────────────────────────────────────────────────────────────
   android:
     name: Android Build
@@ -84,16 +77,23 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      # 1. Устанавливаем системные зависимости, необходимые для компиляции
-      # C-кода (включая SQLite и системные библиотеки Rust)
-      - name: Install system dependencies
+      # Tauri's Rust crate compiles build scripts for the HOST (x86_64-linux),
+      # which transitively require glib/webkit2gtk headers even when the final
+      # target is Android. Without these the build fails with:
+      #   "The system library `glib-2.0` required by crate `glib-sys` was not found."
+      - name: Install system dependencies (host build scripts need gtk/glib)
         run: |
           sudo apt-get update
           sudo apt-get install -y \
             build-essential \
             pkg-config \
             libssl-dev \
-            libsqlite3-dev
+            libglib2.0-dev \
+            libgtk-3-dev \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf
 
       - name: Install Node.js
         uses: actions/setup-node@v6
@@ -117,33 +117,47 @@ jobs:
           java-version: '17'
           distribution: temurin
 
+      # setup-android installs cmdline-tools and sets ANDROID_HOME.
+      # The runner already ships NDK 29.x — we use that instead of
+      # downloading NDK 26 separately, which avoids version mismatches.
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Install NDK
+      - name: Set NDK_HOME to pre-installed NDK
         run: |
-          sdkmanager --install "ndk;26.3.11579264"
-          echo "NDK_HOME=$ANDROID_HOME/ndk/26.3.11579264" >> $GITHUB_ENV
-
-      - name: Install npm dependencies
-        run: npm ci
+          # Use the newest installed NDK (the runner ships one by default)
+          NDK_VER=$(ls "$ANDROID_HOME/ndk" | sort -V | tail -1)
+          echo "Using NDK: $NDK_VER"
+          echo "NDK_HOME=$ANDROID_HOME/ndk/$NDK_VER" >> $GITHUB_ENV
 
       - name: Install cargo-ndk
         run: cargo install cargo-ndk --locked
 
-      - name: Build Frontend
-        run: npm run build
+      - name: Install npm dependencies
+        run: npm ci
 
-      - name: Build Android APK
+      - name: Sync version from tag
         run: |
-          npx tauri android init
-          npx tauri android build --target aarch64
+          VERSION="${GITHUB_REF_NAME#v}"
+          node -e "
+            const fs = require('fs');
+            const p = 'src-tauri/tauri.conf.json';
+            const c = JSON.parse(fs.readFileSync(p,'utf8'));
+            c.version = '$VERSION';
+            fs.writeFileSync(p, JSON.stringify(c, null, 2));
+          "
+          npm version "$VERSION" --no-git-tag-version --allow-same-version
+
+      - name: Init Android project
+        run: npx tauri android init
         env:
-          JAVA_HOME: ${{ env.JAVA_HOME }}
-          PKG_CONFIG_ALLOW_CROSS: 1
-          PKG_CONFIG_PATH: ''
-          PKG_CONFIG_LIBDIR: ''
-          SKIP_WEBVIEW_INSTALL: 1
+          NDK_HOME: ${{ env.NDK_HOME }}
+
+      # tauri android build calls beforeBuildCommand (npm run build) automatically.
+      - name: Build Android APK
+        run: npx tauri android build --target aarch64
+        env:
+          NDK_HOME: ${{ env.NDK_HOME }}
 
       - name: Upload Android APK
         uses: softprops/action-gh-release@v2
