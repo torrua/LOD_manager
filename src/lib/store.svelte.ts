@@ -1,4 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
+import { readFile, writeFile, BaseDirectory } from '@tauri-apps/plugin-fs';
+import { appDataDir } from '@tauri-apps/api/path';
 import type {
   WordListItem,
   WordDetail,
@@ -115,10 +117,24 @@ export function toast(msg: string, kind: 'ok' | 'err' | 'info' = 'ok') {
 }
 
 export async function openDb(path: string) {
-  const info: AppInfo = await invoke('open_database', { path });
+  // Android file picker returns content:// URIs which SQLite cannot open
+  // directly. Copy the file to app data dir and open from there instead.
+  let actualPath = path;
+  if (path.startsWith('content://')) {
+    try {
+      const bytes = await readFile(path);
+      const destName = `imported_${Date.now()}.db`;
+      await writeFile(destName, bytes, { baseDir: BaseDirectory.AppData });
+      const dir = await appDataDir();
+      actualPath = dir.endsWith('/') ? dir + destName : dir + '/' + destName;
+    } catch (e) {
+      throw new Error(`Cannot read Android file: ${String(e)}. Try using "New Database" and importing your data instead.`);
+    }
+  }
+  const info: AppInfo = await invoke('open_database', { path: actualPath });
   app.dbOpen = true;
   app.dbPath = info.db_path;
-  localStorage.setItem('lod-last-db', path);
+  localStorage.setItem('lod-last-db', actualPath);
   await loadAll();
   app.panel = 'welcome';
   app.toolsOpen = false;

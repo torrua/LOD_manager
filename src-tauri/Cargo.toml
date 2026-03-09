@@ -8,7 +8,9 @@ edition = "2021"
 [lib]
 # Required for Android builds — Tauri needs a shared library (.so)
 # cdylib: Android .so  |  staticlib: iOS .a  |  rlib: desktop tests
-crate-type = ["staticlib", "cdylib", "rlib"]
+# staticlib removed: causes .pdb filename collision with the bin on Windows.
+# Tauri Android only needs cdylib (.so); iOS static builds are uncommon.
+crate-type = ["cdylib", "rlib"]
 
 [build-dependencies]
 tauri-build = { version = "2.0", features = [] }

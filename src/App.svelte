@@ -875,11 +875,13 @@
   .top-bar {
     background: var(--surf);
     border-bottom: 1px solid var(--border);
-    padding: 0 0.75rem;
+    /* padding-top accounts for Android status bar via safe-area-inset-top.
+       viewport-fit=cover must be set in index.html for env() to work. */
+    padding: env(safe-area-inset-top, 0px) 0.75rem 0;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    height: 42px;
+    height: calc(42px + env(safe-area-inset-top, 0px));
     flex-shrink: 0;
     gap: 0.4rem;
   }
