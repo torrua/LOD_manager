@@ -1,6 +1,6 @@
 <script lang="ts">
   import { open } from '@tauri-apps/plugin-dialog';
-  import { app, importFiles, toast } from '../store.svelte';
+  import { importFiles, toast } from '../store.svelte';
   import type { ImportResult } from '../../types';
 
   let paths = $state<string[]>([]);
@@ -19,7 +19,7 @@
       // Extract display names — on Android these may just be the URI segment
       names = paths.map((p) => {
         const decoded = decodeURIComponent(p);
-        return decoded.split(/[\/]/).pop()?.split('?')[0] || p;
+        return decoded.split(/[/]/).pop()?.split('?')[0] || p;
       });
       result = null;
     }
