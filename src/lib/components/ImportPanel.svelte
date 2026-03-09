@@ -1,9 +1,10 @@
 <script lang="ts">
   import { open } from '@tauri-apps/plugin-dialog';
-  import { importFiles, toast } from '../store.svelte';
+  import { app, importFiles, toast } from '../store.svelte';
   import type { ImportResult } from '../../types';
 
   let paths = $state<string[]>([]);
+  let names = $state<string[]>([]); // display filenames (for Android content:// URIs)
   let result = $state<ImportResult | null>(null);
   let running = $state(false);
 
@@ -15,12 +16,19 @@
     });
     if (selected) {
       paths = Array.isArray(selected) ? selected : [selected];
+      // Extract display names — on Android these may just be the URI segment
+      names = paths.map((p) => {
+        const decoded = decodeURIComponent(p);
+        return decoded.split(/[\/]/).pop()?.split('?')[0] || p;
+      });
       result = null;
     }
   }
 
   function remove(p: string) {
+    const idx = paths.indexOf(p);
     paths = paths.filter((x) => x !== p);
+    if (idx >= 0) names = names.filter((_, i) => i !== idx);
   }
   function basename(p: string) {
     return p.split(/[\\/]/).pop() || p;
@@ -31,7 +39,7 @@
     running = true;
     result = null;
     try {
-      result = (await importFiles(paths)) as ImportResult;
+      result = (await importFiles(paths, names)) as ImportResult;
       toast(`Import complete: ${result.words} words`, result.errors ? 'err' : 'ok');
     } catch (e) {
       toast(String(e), 'err');

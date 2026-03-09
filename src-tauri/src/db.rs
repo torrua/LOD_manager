@@ -3,8 +3,6 @@ use rusqlite::{params, Connection};
 use std::convert::TryInto;
 
 pub fn init_schema(conn: &Connection) -> rusqlite::Result<()> {
-    // journal_mode returns a value, so must be queried separately
-    conn.query_row("PRAGMA journal_mode=WAL", [], |_| Ok(()))?;
     conn.execute_batch(
         "
         PRAGMA foreign_keys=ON;

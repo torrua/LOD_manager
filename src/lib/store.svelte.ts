@@ -1,6 +1,4 @@
 import { invoke } from '@tauri-apps/api/core';
-import { readFile, writeFile, BaseDirectory } from '@tauri-apps/plugin-fs';
-import { appDataDir } from '@tauri-apps/api/path';
 import type {
   WordListItem,
   WordDetail,
@@ -89,7 +87,7 @@ export const app = $state({
 });
 
 export function setPref<K extends keyof typeof app.prefs>(k: K, v: (typeof app.prefs)[K]) {
-  app.prefs[k] = v;
+  (app.prefs as any)[k] = v;
   savePrefs();
 }
 export function toggleMetaField(field: string) {
@@ -117,26 +115,10 @@ export function toast(msg: string, kind: 'ok' | 'err' | 'info' = 'ok') {
 }
 
 export async function openDb(path: string) {
-  // Android file picker returns content:// URIs which SQLite cannot open
-  // directly. Copy the file to app data dir and open from there instead.
-  let actualPath = path;
-  if (path.startsWith('content://')) {
-    try {
-      const bytes = await readFile(path);
-      const destName = `imported_${Date.now()}.db`;
-      await writeFile(destName, bytes, { baseDir: BaseDirectory.AppData });
-      const dir = await appDataDir();
-      actualPath = dir.endsWith('/') ? `${dir}${destName}` : `${dir}/${destName}`;
-    } catch (e) {
-      throw new Error(
-        `Cannot read Android file: ${String(e)}. Try using "New Database" and importing your data instead.`
-      );
-    }
-  }
-  const info: AppInfo = await invoke('open_database', { path: actualPath });
+  const info: AppInfo = await invoke('open_database', { path });
   app.dbOpen = true;
   app.dbPath = info.db_path;
-  localStorage.setItem('lod-last-db', actualPath);
+  localStorage.setItem('lod-last-db', path);
   await loadAll();
   app.panel = 'welcome';
   app.toolsOpen = false;
@@ -246,7 +228,7 @@ export async function selectWord(id: number, pushHist = true) {
     app.mobileShowList = false;
     if (pushHist) _pushHistory({ tab: 'words', id });
     _scrollSidebarTo(id);
-  } catch {
+  } catch (e) {
     toast('Word not found', 'err');
   }
 }
@@ -327,8 +309,34 @@ export async function deleteAuthor(id: number) {
   toast('Deleted', 'ok');
 }
 
-export async function importFiles(paths: string[]) {
-  const result = await invoke('import_lod_files', { paths });
+export async function importFiles(paths: string[], fileNames?: string[]) {
+  // Android file picker returns content:// URIs that Rust's std::fs cannot open.
+  // Detect this and use import_lod_contents instead: read files in JS, send content.
+  const hasContentUris = paths.some(
+    (p) => p.startsWith('content://') || p.startsWith('msf:') || p.includes('%3A')
+  );
+
+  let result;
+  if (hasContentUris) {
+    // Read each file as text in JS, pair with its name for the Rust importer
+    const files: [string, string][] = [];
+    for (let i = 0; i < paths.length; i++) {
+      const p = paths[i];
+      // Use provided filename or derive from path/index
+      let name = fileNames?.[i] ?? p.split('/').pop() ?? `file_${i}.txt`;
+      if (!name.endsWith('.txt')) name = name + '.txt';
+      try {
+        const bytes = await readFile(p);
+        const text = new TextDecoder('utf-8').decode(bytes);
+        files.push([name, text]);
+      } catch (e) {
+        console.warn('Could not read import file:', p, e);
+      }
+    }
+    result = await invoke('import_lod_contents', { files });
+  } else {
+    result = await invoke('import_lod_files', { paths });
+  }
   await loadAll();
   loadDbStats().catch(() => {});
   return result;
@@ -382,7 +390,7 @@ export async function searchEnglishNow(q = app.elQuery) {
     app.elResults = await invoke('search_english', {
       params: { query: q, use_like: app.prefs.elUseLike, limit: 300 },
     });
-  } catch {
+  } catch (e) {
     // FTS may fail on syntax error — re-try with LIKE
     try {
       app.elResults = await invoke('search_english', {
@@ -414,16 +422,16 @@ export async function goBack() {
   }
   if (app.historyIdx <= 0) return;
   app.historyIdx--;
-  const e = app.history[app.historyIdx];
-  if (e?.tab === 'words') await selectWord(e.id, false);
-  if (e?.tab === 'events') await selectEvent(e.id, false);
+  const e = app.history[app.historyIdx]!;
+  if (e.tab === 'words') await selectWord(e.id, false);
+  if (e.tab === 'events') await selectEvent(e.id, false);
 }
 export async function goForward() {
   if (app.historyIdx >= app.history.length - 1) return;
   app.historyIdx++;
-  const e = app.history[app.historyIdx];
-  if (e?.tab === 'words') await selectWord(e.id, false);
-  if (e?.tab === 'events') await selectEvent(e.id, false);
+  const e = app.history[app.historyIdx]!;
+  if (e.tab === 'words') await selectWord(e.id, false);
+  if (e.tab === 'events') await selectEvent(e.id, false);
 }
 // Can go back if: on types/authors tab (escape to words), or history has previous entry
 export function canGoBack() {

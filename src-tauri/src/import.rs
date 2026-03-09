@@ -34,6 +34,40 @@ fn opt(s: &str) -> Option<String> {
     }
 }
 
+/// Import from (filename, text_content) pairs.
+/// Used on Android where paths are content:// URIs that std::fs cannot read.
+pub fn import_contents(conn: &mut Connection, files: &[(String, String)]) -> ImportResult {
+    let mut result = ImportResult {
+        words: 0,
+        definitions: 0,
+        events: 0,
+        types: 0,
+        authors: 0,
+        settings: 0,
+        errors: 0,
+        messages: vec![],
+    };
+
+    // Write each file's content to a temp file with its original name,
+    // then reuse import_files which matches by filename.
+    let tmp_dir = std::env::temp_dir().join(format!("lod_import_{}", std::process::id()));
+    if std::fs::create_dir_all(&tmp_dir).is_err() {
+        result.errors += 1;
+        result.messages.push("Could not create temp dir for import".into());
+        return result;
+    }
+    let mut tmp_paths: Vec<String> = Vec::new();
+    for (name, content) in files {
+        let dest = tmp_dir.join(name);
+        if std::fs::write(&dest, content.as_bytes()).is_ok() {
+            tmp_paths.push(dest.to_string_lossy().into_owned());
+        }
+    }
+    let r = import_files(conn, &tmp_paths);
+    let _ = std::fs::remove_dir_all(&tmp_dir);
+    r
+}
+
 pub fn import_files(conn: &mut Connection, paths: &[String]) -> ImportResult {
     let mut result = ImportResult {
         words: 0,

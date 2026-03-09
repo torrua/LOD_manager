@@ -14,9 +14,8 @@ mod import;
 mod models;
 use models::*;
 use rusqlite::Connection;
-use std::path::PathBuf;
 use std::sync::Mutex;
-use tauri::{Manager, State};
+use tauri::State;
 
 pub struct AppState {
     pub db: Mutex<Option<Connection>>,
@@ -43,15 +42,6 @@ fn with_db_mut<T, F: FnOnce(&mut Connection) -> rusqlite::Result<T>>(
     let mut guard = state.db.lock().map_err(err)?;
     let conn = guard.as_mut().ok_or("No database open.")?;
     f(conn).map_err(err)
-}
-
-#[tauri::command]
-fn get_default_db_path(app: tauri::AppHandle) -> Res<String> {
-    // Returns the canonical path to the app-managed database.
-    // On Android this is internal storage; on desktop it's AppData.
-    let dir: PathBuf = app.path().app_data_dir().map_err(err)?;
-    std::fs::create_dir_all(&dir).map_err(err)?;
-    Ok(dir.join("loglan.db").to_string_lossy().into_owned())
 }
 
 #[tauri::command]
@@ -197,6 +187,15 @@ fn delete_author(state: Db, id: i64) -> Res<Vec<AuthorItem>> {
     with_db(&state, db::list_authors)
 }
 
+/// Android variant: receives file contents directly (content:// URIs can't be
+/// read by std::fs, so the frontend reads them via plugin-fs and sends content).
+/// `files` is a list of (filename, utf8_content) pairs.
+#[tauri::command]
+fn import_lod_contents(state: Db, files: Vec<(String, String)>) -> Res<ImportResult> {
+    let result = with_db_mut(&state, |conn| Ok(import::import_contents(conn, &files)))?;
+    Ok(result)
+}
+
 #[tauri::command]
 fn import_lod_files(state: Db, paths: Vec<String>) -> Res<ImportResult> {
     let result = with_db_mut(&state, |conn| Ok(import::import_files(conn, &paths)))?;
@@ -270,7 +269,6 @@ pub fn run() {
             db_path: Mutex::new(String::new()),
         })
         .invoke_handler(tauri::generate_handler![
-            get_default_db_path,
             open_database,
             create_database,
             get_db_stats,
@@ -289,6 +287,7 @@ pub fn run() {
             get_authors,
             save_author,
             delete_author,
+            import_lod_contents,
             import_lod_files,
             get_event_words,
             search_english,
@@ -300,6 +299,7 @@ pub fn run() {
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
+
 
 #[cfg(test)]
 mod tests {
