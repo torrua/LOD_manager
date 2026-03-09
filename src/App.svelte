@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { open as openDialog, save as saveDialog } from '@tauri-apps/plugin-dialog';
   import { platform } from '@tauri-apps/plugin-os';
   import {
@@ -28,13 +28,14 @@
   import ToolsDrawer from './lib/components/ToolsDrawer.svelte';
   import Toast from './lib/components/Toast.svelte';
 
+  let keydownCleanup: (() => void) | undefined;
+
   onMount(async () => {
     document.documentElement.dataset.theme = app.theme;
 
     // ── DB auto-open ───────────────────────────────────────────────────────
-    // platform() needs to be awaited — in some plugin-os v2 versions it is
-    // async. We always await to be safe.
-    const currentPlatform = await platform().catch(() => 'unknown');
+    // platform() is sync in current version.
+    const currentPlatform = platform();
 
     if (currentPlatform === 'android') {
       // On Android always open the canonical path from Rust's app_data_dir.
@@ -83,8 +84,10 @@
       }
     };
     document.addEventListener('keydown', handler);
-    return () => document.removeEventListener('keydown', handler);
+    keydownCleanup = () => document.removeEventListener('keydown', handler);
   });
+
+  onDestroy(() => keydownCleanup?.());
 
   $effect(() => {
     if (app.readonly) document.documentElement.setAttribute('data-ro', '1');
