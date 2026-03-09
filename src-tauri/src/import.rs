@@ -34,8 +34,8 @@ fn opt(s: &str) -> Option<String> {
     }
 }
 
-/// Import from (filename, text_content) pairs.
-/// Used on Android where paths are content:// URIs that std::fs cannot read.
+/// Import from (filename, `text_content`) pairs.
+/// Used on Android where paths are `content://` URIs that `std::fs` cannot read.
 pub fn import_contents(conn: &mut Connection, files: &[(String, String)]) -> ImportResult {
     let mut result = ImportResult {
         words: 0,
