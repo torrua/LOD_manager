@@ -1,6 +1,6 @@
 {
   "productName": "LOD Manager",
-  "version": "1.0.7",
+  "version": "1.1.0",
   "identifier": "com.lod.manager",
   "build": {
     "frontendDist": "../dist",

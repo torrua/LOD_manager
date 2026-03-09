@@ -72,7 +72,8 @@ pub fn init_schema(conn: &Connection) -> rusqlite::Result<()> {
             grammar  TEXT,
             usage    TEXT,
             body     TEXT NOT NULL DEFAULT '',
-            tags     TEXT
+            tags     TEXT,
+            UNIQUE(word_id, position)
         );
         CREATE INDEX IF NOT EXISTS idx_def_word ON definitions(word_id);
 

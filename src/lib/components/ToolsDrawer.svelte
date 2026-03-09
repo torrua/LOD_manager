@@ -20,8 +20,12 @@
 
   // ── Import ────────────────────────────────────────────────────────────────
   let impPaths = $state<string[]>([]);
+  let impNames = $state<string[]>([]);
   let impResult = $state<ImportResult | null>(null);
   let impRunning = $state(false);
+  let impDownloading = $state(false);
+  let impGithubUrl = $state('https://github.com/torrua/LOD/tree/master/tables');
+  let impEditingIdx = $state<number | null>(null);
 
   async function pickImport() {
     const sel = await openFilePicker({
@@ -31,41 +35,122 @@
     });
     if (sel) {
       impPaths = Array.isArray(sel) ? sel : [sel];
+      impNames = impPaths.map((p) => bn(p).replace(/\.txt$/, ''));
       impResult = null;
     }
   }
   function rmImp(p: string) {
+    const idx = impPaths.indexOf(p);
     impPaths = impPaths.filter((x) => x !== p);
+    if (idx >= 0) impNames = impNames.filter((_, i) => i !== idx);
   }
   function bn(p: string) {
+    // Handle github:// URIs specially
+    if (p.startsWith('github://')) {
+      const colonIdx = p.indexOf(':', 9);
+      if (colonIdx > 0) {
+        return p.substring(9, colonIdx);
+      }
+    }
     return p.split(/[/\\]/).pop() || p;
+  }
+
+  async function downloadFromGitHub() {
+    if (impDownloading) return;
+    impDownloading = true;
+    try {
+      const urlMatch = impGithubUrl.match(/github\.com\/([^/]+)\/([^/]+)\/tree\/([^/]+)\/(.+)/);
+      if (!urlMatch) {
+        throw new Error(
+          'Invalid GitHub URL format. Expected: https://github.com/owner/repo/tree/branch/path'
+        );
+      }
+      const [, owner, repo, branch, path] = urlMatch;
+      const apiUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${path}?ref=${branch}`;
+      const response = await fetch(apiUrl);
+      if (!response.ok) {
+        throw new Error(`GitHub API error: ${response.status} ${response.statusText}`);
+      }
+      const files: { type: string; name: string; download_url: string }[] = await response.json();
+      if (!Array.isArray(files)) {
+        throw new Error('Expected directory contents, got file');
+      }
+      const txtFiles = files.filter(
+        (file: { type: string; name: string; download_url: string }) =>
+          file.type === 'file' && file.name.endsWith('.txt')
+      );
+      if (txtFiles.length === 0) {
+        throw new Error('No .txt files found in the directory');
+      }
+      const downloadedFiles: string[] = [];
+      const downloadedNames: string[] = [];
+      for (const file of txtFiles) {
+        try {
+          const fileResponse = await fetch(file.download_url);
+          if (!fileResponse.ok) {
+            console.warn(`Failed to download ${file.name}: ${fileResponse.status}`);
+            continue;
+          }
+          const content = await fileResponse.text();
+          const tempPath = `github://${file.name}:${content}`;
+          downloadedFiles.push(tempPath);
+          downloadedNames.push(file.name);
+        } catch (e) {
+          console.warn(`Error downloading ${file.name}:`, e);
+        }
+      }
+      if (downloadedFiles.length === 0) {
+        throw new Error('Failed to download any files');
+      }
+      // Replace the list instead of appending to prevent duplicates on repeated clicks
+      impPaths = downloadedFiles;
+      impNames = downloadedNames;
+      toast(
+        `Downloaded ${downloadedFiles.length} file${downloadedFiles.length > 1 ? 's' : ''} from GitHub`,
+        'ok'
+      );
+    } catch (e) {
+      toast(`Download failed: ${String(e)}`, 'err');
+    } finally {
+      impDownloading = false;
+    }
+  }
+
+  function updateName(idx: number, newName: string) {
+    if (!newName) return;
+    impNames[idx] = newName;
+    if (!impNames[idx].endsWith('.txt')) {
+      impNames[idx] = `${impNames[idx]}.txt`;
+    }
   }
   async function runImport() {
     if (!impPaths.length || impRunning) return;
     impRunning = true;
     impResult = null;
     try {
-      // Extract filenames from paths for better import handling
-      const impNames = impPaths.map((p) => {
-        if (p.startsWith('content://')) {
-          // For Android content URIs, try to extract meaningful filename
-          const decoded = decodeURIComponent(p);
-          const uriParts = decoded.split('/');
-          const lastPart = uriParts[uriParts.length - 1];
-          const cleanName = lastPart?.split('?')[0]?.split('#')[0] || '';
-          if (cleanName && (cleanName.includes('.') || cleanName.length > 10)) {
-            return cleanName;
-          } else {
-            const docId = uriParts.find((part) => part.includes('document'))?.split('document/')[1];
-            return docId
-              ? `file_${docId}.txt`
-              : `android_file_${Date.now()}_${impPaths.indexOf(p)}.txt`;
-          }
-        }
-        // For regular file paths
-        return p.split(/[/\\]/).pop() || `file_${impPaths.indexOf(p)}.txt`;
-      });
-      impResult = (await importFiles(impPaths, impNames)) as ImportResult;
+      const finalNames =
+        impNames.length === impPaths.length
+          ? impNames
+          : impPaths.map((p) => {
+              if (p.startsWith('content://')) {
+                const decoded = decodeURIComponent(p);
+                const uriParts = decoded.split('/');
+                const lastPart = uriParts[uriParts.length - 1];
+                const cleanName = lastPart?.split('?')[0]?.split('#')[0] || '';
+                if (cleanName && (cleanName.includes('.') || cleanName.length > 10)) {
+                  return cleanName;
+                } else {
+                  const docId = uriParts
+                    .find((part) => part.includes('document'))
+                    ?.split('document/')[1];
+                  return docId
+                    ? `file_${docId}.txt`
+                    : `android_file_${Date.now()}_${impPaths.indexOf(p)}.txt`;
+                }
+              }
+              return p.split(/[/\\]/).pop() || `file_${impPaths.indexOf(p)}.txt`;
+            });
+      impResult = (await importFiles(impPaths, finalNames)) as ImportResult;
       toast(`Import: ${impResult.words} words`, impResult.errors ? 'err' : 'ok');
     } catch (e) {
       toast(String(e), 'err');
@@ -210,6 +295,27 @@
 
       <!-- ── IMPORT ── -->
     {:else if app.toolsTab === 'import'}
+      <!-- GitHub Download Section -->
+      <div class="github-section">
+        <div class="github-input-group">
+          <input
+            type="url"
+            class="github-url-input"
+            placeholder="https://github.com/owner/repo/tree/branch/path"
+            value={impGithubUrl}
+            onchange={(e) => {
+              const target = e.target as HTMLInputElement;
+              if (target) impGithubUrl = target.value;
+            }}
+            disabled={impDownloading}
+          />
+          <button class="btn btn-g btn-sm" onclick={downloadFromGitHub} disabled={impDownloading}>
+            {impDownloading ? '↓ Downloading…' : '↓ From GitHub'}
+          </button>
+        </div>
+        <p class="github-help">Download LOD files directly from a GitHub repository directory</p>
+      </div>
+
       <p class="td-hint">
         Select LOD text files: <code>Word.txt</code>, <code>WordDef.txt</code>,
         <code>WordSpell.txt</code>, <code>LexEvent.txt</code>, <code>type.txt</code>,
@@ -219,9 +325,33 @@
         {#if impPaths.length === 0}
           <button class="btn btn-au btn-sm" onclick={pickImport}>Browse files…</button>
         {:else}
-          {#each impPaths as p}
+          {#each impPaths as p, idx}
             <div class="file-row">
               <span class="f-name">{bn(p)}</span>
+              <div class="fi-middle">
+                {#if impEditingIdx === idx}
+                  <input
+                    type="text"
+                    class="fi-input"
+                    value={impNames[idx]?.replace(/\.txt$/, '') || ''}
+                    onchange={(e) => {
+                      const target = e.target as HTMLInputElement;
+                      if (target) {
+                        updateName(idx, target.value);
+                      }
+                    }}
+                    onblur={() => (impEditingIdx = null)}
+                  />
+                {:else}
+                  <button
+                    class="fi-name-btn"
+                    onclick={() => (impEditingIdx = idx)}
+                    title="Click to edit filename"
+                  >
+                    {impNames[idx] || 'unnamed.txt'}
+                  </button>
+                {/if}
+              </div>
               <button class="btn btn-icon btn-sm btn-ghost btn-r" onclick={() => rmImp(p)}>×</button
               >
             </div>
@@ -766,5 +896,94 @@
     height: 13px;
     flex-shrink: 0;
     cursor: pointer;
+  }
+
+  /* GitHub section */
+  .github-section {
+    margin-bottom: 0.8rem;
+    padding: 0.6rem 0.7rem;
+    background: var(--surf2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+  }
+
+  .github-input-group {
+    display: flex;
+    gap: 0.4rem;
+    margin-bottom: 0.4rem;
+    flex-wrap: nowrap;
+    align-items: center;
+  }
+
+  .github-url-input {
+    flex: 1;
+    min-width: 0;
+    padding: 0.28rem 0.5rem;
+    background: var(--surf);
+    border: 1px solid var(--border2);
+    border-radius: 4px;
+    color: var(--text);
+    font-size: 0.7rem;
+    font-family: inherit;
+  }
+
+  .github-input-group .btn {
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+
+  .github-url-input:focus {
+    outline: none;
+    border-color: var(--gold);
+    box-shadow: 0 0 0 2px var(--gold-t);
+  }
+
+  .github-url-input:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .github-help {
+    font-size: 0.6rem;
+    color: var(--text3);
+    margin: 0;
+  }
+
+  /* File naming edit */
+  .fi-middle {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .fi-input {
+    width: 100%;
+    padding: 0.2rem 0.4rem;
+    border: 1px solid var(--gold);
+    background: var(--surf);
+    color: var(--text);
+    border-radius: 3px;
+    font-size: 0.65rem;
+    font-family: inherit;
+  }
+
+  .fi-input:focus {
+    outline: none;
+    box-shadow: 0 0 0 2px var(--gold-t);
+  }
+
+  .fi-name-btn {
+    background: none;
+    border: none;
+    color: var(--text2);
+    font-size: 0.65rem;
+    cursor: pointer;
+    padding: 0;
+    text-align: left;
+    font-family: inherit;
+  }
+
+  .fi-name-btn:hover {
+    color: var(--text);
+    text-decoration: underline;
   }
 </style>

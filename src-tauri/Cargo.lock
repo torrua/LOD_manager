@@ -1710,7 +1710,7 @@ dependencies = [
 
 [[package]]
 name = "lod-manager"
-version = "1.0.7"
+version = "1.1.0"
 dependencies = [
  "rusqlite",
  "serde",
