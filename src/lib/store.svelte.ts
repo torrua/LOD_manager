@@ -342,7 +342,27 @@ export async function importFiles(paths: string[], fileNames?: string[]) {
       const p = paths[i];
       if (!p) continue; // Skip empty paths
       // Use provided filename or derive from path/index
-      let name = fileNames?.[i] ?? (p.split('/').pop() || `file_${i}.txt`);
+      let name = fileNames?.[i];
+      if (!name) {
+        if (p.startsWith('content://')) {
+          // For Android content URIs, try to extract meaningful filename
+          const decoded = decodeURIComponent(p);
+          const uriParts = decoded.split('/');
+          const lastPart = uriParts[uriParts.length - 1];
+          const cleanName = lastPart?.split('?')[0]?.split('#')[0] || '';
+          // If it looks like a filename, use it; otherwise use generic name
+          if (cleanName && (cleanName.includes('.') || cleanName.length > 10)) {
+            name = cleanName;
+          } else {
+            // Try to get document ID or use timestamp-based name
+            const docId = uriParts.find((part) => part.includes('document'))?.split('document/')[1];
+            name = docId ? `file_${docId}.txt` : `android_file_${Date.now()}_${i}.txt`;
+          }
+        } else {
+          // For regular file paths
+          name = p.split('/').pop() || `file_${i}.txt`;
+        }
+      }
       if (!name.endsWith('.txt')) name = `${name}.txt`;
       try {
         const bytes = await readFile(p);

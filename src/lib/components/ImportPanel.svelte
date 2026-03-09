@@ -19,6 +19,22 @@
       // Extract display names — on Android these may just be the URI segment
       names = paths.map((p) => {
         const decoded = decodeURIComponent(p);
+        // For content URIs, try to extract filename from URI or use fallback
+        if (p.startsWith('content://')) {
+          // Try different strategies to extract filename from content URI
+          const uriParts = decoded.split('/');
+          const lastPart = uriParts[uriParts.length - 1];
+          // Remove query parameters and fragments
+          const cleanName = lastPart?.split('?')[0]?.split('#')[0] || '';
+          // If it looks like a filename, use it; otherwise use generic name
+          if (cleanName && (cleanName.includes('.') || cleanName.length > 10)) {
+            return cleanName;
+          }
+          // Fallback: try to get filename from document ID or use generic
+          const docId = uriParts.find((part) => part.includes('document'))?.split('document/')[1];
+          return docId ? `file_${docId}.txt` : `android_file_${Date.now()}.txt`;
+        }
+        // For regular file paths
         return decoded.split(/[/]/).pop()?.split('?')[0] || p;
       });
       result = null;

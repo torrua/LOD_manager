@@ -45,7 +45,27 @@
     impRunning = true;
     impResult = null;
     try {
-      impResult = (await importFiles(impPaths)) as ImportResult;
+      // Extract filenames from paths for better import handling
+      const impNames = impPaths.map((p) => {
+        if (p.startsWith('content://')) {
+          // For Android content URIs, try to extract meaningful filename
+          const decoded = decodeURIComponent(p);
+          const uriParts = decoded.split('/');
+          const lastPart = uriParts[uriParts.length - 1];
+          const cleanName = lastPart?.split('?')[0]?.split('#')[0] || '';
+          if (cleanName && (cleanName.includes('.') || cleanName.length > 10)) {
+            return cleanName;
+          } else {
+            const docId = uriParts.find((part) => part.includes('document'))?.split('document/')[1];
+            return docId
+              ? `file_${docId}.txt`
+              : `android_file_${Date.now()}_${impPaths.indexOf(p)}.txt`;
+          }
+        }
+        // For regular file paths
+        return p.split(/[/\\]/).pop() || `file_${impPaths.indexOf(p)}.txt`;
+      });
+      impResult = (await importFiles(impPaths, impNames)) as ImportResult;
       toast(`Import: ${impResult.words} words`, impResult.errors ? 'err' : 'ok');
     } catch (e) {
       toast(String(e), 'err');
