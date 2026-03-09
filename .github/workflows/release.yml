@@ -150,9 +150,20 @@ jobs:
       #     ANDROID_STORE_FILE:     release.jks
       #     ANDROID_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASS }}
 
+      - name: Rename APK to match release naming convention
+        run: |
+          VERSION="${{ github.ref_name }}"
+          VERSION="${VERSION#v}"
+          APK=$(find src-tauri/gen/android -name "*.apk" | head -1)
+          if [ -n "$APK" ]; then
+            DEST="src-tauri/gen/android/LOD.Manager_${VERSION}_aarch64.apk"
+            mv "$APK" "$DEST"
+            echo "Renamed to: $DEST"
+          fi
+
       - uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
-          files: src-tauri/gen/android/**/*.apk
+          files: src-tauri/gen/android/LOD.Manager_*.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

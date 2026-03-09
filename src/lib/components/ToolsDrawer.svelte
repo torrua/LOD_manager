@@ -2,6 +2,7 @@
   import { save as saveDialog } from '@tauri-apps/plugin-dialog';
   import { open as openFilePicker } from '@tauri-apps/plugin-dialog';
   import { open as openDbDialog } from '@tauri-apps/plugin-dialog';
+  import Icon from './Icon.svelte';
   import {
     app,
     openDb,
@@ -237,7 +238,7 @@
 <div class="td">
   <div class="td-hdr">
     <span class="td-title">Tools</span>
-    <button class="btn btn-icon btn-ghost" onclick={() => (app.toolsOpen = false)}>✕</button>
+    <button class="btn btn-icon btn-ghost" onclick={() => (app.toolsOpen = false)}><Icon name="close" size={16} /></button>
   </div>
 
   <nav class="td-tabs">
@@ -283,7 +284,7 @@
         <div class="td-acts">
           <button class="btn btn-au btn-sm" onclick={handleSwitch}>⎘ Switch DB</button>
           <button class="btn btn-g btn-sm" onclick={handleNew}>＋ New DB</button>
-          <button class="btn btn-r btn-sm" onclick={closeDb}>✕ Close</button>
+          <button class="btn btn-r btn-sm" onclick={closeDb}><Icon name="close" size={13} /> Close</button>
         </div>
       {:else}
         <p class="td-hint">No database open.</p>
@@ -352,7 +353,7 @@
                   </button>
                 {/if}
               </div>
-              <button class="btn btn-icon btn-sm btn-ghost btn-r" onclick={() => rmImp(p)}>×</button
+              <button class="btn btn-icon btn-sm btn-ghost btn-r" onclick={() => rmImp(p)}><Icon name="close" size={13} /></button
               >
             </div>
           {/each}

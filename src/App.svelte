@@ -2,7 +2,6 @@
   import { onMount } from 'svelte';
   import { open as openDialog, save as saveDialog } from '@tauri-apps/plugin-dialog';
   import { platform } from '@tauri-apps/plugin-os';
-  import { appDataDir } from '@tauri-apps/api/path';
   import {
     app,
     toggleTheme,
@@ -13,10 +12,12 @@
     canGoBack,
     canGoForward,
     getLastDbPath,
+    getDefaultDbPath,
     openDb,
     createDb,
     activeEvent,
   } from './lib/store.svelte';
+  import Icon from './lib/components/Icon.svelte';
   import Sidebar from './lib/components/Sidebar.svelte';
   import WordDetail from './lib/components/WordDetail.svelte';
   import WordForm from './lib/components/WordForm.svelte';
@@ -27,27 +28,30 @@
   import ToolsDrawer from './lib/components/ToolsDrawer.svelte';
   import Toast from './lib/components/Toast.svelte';
 
-  onMount(() => {
+  onMount(async () => {
     document.documentElement.dataset.theme = app.theme;
 
-    // Auto-create database on Android if no database exists
-    const currentPlatform = platform();
-    const last = getLastDbPath();
+    // ── DB auto-open ───────────────────────────────────────────────────────
+    // platform() needs to be awaited — in some plugin-os v2 versions it is
+    // async. We always await to be safe.
+    const currentPlatform = await platform().catch(() => 'unknown');
 
-    if (currentPlatform === 'android' && !last) {
-      appDataDir()
-        .then((appDataPath) => {
-          const dbPath = `${appDataPath}lod.db`;
-          createDb(dbPath).catch((e) => {
-            console.error('Failed to auto-create Android database:', e);
-            // Fall back to normal behavior
-          });
-        })
-        .catch((e) => {
-          console.error('Failed to get app data directory:', e);
+    if (currentPlatform === 'android') {
+      // On Android always open the canonical path from Rust's app_data_dir.
+      // This is reliable across restarts and avoids content:// URI issues.
+      // openDb creates the file via SQLite if it doesn't exist yet.
+      const dbPath = await getDefaultDbPath().catch(() => '');
+      if (dbPath) {
+        openDb(dbPath).catch((e) => console.error('Android DB open failed:', e));
+      }
+    } else {
+      const last = getLastDbPath();
+      if (last) {
+        openDb(last).catch(() => {
+          // Path is stale (file moved/deleted) — clear it so next launch is clean
+          localStorage.removeItem('lod-last-db');
         });
-    } else if (last) {
-      openDb(last).catch(() => {});
+      }
     }
 
     const handler = (e: KeyboardEvent) => {
@@ -138,6 +142,32 @@
       },
     },
   ];
+  // ── Swipe gesture (mobile) ────────────────────────────────────────────────
+  // Swipe right → back to word list (or browser back if nothing to show)
+  let _swipeX = 0, _swipeT = 0;
+  function onTouchStart(e: TouchEvent) {
+    const touch = e.touches[0];
+    if (!touch) return;
+    _swipeX = touch.clientX;
+    _swipeT = Date.now();
+  }
+  function onTouchEnd(e: TouchEvent) {
+    const touch = e.changedTouches[0];
+    if (!touch) return;
+    const dx = touch.clientX - _swipeX;
+    const dt = Date.now() - _swipeT;
+    const fast = dt < 400;
+    const bigEnough = dx > 72;
+    if (fast && bigEnough && !app.mobileShowList) {
+      // Swipe right = go back to list or go back in history
+      if (app.tab === 'types' || app.tab === 'authors') {
+        goBack();
+      } else {
+        app.mobileShowList = true;
+      }
+    }
+  }
+
   const sheetItems = $derived(app.readonly ? [] : ALL_ITEMS);
 
   function handleNew() {
@@ -190,7 +220,7 @@
   });
 </script>
 
-<div class="app" data-theme={app.theme}>
+<div class="app" data-theme={app.theme} ontouchstart={onTouchStart} ontouchend={onTouchEnd} role="application">
   <header class="top-bar">
     <div class="tbl">
       {#if app.dbOpen && !app.mobileShowList}
@@ -198,10 +228,10 @@
           class="btn btn-icon btn-ghost mob-only"
           onclick={() =>
             app.tab === 'types' || app.tab === 'authors' ? goBack() : (app.mobileShowList = true)}
-          title="Back">←</button
+          title="Back"><Icon name="arrow-left" /></button
         >
       {/if}
-      <button class="logo" onclick={handleLogoClick} aria-label="Home">LOD</button>
+      <button class="logo" onclick={handleLogoClick} aria-label="Home"><Icon name="logo" size={18} /><span class="logo-text">LOD</span></button>
       {#if app.dbOpen && activeEvent()}
         {@const ev = activeEvent()}
         <span class="ev-badge" title="Filtered to: {ev?.name}">{ev?.annotation || ev?.name}</span>
@@ -213,13 +243,13 @@
           class="btn btn-icon btn-ghost"
           onclick={goBack}
           disabled={!canGoBack()}
-          title="Back (Alt+←)">←</button
+          title="Back (Alt+←)"><Icon name="arrow-left" /></button
         >
         <button
           class="btn btn-icon btn-ghost"
           onclick={goForward}
           disabled={!canGoForward()}
-          title="Forward (Alt+→)">→</button
+          title="Forward (Alt+→)"><Icon name="arrow-right" /></button
         >
         {#if canNew}
           <!-- desktop: direct new; compact: opens bottom sheet -->
@@ -233,16 +263,16 @@
         onclick={toggleReadonly}
         title={app.readonly ? 'Exit read-only' : 'Read-only'}
       >
-        {app.readonly ? '✏' : '👁'}
+        {#if app.readonly}<Icon name="edit-mode" />{:else}<Icon name="read-mode" />{/if}
       </button>
       <button class="btn btn-icon btn-ghost hide-compact" onclick={toggleTheme} title="Toggle theme"
-        >◑</button
+        ><Icon name="theme" /></button
       >
       <button
         class="btn btn-icon btn-ghost hide-compact"
         class:btn-active={app.toolsOpen}
         onclick={() => (app.toolsOpen = !app.toolsOpen)}
-        title="Tools">⚙</button
+        title="Tools"><Icon name="settings" /></button
       >
     </div>
   </header>
@@ -250,7 +280,7 @@
   {#if !app.dbOpen}
     <div class="no-db">
       <div class="no-db-inner">
-        <div class="no-db-icon">🕮</div>
+        <div class="no-db-icon"><Icon name="words" size={64} /></div>
         <h1>Loglan Online Dictionary</h1>
         <p>Open an existing database or create a new one.</p>
         <div class="no-db-btns">
@@ -302,7 +332,7 @@
       >
         {#if app.panel === 'welcome'}
           <div class="empty">
-            <div class="empty-icon">🕮</div>
+            <div class="empty-icon"><Icon name="words" size={48} /></div>
             {#if app.tab === 'events'}
               <h3>Select an event</h3>
               <p>{app.events.length} events</p>
@@ -314,15 +344,7 @@
             {/if}
           </div>
         {:else if app.loadingWordId !== null && !app.curWord}
-          <!-- First-open skeleton: shown while very first word loads -->
-          <div class="wd-skeleton" aria-busy="true" aria-label="Loading…">
-            <div class="sk-line sk-title"></div>
-            <div class="sk-line sk-meta"></div>
-            <div class="sk-line"></div>
-            <div class="sk-line sk-short"></div>
-            <div class="sk-line"></div>
-            <div class="sk-line sk-short"></div>
-          </div>
+          <div class="wd-skeleton" aria-busy="true"><div class="sk-line sk-title"></div><div class="sk-line sk-meta"></div><div class="sk-line"></div><div class="sk-line sk-short"></div></div>
         {:else if app.panel === 'word' && app.curWord}
           <WordDetail word={app.curWord} loading={app.loadingWordId !== null} />
         {:else if app.panel === 'word-form'}
@@ -355,13 +377,13 @@
           onclick={toggleReadonly}
           title={app.readonly ? 'Exit read-only' : 'Read-only'}
         >
-          {app.readonly ? '✏' : '👁'}
+          {#if app.readonly}<Icon name="edit-mode" />{:else}<Icon name="read-mode" />{/if}
         </button>
-        <button class="btn btn-icon btn-ghost" onclick={toggleTheme}>◑</button>
+        <button class="btn btn-icon btn-ghost" onclick={toggleTheme}><Icon name="theme" /></button>
         <button
           class="btn btn-icon btn-ghost"
           class:btn-active={app.toolsOpen}
-          onclick={() => (app.toolsOpen = !app.toolsOpen)}>⚙</button
+          onclick={() => (app.toolsOpen = !app.toolsOpen)}><Icon name="settings" /></button
         >
       </div>
     </div>
@@ -759,41 +781,10 @@
     border: 1px solid var(--teal-d);
     color: var(--teal);
   }
-  /* ─ Skeleton loader ────────────────────────────────────────────────────── */
-  .wd-skeleton {
-    padding: 1.1rem 1.2rem;
-    display: flex;
-    flex-direction: column;
-    gap: 0.6rem;
-    flex: 1;
-  }
-  .sk-line {
-    height: 13px;
-    border-radius: 5px;
-    background: linear-gradient(90deg, var(--surf2) 0%, var(--border) 40%, var(--surf2) 80%);
-    background-size: 250% 100%;
-    animation: sk-sweep 1.4s ease-in-out infinite;
-  }
-  .sk-title {
-    height: 21px;
-    width: 52%;
-  }
-  .sk-meta {
-    height: 10px;
-    width: 72%;
-  }
-  .sk-short {
-    width: 62%;
-  }
-  @keyframes sk-sweep {
-    0% {
-      background-position: 200% 0;
-    }
-    100% {
-      background-position: -100% 0;
-    }
-  }
-
+  .wd-skeleton { padding:1rem 1.1rem; display:flex; flex-direction:column; gap:0.6rem; }
+  .sk-line { height:13px; border-radius:4px; background:linear-gradient(90deg,var(--surf2) 0%,var(--border) 40%,var(--surf2) 80%); background-size:250% 100%; animation:sk-sweep 1.4s ease-in-out infinite; }
+  .sk-title { height:21px; width:52%; } .sk-meta { height:10px; width:72%; } .sk-short { width:62%; }
+  @keyframes sk-sweep { 0% { background-position:200% 0; } 100% { background-position:-100% 0; } }
   /* ─ Meta chip labels (used in WordDetail, EventDetail) ─ */
   :global(.mc-lbl) {
     font-size: var(--fs-label);
@@ -981,6 +972,9 @@
     font-family: 'JetBrains Mono', 'Cascadia Code', 'Consolas', monospace;
   }
   .logo {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
     font-size: 0.8rem;
     font-weight: 700;
     color: var(--gold);
@@ -995,6 +989,9 @@
     height: auto;
     min-height: unset;
     white-space: nowrap;
+  }
+  .logo-text {
+    line-height: 1;
   }
   .logo:hover {
     color: var(--text);

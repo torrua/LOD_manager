@@ -9,6 +9,7 @@
     searchEnglishNow,
   } from '../store.svelte';
   import ELResults from './ELResults.svelte';
+  import Icon from './Icon.svelte';
   import type { Tab } from '../../types';
 
   // ── Resize ────────────────────────────────────────────────────────────────
@@ -196,9 +197,10 @@
 <aside class="sb" style="width:{sbWidth}px">
   <!-- Tabs -->
   <nav class="sb-nav">
-    {#each ['words', 'events', 'types', 'authors'] as t}
-      <button class="ntab" class:on={app.tab === t} onclick={() => setTab(t as Tab)}>
-        {t.charAt(0).toUpperCase() + t.slice(1)}
+    {#each ([['words','words'],['events','events'],['types','types'],['authors','authors']] as const) as [t, icon]}
+      <button class="ntab" class:on={app.tab === t} onclick={() => setTab(t as Tab)} title={t.charAt(0).toUpperCase() + t.slice(1)}>
+        <Icon name={icon} size={14} />
+        <span class="ntab-label">{t.charAt(0).toUpperCase() + t.slice(1)}</span>
       </button>
     {/each}
   </nav>
@@ -399,6 +401,10 @@
     flex-shrink: 0;
   }
   .ntab {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.1rem;
     padding: 0.26rem 0.06rem;
     font-size: 0.55rem;
     font-weight: 600;
@@ -420,6 +426,10 @@
     color: var(--sb-text);
     border-color: var(--sb-border);
     background: var(--sb-hover);
+  }
+  .ntab-label {
+    font-size: 0.5rem;
+    line-height: 1;
   }
   .ntab.on {
     color: var(--gold);
@@ -686,21 +696,13 @@
     background: var(--gold-g);
     border-left-color: var(--gold);
   }
-  /* Tap feedback: highlights instantly while data loads */
   .si.loading {
     background: var(--sb-hover);
     border-left-color: var(--gold);
     animation: si-pulse 0.9s ease-in-out infinite alternate;
     pointer-events: none;
   }
-  @keyframes si-pulse {
-    from {
-      opacity: 1;
-    }
-    to {
-      opacity: 0.5;
-    }
-  }
+  @keyframes si-pulse { from { opacity:1; } to { opacity:0.5; } }
   .sn {
     font-size: 0.73rem;
     font-weight: 500;

@@ -15,7 +15,7 @@ mod models;
 use models::*;
 use rusqlite::Connection;
 use std::sync::Mutex;
-use tauri::State;
+use tauri::{Manager, State};
 
 pub struct AppState {
     pub db: Mutex<Option<Connection>>,
@@ -47,8 +47,6 @@ fn with_db_mut<T, F: FnOnce(&mut Connection) -> rusqlite::Result<T>>(
 #[tauri::command]
 fn open_database(state: Db, path: String) -> Res<AppInfo> {
     let conn = Connection::open(&path).map_err(err)?;
-    conn.query_row("PRAGMA journal_mode=WAL", [], |_| Ok(()))
-        .map_err(err)?;
     conn.execute_batch("PRAGMA foreign_keys=ON;").map_err(err)?;
     db::init_schema(&conn).map_err(err)?;
     db::init_fts(&conn).map_err(err)?;
@@ -259,9 +257,20 @@ fn export_html_to_file(state: Db, path: String, event_name: Option<String>) -> R
     })
 }
 
+/// Returns the canonical default database path in the app's data directory.
+/// This is the reliable cross-platform (especially Android) way to get
+/// a writable, persistent path that survives app restarts.
+#[tauri::command]
+fn get_default_db_path(app: tauri::AppHandle) -> Res<String> {
+    let dir = app.path().app_data_dir().map_err(err)?;
+    std::fs::create_dir_all(&dir).map_err(err)?;
+    Ok(dir.join("lod.db").to_string_lossy().into_owned())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .manage(AppState {
@@ -294,7 +303,8 @@ pub fn run() {
             rebuild_fts,
             fts_is_ready,
             export_html,
-            export_html_to_file
+            export_html_to_file,
+            get_default_db_path
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Icon from './Icon.svelte';
   import { invoke } from '@tauri-apps/api/core';
   import { app, deleteEvent, selectWord } from '../store.svelte';
   import type { EventItem } from '../../types';
@@ -50,7 +51,7 @@
             app.editing = true;
           }}>✎ Edit</button
         >
-        <button class="btn btn-r btn-sm btn-icon" onclick={() => (confirmDel = true)}>🗑</button>
+        <button class="btn btn-r btn-sm btn-icon" onclick={() => (confirmDel = true)}><Icon name="delete" size={14} /></button>
       </div>
     {/if}
   </div>

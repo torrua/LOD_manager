@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Icon from './Icon.svelte';
   import { app, saveAuthor, deleteAuthor } from '../store.svelte';
   let editing = $state<number | null>(null);
   let creating = $state(false);
@@ -68,7 +69,7 @@
                   >
                   <button
                     class="btn btn-icon btn-sm btn-ghost btn-r"
-                    onclick={() => deleteAuthor(a.id)}>🗑</button
+                    onclick={() => deleteAuthor(a.id)}><Icon name="delete" size={14} /></button
                   >
                 </div>
               </td>

@@ -40,7 +40,7 @@ export const app = $state({
   searchQ: '',
   typeFilter: '',
   curWord: null as WordDetail | null,
-  loadingWordId: null as number | null, // optimistic: set immediately on tap, cleared after load
+  loadingWordId: null as number | null,
   curEvent: null as EventItem | null,
   types: [] as TypeItem[],
   authors: [] as AuthorItem[],
@@ -117,6 +117,12 @@ export function toast(msg: string, kind: 'ok' | 'err' | 'info' = 'ok') {
   }, 2800) as unknown as number;
 }
 
+/// Ask Rust for the canonical default DB path (app_data_dir/lod.db).
+/// This works reliably on Android where JS path construction can mismatch.
+export async function getDefaultDbPath(): Promise<string> {
+  return invoke('get_default_db_path');
+}
+
 export async function openDb(path: string) {
   // Android file picker returns content:// URIs which SQLite cannot open
   // directly. Copy the file to app data dir and open from there instead.
@@ -137,7 +143,10 @@ export async function openDb(path: string) {
   const info: AppInfo = await invoke('open_database', { path: actualPath });
   app.dbOpen = true;
   app.dbPath = info.db_path;
-  localStorage.setItem('lod-last-db', actualPath);
+  // Only persist non-Android paths; Android always derives path from app_data_dir
+  if (!actualPath.startsWith('content://')) {
+    localStorage.setItem('lod-last-db', actualPath);
+  }
   await loadAll();
   app.panel = 'welcome';
   app.toolsOpen = false;
@@ -206,7 +215,7 @@ export function activeEvent(): EventItem | null {
   return app.events.find((e) => e.id === app.prefs.eventFilter) ?? null;
 }
 // Cache for type-group lookups so applyFilter doesn't scan app.types on every word
-const _typeGroupCache = new Map<string, string | null>();
+const _typeGroupCache = new Map<string, string | undefined>();
 let _typeGroupCacheStamp = 0;
 
 export function applyFilter() {
@@ -216,13 +225,8 @@ export function applyFilter() {
   }
   const q = app.searchQ.trim().toLowerCase();
   const tf = app.typeFilter;
-
-  // Fast path: no filters → return full list reference (no allocation)
-  if (!q && !tf) {
-    app.filteredWords = app.words;
-    return;
-  }
-
+  // Fast path: no filters → assign reference directly (zero allocation)
+  if (!q && !tf) { app.filteredWords = app.words; return; }
   let ws = app.words;
   if (q) {
     if (q.includes('*') || q.includes('?')) {
@@ -241,7 +245,6 @@ export function applyFilter() {
   if (tf) {
     if (tf.startsWith('__g__')) {
       const g = tf.slice(5);
-      // Rebuild type→group cache if types list changed
       if (_typeGroupCacheStamp !== app.types.length) {
         _typeGroupCache.clear();
         for (const t of app.types) _typeGroupCache.set(t.name, t.group_);
@@ -257,19 +260,13 @@ export function applyFilter() {
 
 export async function selectWord(id: number, pushHist = true) {
   if (!id) return;
-  // Dedup: ignore if already loaded or in-flight for the same word
   if (app.loadingWordId === id || (app.curWord?.id === id && app.loadingWordId === null)) return;
-
-  // Optimistic UI: update navigation state immediately so the panel
-  // transition and sidebar highlight happen without waiting for Rust.
   app.loadingWordId = id;
   app.tab = 'words';
-  app.mobileShowList = false; // switch pane immediately on mobile
-
+  app.mobileShowList = false;
   try {
     const word: WordDetail = await invoke('get_word', { id });
-    // Race guard: only commit if this is still the latest request
-    if (app.loadingWordId !== id) return;
+    if (app.loadingWordId !== id) return; // race: newer request took over
     app.curWord = word;
     app.editing = false;
     app.panel = 'word';
