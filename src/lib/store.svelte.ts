@@ -128,7 +128,9 @@ export async function openDb(path: string) {
       const dir = await appDataDir();
       actualPath = dir.endsWith('/') ? dir + destName : dir + '/' + destName;
     } catch (e) {
-      throw new Error(`Cannot read Android file: ${String(e)}. Try using "New Database" and importing your data instead.`);
+      throw new Error(
+        `Cannot read Android file: ${String(e)}. Try using "New Database" and importing your data instead.`
+      );
     }
   }
   const info: AppInfo = await invoke('open_database', { path: actualPath });
