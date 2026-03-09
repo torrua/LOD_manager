@@ -40,6 +40,7 @@ export const app = $state({
   searchQ: '',
   typeFilter: '',
   curWord: null as WordDetail | null,
+  loadingWordId: null as number | null, // optimistic: set immediately on tap, cleared after load
   curEvent: null as EventItem | null,
   types: [] as TypeItem[],
   authors: [] as AuthorItem[],
@@ -167,6 +168,7 @@ export function closeDb() {
   app.authors = [];
   app.events = [];
   app.curWord = null;
+  app.loadingWordId = null;
   app.curEvent = null;
   app.panel = 'welcome';
   app.toolsOpen = false;
@@ -203,6 +205,10 @@ export function activeEvent(): EventItem | null {
   if (!app.prefs.eventFilter) return null;
   return app.events.find((e) => e.id === app.prefs.eventFilter) ?? null;
 }
+// Cache for type-group lookups so applyFilter doesn't scan app.types on every word
+const _typeGroupCache = new Map<string, string | undefined>();
+let _typeGroupCacheStamp = 0;
+
 export function applyFilter() {
   if (!app.words) {
     app.filteredWords = [];
@@ -210,6 +216,13 @@ export function applyFilter() {
   }
   const q = app.searchQ.trim().toLowerCase();
   const tf = app.typeFilter;
+
+  // Fast path: no filters → return full list reference (no allocation)
+  if (!q && !tf) {
+    app.filteredWords = app.words;
+    return;
+  }
+
   let ws = app.words;
   if (q) {
     if (q.includes('*') || q.includes('?')) {
@@ -228,7 +241,13 @@ export function applyFilter() {
   if (tf) {
     if (tf.startsWith('__g__')) {
       const g = tf.slice(5);
-      ws = ws.filter((w) => app.types.find((t) => t.name === w.type_name)?.group_ === g);
+      // Rebuild type→group cache if types list changed
+      if (_typeGroupCacheStamp !== app.types.length) {
+        _typeGroupCache.clear();
+        for (const t of app.types) _typeGroupCache.set(t.name, t.group_);
+        _typeGroupCacheStamp = app.types.length;
+      }
+      ws = ws.filter((w) => w.type_name != null && _typeGroupCache.get(w.type_name) === g);
     } else {
       ws = ws.filter((w) => w.type_name === tf);
     }
@@ -238,16 +257,29 @@ export function applyFilter() {
 
 export async function selectWord(id: number, pushHist = true) {
   if (!id) return;
+  // Dedup: ignore if already loaded or in-flight for the same word
+  if (app.loadingWordId === id || (app.curWord?.id === id && app.loadingWordId === null)) return;
+
+  // Optimistic UI: update navigation state immediately so the panel
+  // transition and sidebar highlight happen without waiting for Rust.
+  app.loadingWordId = id;
+  app.tab = 'words';
+  app.mobileShowList = false; // switch pane immediately on mobile
+
   try {
-    app.curWord = await invoke('get_word', { id });
+    const word: WordDetail = await invoke('get_word', { id });
+    // Race guard: only commit if this is still the latest request
+    if (app.loadingWordId !== id) return;
+    app.curWord = word;
     app.editing = false;
     app.panel = 'word';
-    app.tab = 'words';
-    app.mobileShowList = false;
     if (pushHist) _pushHistory({ tab: 'words', id });
     _scrollSidebarTo(id);
   } catch {
     toast('Word not found', 'err');
+    if (app.loadingWordId === id) app.mobileShowList = true;
+  } finally {
+    if (app.loadingWordId === id) app.loadingWordId = null;
   }
 }
 export async function saveWord(id: number | null, data: object) {

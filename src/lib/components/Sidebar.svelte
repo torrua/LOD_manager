@@ -290,7 +290,8 @@
             <div
               class="si"
               style="height:{ROW_H}px"
-              class:on={app.curWord?.id === w.id}
+              class:on={app.curWord?.id === w.id || app.loadingWordId === w.id}
+              class:loading={app.loadingWordId === w.id}
               role="button"
               tabindex="0"
               onclick={() => selectWord(w.id)}
@@ -684,6 +685,17 @@
   .si.on {
     background: var(--gold-g);
     border-left-color: var(--gold);
+  }
+  /* Tap feedback: highlights instantly while data loads */
+  .si.loading {
+    background: var(--sb-hover);
+    border-left-color: var(--gold);
+    animation: si-pulse 0.9s ease-in-out infinite alternate;
+    pointer-events: none;
+  }
+  @keyframes si-pulse {
+    from { opacity: 1; }
+    to   { opacity: 0.5; }
   }
   .sn {
     font-size: 0.73rem;

@@ -86,7 +86,7 @@
   import { renderBody } from '../text';
   import type { WordDetail, Definition } from '../../types';
 
-  const { word }: { word: WordDetail } = $props();
+  const { word, loading = false }: { word: WordDetail; loading?: boolean } = $props();
 
   let editingDef = $state<number | null>(null);
   let newDef = $state(false);
@@ -147,7 +147,7 @@
   );
 </script>
 
-<article class="wd">
+<article class="wd" class:wd-loading={loading}>
   <!-- ── HEAD ────────────────────────────────────────────────────── -->
   <div class="wd-head">
     <div class="wd-name">{word.name}</div>
@@ -348,6 +348,13 @@
   /* ── Word header ── */
   .wd {
     padding: 0;
+    transition: opacity 130ms ease;
+  }
+  /* Dim current word while next one is fetching from Rust */
+  .wd-loading {
+    opacity: 0.4;
+    pointer-events: none;
+    user-select: none;
   }
   .wd-head {
     display: flex;

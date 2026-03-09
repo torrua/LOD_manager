@@ -313,8 +313,18 @@
               <p>{app.wordCount.toLocaleString()} words · {app.events.length} events</p>
             {/if}
           </div>
+        {:else if app.loadingWordId !== null && !app.curWord}
+          <!-- First-open skeleton: shown while very first word loads -->
+          <div class="wd-skeleton" aria-busy="true" aria-label="Loading…">
+            <div class="sk-line sk-title"></div>
+            <div class="sk-line sk-meta"></div>
+            <div class="sk-line"></div>
+            <div class="sk-line sk-short"></div>
+            <div class="sk-line"></div>
+            <div class="sk-line sk-short"></div>
+          </div>
         {:else if app.panel === 'word' && app.curWord}
-          <WordDetail word={app.curWord} />
+          <WordDetail word={app.curWord} loading={app.loadingWordId !== null} />
         {:else if app.panel === 'word-form'}
           <WordForm />
         {:else if app.panel === 'event' && app.curEvent}
@@ -749,6 +759,34 @@
     border: 1px solid var(--teal-d);
     color: var(--teal);
   }
+  /* ─ Skeleton loader ────────────────────────────────────────────────────── */
+  .wd-skeleton {
+    padding: 1.1rem 1.2rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    flex: 1;
+  }
+  .sk-line {
+    height: 13px;
+    border-radius: 5px;
+    background: linear-gradient(
+      90deg,
+      var(--surf2) 0%,
+      var(--border) 40%,
+      var(--surf2) 80%
+    );
+    background-size: 250% 100%;
+    animation: sk-sweep 1.4s ease-in-out infinite;
+  }
+  .sk-title { height: 21px; width: 52%; }
+  .sk-meta  { height: 10px; width: 72%; }
+  .sk-short { width: 62%; }
+  @keyframes sk-sweep {
+    0%   { background-position: 200% 0; }
+    100% { background-position: -100% 0; }
+  }
+
   /* ─ Meta chip labels (used in WordDetail, EventDetail) ─ */
   :global(.mc-lbl) {
     font-size: var(--fs-label);
