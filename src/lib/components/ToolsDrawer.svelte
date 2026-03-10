@@ -230,12 +230,36 @@
     { key: 'event', label: 'From (event)' },
     { key: 'until', label: 'Until (event)' },
   ];
+  // ── Swipe down to close (mobile) ────────────────────────────────────────
+  let _sy = 0,
+    _st = 0;
+  function tdTouchStart(e: TouchEvent) {
+    const touch = e.touches[0];
+    if (!touch) return;
+    _sy = touch.clientY;
+    _st = Date.now();
+  }
+  function tdTouchEnd(e: TouchEvent) {
+    const changedTouch = e.changedTouches[0];
+    if (!changedTouch) return;
+    const dy = changedTouch.clientY - _sy;
+    const dt = Date.now() - _st;
+    // Swipe down ≥80px in <400ms → close
+    if (dt < 400 && dy > 80) app.toolsOpen = false;
+  }
 </script>
 
 <button class="td-backdrop" onclick={() => (app.toolsOpen = false)} aria-label="Close tools"
 ></button>
 
-<div class="td">
+<div
+  class="td"
+  ontouchstart={tdTouchStart}
+  ontouchend={tdTouchEnd}
+  role="dialog"
+  aria-modal="true"
+  tabindex="-1"
+>
   <div class="td-hdr">
     <span class="td-title">Tools</span>
     <button class="btn btn-icon btn-ghost" onclick={() => (app.toolsOpen = false)}
@@ -284,8 +308,12 @@
         </div>
         <!-- issue #1: no ellipsis on buttons -->
         <div class="td-acts">
-          <button class="btn btn-au btn-sm" onclick={handleSwitch}>⎘ Switch DB</button>
-          <button class="btn btn-g btn-sm" onclick={handleNew}>＋ New DB</button>
+          <button class="btn btn-au btn-sm" onclick={handleSwitch}
+            ><Icon name="database" size={13} /> Switch DB</button
+          >
+          <button class="btn btn-g btn-sm" onclick={handleNew}
+            ><Icon name="plus" size={13} /> New DB</button
+          >
           <button class="btn btn-r btn-sm" onclick={closeDb}
             ><Icon name="close" size={13} /> Close</button
           >
@@ -647,9 +675,10 @@
       max-width: 100%;
       border-left: none;
       border-top: 1px solid var(--border);
-      border-radius: 14px 14px 0 0;
-      max-height: 90vh;
-      min-height: 50vh;
+      border-radius: 16px 16px 0 0;
+      /* Allow full expansion via swipe — starts at 60%, can expand to 95% */
+      max-height: 95vh;
+      min-height: 55vh;
       animation: td-up 200ms ease;
     }
     @keyframes td-up {
@@ -661,7 +690,24 @@
       }
     }
   }
+  /* Drag handle pill — mobile only */
+  @media (max-width: 640px) {
+    .td-hdr::before {
+      content: '';
+      display: block;
+      width: 40px;
+      height: 4px;
+      border-radius: 2px;
+      background: var(--border2);
+      position: absolute;
+      top: 8px;
+      left: 50%;
+      transform: translateX(-50%);
+      pointer-events: none;
+    }
+  }
   .td-hdr {
+    position: relative;
     display: flex;
     align-items: center;
     justify-content: space-between;

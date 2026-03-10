@@ -67,7 +67,7 @@
               <td>
                 <div class="row-acts edit-only">
                   <button class="btn btn-icon btn-sm btn-ghost" onclick={() => startEdit(t.id)}
-                    >✎</button
+                    ><Icon name="edit" size={13} /></button
                   >
                   <button
                     class="btn btn-icon btn-sm btn-ghost btn-r"

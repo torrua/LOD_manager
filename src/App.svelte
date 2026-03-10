@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
+  import { onMount } from 'svelte';
   import { open as openDialog, save as saveDialog } from '@tauri-apps/plugin-dialog';
   import { platform } from '@tauri-apps/plugin-os';
   import {
@@ -16,8 +16,10 @@
     openDb,
     createDb,
     activeEvent,
+    applyFilter,
   } from './lib/store.svelte';
   import Icon from './lib/components/Icon.svelte';
+  import type { Tab } from './types';
   import Sidebar from './lib/components/Sidebar.svelte';
   import WordDetail from './lib/components/WordDetail.svelte';
   import WordForm from './lib/components/WordForm.svelte';
@@ -28,32 +30,40 @@
   import ToolsDrawer from './lib/components/ToolsDrawer.svelte';
   import Toast from './lib/components/Toast.svelte';
 
-  let keydownCleanup: (() => void) | undefined;
-
-  onMount(async () => {
+  onMount(() => {
     document.documentElement.dataset.theme = app.theme;
 
-    // ── DB auto-open ───────────────────────────────────────────────────────
-    // platform() is sync in current version.
-    const currentPlatform = platform();
+    const init = async () => {
+      // ── DB auto-open ───────────────────────────────────────────────────────
+      // platform() may be sync or async depending on plugin-os version.
+      let currentPlatform = 'unknown';
+      try {
+        const maybePlatform = platform();
+        currentPlatform = await Promise.resolve(maybePlatform).catch(() => 'unknown');
+      } catch {
+        currentPlatform = 'unknown';
+      }
 
-    if (currentPlatform === 'android') {
-      // On Android always open the canonical path from Rust's app_data_dir.
-      // This is reliable across restarts and avoids content:// URI issues.
-      // openDb creates the file via SQLite if it doesn't exist yet.
-      const dbPath = await getDefaultDbPath().catch(() => '');
-      if (dbPath) {
-        openDb(dbPath).catch((e) => console.error('Android DB open failed:', e));
+      if (currentPlatform === 'android') {
+        // On Android always open the canonical path from Rust's app_data_dir.
+        // This is reliable across restarts and avoids content:// URI issues.
+        // openDb creates the file via SQLite if it doesn't exist yet.
+        const dbPath = await getDefaultDbPath().catch(() => '');
+        if (dbPath) {
+          openDb(dbPath).catch((e) => console.error('Android DB open failed:', e));
+        }
+      } else {
+        const last = getLastDbPath();
+        if (last) {
+          openDb(last).catch(() => {
+            // Path is stale (file moved/deleted) — clear it so next launch is clean
+            localStorage.removeItem('lod-last-db');
+          });
+        }
       }
-    } else {
-      const last = getLastDbPath();
-      if (last) {
-        openDb(last).catch(() => {
-          // Path is stale (file moved/deleted) — clear it so next launch is clean
-          localStorage.removeItem('lod-last-db');
-        });
-      }
-    }
+    };
+
+    init();
 
     const handler = (e: KeyboardEvent) => {
       if (e.ctrlKey && e.key === 'f') {
@@ -84,10 +94,8 @@
       }
     };
     document.addEventListener('keydown', handler);
-    keydownCleanup = () => document.removeEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
   });
-
-  onDestroy(() => keydownCleanup?.());
 
   $effect(() => {
     if (app.readonly) document.documentElement.setAttribute('data-ro', '1');
@@ -145,6 +153,36 @@
       },
     },
   ];
+  // ── Tab definitions (used in header and mobile bar)
+  const TABS: Array<[string, string, string]> = [
+    ['words', 'words', 'Words'],
+    ['events', 'events', 'Events'],
+    ['types', 'types', 'Types'],
+    ['authors', 'authors', 'Authors'],
+  ];
+
+  // ── Tab switching (from header on desktop) ────────────────────────────────
+  function setTab(t: Tab) {
+    app.tab = t;
+    app.editing = false;
+    app.searchQ = '';
+    app.typeFilter = '';
+    applyFilter();
+    if (t === 'types') {
+      app.panel = 'types';
+      app.mobileShowList = false;
+    } else if (t === 'authors') {
+      app.panel = 'authors';
+      app.mobileShowList = false;
+    } else if (t === 'words') {
+      app.panel = app.curWord ? 'word' : 'welcome';
+      app.mobileShowList = true;
+    } else if (t === 'events') {
+      app.panel = app.curEvent ? 'event' : 'welcome';
+      app.mobileShowList = true;
+    }
+  }
+
   // ── Swipe gesture (mobile) ────────────────────────────────────────────────
   // Swipe right → back to word list (or browser back if nothing to show)
   let _swipeX = 0,
@@ -156,9 +194,9 @@
     _swipeT = Date.now();
   }
   function onTouchEnd(e: TouchEvent) {
-    const touch = e.changedTouches[0];
-    if (!touch) return;
-    const dx = touch.clientX - _swipeX;
+    const changedTouch = e.changedTouches[0];
+    if (!changedTouch) return;
+    const dx = changedTouch.clientX - _swipeX;
     const dt = Date.now() - _swipeT;
     const fast = dt < 400;
     const bigEnough = dx > 72;
@@ -232,6 +270,7 @@
   role="application"
 >
   <header class="top-bar">
+    <!-- Left: logo + back (mobile) -->
     <div class="tbl">
       {#if app.dbOpen && !app.mobileShowList}
         <button
@@ -241,30 +280,49 @@
           title="Back"><Icon name="arrow-left" /></button
         >
       {/if}
-      <button class="logo" onclick={handleLogoClick} aria-label="Home"
-        ><Icon name="logo" size={18} /><span class="logo-text">LOD</span></button
-      >
+      <button class="logo" onclick={handleLogoClick} aria-label="Home">
+        <Icon name="logo" size={20} />
+        <span class="logo-text">LOD</span>
+      </button>
       {#if app.dbOpen && activeEvent()}
         {@const ev = activeEvent()}
         <span class="ev-badge" title="Filtered to: {ev?.name}">{ev?.annotation || ev?.name}</span>
       {/if}
     </div>
+
+    <!-- Center: tab nav — visible on desktop only, and on mobile when db open -->
+    {#if app.dbOpen}
+      <nav class="header-tabs hide-compact">
+        {#each TABS as [t, icon, label]}
+          <button
+            class="htab"
+            class:on={app.tab === t}
+            onclick={() => setTab(t as Tab)}
+            title={label}
+          >
+            <Icon name={icon} size={15} />
+            <span>{label}</span>
+          </button>
+        {/each}
+      </nav>
+    {/if}
+
+    <!-- Right: actions -->
     <div class="tbr">
       {#if app.dbOpen}
         <button
-          class="btn btn-icon btn-ghost"
+          class="btn btn-icon btn-ghost hide-compact"
           onclick={goBack}
           disabled={!canGoBack()}
           title="Back (Alt+←)"><Icon name="arrow-left" /></button
         >
         <button
-          class="btn btn-icon btn-ghost"
+          class="btn btn-icon btn-ghost hide-compact"
           onclick={goForward}
           disabled={!canGoForward()}
           title="Forward (Alt+→)"><Icon name="arrow-right" /></button
         >
         {#if canNew}
-          <!-- desktop: direct new; compact: opens bottom sheet -->
           <button class="btn btn-sm btn-g hide-compact" onclick={handleNew}>{newLabel()}</button>
         {/if}
         <div class="sep hide-compact"></div>
@@ -281,7 +339,7 @@
         ><Icon name="theme" /></button
       >
       <button
-        class="btn btn-icon btn-ghost hide-compact"
+        class="btn btn-icon btn-ghost"
         class:btn-active={app.toolsOpen}
         onclick={() => (app.toolsOpen = !app.toolsOpen)}
         title="Tools"><Icon name="settings" /></button
@@ -321,38 +379,32 @@
       </div>
     </div>
   {:else}
-    <!-- workspace takes remaining height minus bottom-bar on compact -->
+    <!-- ── DESKTOP: side-by-side layout ────────────────────────────────────── -->
+    <!-- ── MOBILE:  split-pane (list top / detail bottom) ──────────────────── -->
     <div class="workspace">
-      <div
-        class="sb-wrap"
-        class:mob-hidden={!app.mobileShowList ||
-          app.tab === 'types' ||
-          app.tab === 'authors' ||
-          app.panel === 'word-form' ||
-          app.panel === 'event-form'}
-      >
+      <!-- Desktop sidebar / Mobile top pane (word list) -->
+      <div class="sb-wrap">
         <Sidebar />
       </div>
+
+      <!-- Desktop main / Mobile bottom pane (word detail) -->
       <main
         class="main-content"
-        class:mob-hidden={app.mobileShowList &&
-          app.panel !== 'welcome' &&
-          app.panel !== 'word-form' &&
-          app.panel !== 'event-form' &&
-          app.tab !== 'types' &&
-          app.tab !== 'authors'}
+        class:mob-detail-empty={!app.curWord &&
+          app.loadingWordId === null &&
+          app.panel === 'welcome'}
       >
-        {#if app.panel === 'welcome'}
-          <div class="empty">
-            <div class="empty-icon"><Icon name="words" size={48} /></div>
+        {#if app.panel === 'welcome' && !app.loadingWordId}
+          <div class="empty mob-empty-hint">
+            <div class="empty-icon"><Icon name="words" size={36} /></div>
             {#if app.tab === 'events'}
               <h3>Select an event</h3>
-              <p>{app.events.length} events</p>
             {:else if app.tab === 'types'}
               <h3>Types</h3>
-            {:else if app.tab === 'authors'}<h3>Authors</h3>
-            {:else}<h3>Select a word</h3>
-              <p>{app.wordCount.toLocaleString()} words · {app.events.length} events</p>
+            {:else if app.tab === 'authors'}
+              <h3>Authors</h3>
+            {:else}
+              <p class="hint-tap">↑ tap a word</p>
             {/if}
           </div>
         {:else if app.loadingWordId !== null && !app.curWord}
@@ -378,30 +430,42 @@
       </main>
     </div>
 
-    <!-- ── COMPACT BOTTOM BAR — fixed at bottom of screen ── -->
-    <div class="bottom-bar show-compact">
-      <div class="bb-left">
-        {#if canNew}
-          <button class="btn btn-sm btn-g" onclick={() => (newSheetOpen = true)}
-            >{newLabel()}</button
+    <!-- ── MOBILE BOTTOM TAB BAR ─────────────────────────────────────────── -->
+    <div class="mob-bar show-compact">
+      <!-- Tab buttons (center-weighted, safe from rounded corners) -->
+      <div class="mob-tabs">
+        {#each TABS as [t, icon, label]}
+          <button
+            class="mob-tab"
+            class:on={app.tab === t}
+            onclick={() => setTab(t as Tab)}
+            title={label}
           >
-        {/if}
+            <Icon name={icon} size={22} />
+          </button>
+        {/each}
       </div>
-      <div class="bb-right">
+      <!-- Right utility buttons -->
+      <div class="mob-utils">
+        {#if canNew}
+          <button class="mob-util-btn btn-g" onclick={() => (newSheetOpen = true)} title="New">
+            <Icon name="plus" size={20} />
+          </button>
+        {/if}
         <button
-          class="btn btn-icon btn-ghost"
-          class:btn-active={app.readonly}
+          class="mob-util-btn"
+          class:active={app.readonly}
           onclick={toggleReadonly}
           title={app.readonly ? 'Exit read-only' : 'Read-only'}
         >
-          {#if app.readonly}<Icon name="edit-mode" />{:else}<Icon name="read-mode" />{/if}
+          {#if app.readonly}<Icon name="edit-mode" size={18} />{:else}<Icon
+              name="read-mode"
+              size={18}
+            />{/if}
         </button>
-        <button class="btn btn-icon btn-ghost" onclick={toggleTheme}><Icon name="theme" /></button>
-        <button
-          class="btn btn-icon btn-ghost"
-          class:btn-active={app.toolsOpen}
-          onclick={() => (app.toolsOpen = !app.toolsOpen)}><Icon name="settings" /></button
-        >
+        <button class="mob-util-btn" onclick={toggleTheme} title="Theme">
+          <Icon name="theme" size={18} />
+        </button>
       </div>
     </div>
   {/if}
@@ -632,30 +696,39 @@
   :global(.btn-active) {
     color: var(--gold) !important;
   }
-  /* icon/size variants — all use the same base btn */
+  /* icon/size variants */
   :global(.btn-icon) {
-    width: 28px;
-    height: 28px;
+    width: 32px;
+    height: 32px;
     padding: 0;
     font-size: 1rem;
   }
-  /* btn-icon-sm: 26×26px square for compact toolbars/inline lists */
   :global(.btn-icon-sm) {
-    width: 26px;
-    height: 26px;
+    width: 28px;
+    height: 28px;
     padding: 0;
     font-size: 0.85rem;
     flex-shrink: 0;
   }
   :global(.btn-sm) {
-    height: 26px;
-    padding: 0 0.48rem;
+    height: 28px;
+    padding: 0 0.52rem;
     font-size: var(--fs-xs);
   }
   :global(.btn-lg) {
-    height: 36px;
+    height: 38px;
     padding: 0 1.1rem;
     font-size: var(--fs-md);
+  }
+  @media (max-width: 640px) {
+    :global(.btn-icon) {
+      width: 44px;
+      height: 44px;
+    }
+    :global(.btn-icon-sm) {
+      width: 36px;
+      height: 36px;
+    }
   }
 
   /* ── Forms ── */
@@ -954,20 +1027,17 @@
     overflow: hidden;
   }
 
-  /* compact = window width < 520px */
-  @media (max-width: 520px) {
+  /* ── Responsive breakpoints ─────────────────────────────────────────────── */
+  /* compact = width < 640px (phones in portrait) */
+  @media (max-width: 640px) {
     .hide-compact {
       display: none !important;
     }
     .show-compact {
       display: flex !important;
     }
-    /* workspace shrinks to leave room for fixed bottom bar */
-    .workspace {
-      margin-bottom: var(--bb-h, 48px);
-    }
   }
-  @media (min-width: 521px) {
+  @media (min-width: 641px) {
     .show-compact {
       display: none !important;
     }
@@ -976,15 +1046,13 @@
   .top-bar {
     background: var(--surf);
     border-bottom: 1px solid var(--border);
-    /* padding-top accounts for Android status bar via safe-area-inset-top.
-       viewport-fit=cover must be set in index.html for env() to work. */
-    padding: env(safe-area-inset-top, 0px) 0.75rem 0;
+    padding: env(safe-area-inset-top, 0px) 0.5rem 0;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    height: calc(42px + env(safe-area-inset-top, 0px));
+    height: calc(48px + env(safe-area-inset-top, 0px));
     flex-shrink: 0;
-    gap: 0.4rem;
+    gap: 0.3rem;
   }
   .tbl {
     display: flex;
@@ -999,6 +1067,42 @@
     align-items: center;
     gap: 0.1rem;
     flex-shrink: 0;
+  }
+  /* ── Header tabs (desktop) ── */
+  .header-tabs {
+    display: flex;
+    align-items: center;
+    gap: 0.15rem;
+    flex: 1;
+    justify-content: center;
+  }
+  .htab {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    height: 32px;
+    padding: 0 0.6rem;
+    border-radius: var(--r-md);
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--text3);
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 0.62rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    transition: all 120ms;
+    white-space: nowrap;
+  }
+  .htab:hover:not(.on) {
+    color: var(--text2);
+    background: var(--surf2);
+    border-color: var(--border);
+  }
+  .htab.on {
+    color: var(--gold);
+    background: var(--gold-g);
+    border-color: var(--gold-d);
   }
   .ev-badge {
     font-size: 0.5rem;
@@ -1057,31 +1161,87 @@
     }
   }
 
-  /* ── Fixed bottom bar (compact only) ── */
-  .bottom-bar {
+  /* ── Mobile tab bar (compact only) ── */
+  .mob-bar {
     position: fixed;
     left: 0;
     right: 0;
     bottom: 0;
-    height: var(--bb-h, 48px);
+    height: var(--mob-bar-h, 60px);
     background: var(--surf);
     border-top: 1px solid var(--border);
-    padding: 0 0.6rem;
-    display: none; /* shown via show-compact */
+    /* Safe-area inset for phones with home bar */
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    display: none; /* shown via .show-compact */
     align-items: center;
-    justify-content: space-between;
+    justify-content: center;
+    gap: 0;
     z-index: 50;
-    box-shadow: 0 -2px 12px var(--shd);
+    box-shadow: 0 -2px 16px var(--shd);
   }
-  .bb-left {
+  /* Tabs: centered group, pushed away from screen edges */
+  .mob-tabs {
     display: flex;
     align-items: center;
-    gap: 0.4rem;
+    justify-content: center;
+    gap: 0.1rem;
+    flex: 1;
+    /* min horizontal margin keeps buttons off rounded corners */
+    padding: 0 max(1rem, env(safe-area-inset-left, 1rem));
   }
-  .bb-right {
+  .mob-tab {
     display: flex;
     align-items: center;
-    gap: 0.05rem;
+    justify-content: center;
+    width: 52px;
+    height: 44px;
+    border-radius: 10px;
+    border: none;
+    background: transparent;
+    color: var(--text3);
+    cursor: pointer;
+    transition: all 120ms;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+  .mob-tab:active {
+    background: var(--surf2);
+  }
+  .mob-tab.on {
+    color: var(--gold);
+    background: var(--gold-g);
+  }
+  /* Utility buttons: right cluster */
+  .mob-utils {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    padding-right: max(0.75rem, env(safe-area-inset-right, 0.75rem));
+    flex-shrink: 0;
+  }
+  .mob-util-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+    border: none;
+    background: transparent;
+    color: var(--text3);
+    cursor: pointer;
+    transition: all 120ms;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+  .mob-util-btn:active {
+    background: var(--surf2);
+  }
+  .mob-util-btn.active {
+    color: var(--gold);
+  }
+  .mob-util-btn.btn-g {
+    color: var(--green);
   }
 
   .no-db {
@@ -1118,6 +1278,7 @@
     flex-wrap: wrap;
   }
 
+  /* ── Desktop workspace: sidebar left, main right ── */
   .workspace {
     flex: 1;
     display: flex;
@@ -1135,25 +1296,42 @@
     min-width: 0;
   }
 
+  /* ── Mobile workspace: split-pane (list top, detail bottom) ── */
   @media (max-width: 640px) {
     .workspace {
-      position: relative;
+      flex-direction: column;
+      /* Reserve room for bottom bar */
+      padding-bottom: var(--mob-bar-h, 60px);
     }
     .sb-wrap {
-      position: absolute;
-      inset: 0;
-      z-index: 1;
-      transition: transform 200ms ease;
-    }
-    .sb-wrap.mob-hidden {
-      transform: translateX(-100%);
-      pointer-events: none;
+      flex-shrink: 0;
+      /* Top pane: word list — takes 42% of available height */
+      height: 42%;
+      min-height: 160px;
+      max-height: 320px;
+      border-bottom: 2px solid var(--border);
+      width: 100%;
     }
     .main-content {
-      padding: 0.75rem 0.9rem;
+      flex: 1;
+      padding: 0.6rem 0.75rem;
+      overflow-y: auto;
+      min-height: 0;
     }
-    .main-content.mob-hidden {
-      display: none;
+    /* When no word selected, collapse detail pane to a thin hint */
+    .main-content.mob-detail-empty {
+      flex: 0 0 auto;
+      height: auto;
+      min-height: 48px;
+    }
+    .mob-empty-hint {
+      padding: 0.6rem 1rem;
+      text-align: left;
+    }
+    .hint-tap {
+      font-size: 0.72rem;
+      color: var(--text3);
+      margin: 0;
     }
   }
 

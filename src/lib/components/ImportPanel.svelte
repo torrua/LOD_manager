@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Icon from './Icon.svelte';
   import { open } from '@tauri-apps/plugin-dialog';
   import { importFiles, toast } from '../store.svelte';
   import type { ImportResult } from '../../types';
@@ -244,7 +245,9 @@
                 </button>
               {/if}
             </div>
-            <button class="btn btn-sm btn-r" onclick={() => remove(p)}>×</button>
+            <button class="btn btn-sm btn-r btn-icon-sm" onclick={() => remove(p)}
+              ><Icon name="close" size={13} /></button
+            >
           </div>
         {/each}
         <button class="btn btn-sm" onclick={pickFiles} style="margin-top:.3rem">Add more…</button>

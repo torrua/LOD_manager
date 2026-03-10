@@ -10,7 +10,6 @@
   } from '../store.svelte';
   import ELResults from './ELResults.svelte';
   import Icon from './Icon.svelte';
-  import type { Tab } from '../../types';
 
   // ── Resize ────────────────────────────────────────────────────────────────
   let sbWidth = $state(parseInt(localStorage.getItem('sb-w') || '252'));
@@ -31,28 +30,6 @@
     document.addEventListener('mousemove', mm);
     document.addEventListener('mouseup', mu);
     e.preventDefault();
-  }
-
-  // ── Tabs ──────────────────────────────────────────────────────────────────
-  function setTab(t: Tab) {
-    app.tab = t;
-    app.editing = false;
-    app.searchQ = '';
-    app.typeFilter = '';
-    applyFilter();
-    if (t === 'types') {
-      app.panel = 'types';
-      app.mobileShowList = false;
-    } else if (t === 'authors') {
-      app.panel = 'authors';
-      app.mobileShowList = false;
-    } else if (t === 'words') {
-      app.panel = app.curWord ? 'word' : 'welcome';
-      app.mobileShowList = true;
-    } else if (t === 'events') {
-      app.panel = app.curEvent ? 'event' : 'welcome';
-      app.mobileShowList = true;
-    }
   }
 
   // ── Virtual scroll ────────────────────────────────────────────────────────
@@ -195,42 +172,9 @@
 </script>
 
 <aside class="sb" style="width:{sbWidth}px">
-  <!-- Tabs -->
-  <nav class="sb-nav">
-    {#each [['words', 'words'], ['events', 'events'], ['types', 'types'], ['authors', 'authors']] as const as [t, icon]}
-      <button
-        class="ntab"
-        class:on={app.tab === t}
-        onclick={() => setTab(t as Tab)}
-        title={t.charAt(0).toUpperCase() + t.slice(1)}
-      >
-        <Icon name={icon} size={14} />
-        <span class="ntab-label">{t.charAt(0).toUpperCase() + t.slice(1)}</span>
-      </button>
-    {/each}
-  </nav>
-
   <!-- Filter area -->
   {#if app.tab === 'words' || app.tab === 'events'}
     <div class="sb-filter">
-      <!-- Type dropdown — only in L→E words mode -->
-      {#if app.tab === 'words' && app.searchMode === 'le'}
-        <div class="filter-row">
-          <select class="sb-sel" bind:value={app.typeFilter} onchange={() => applyFilter()}>
-            <option value="">All types</option>
-            {#each groups as g}
-              <option value="__g__{g}">▶ {g}</option>
-              {#each app.types.filter((t) => (t.group_ || 'Other') === g) as t}
-                <option value={t.name}>&nbsp;&nbsp;{t.name}</option>
-              {/each}
-            {/each}
-          </select>
-          {#if app.typeFilter}
-            <button class="clr-btn" onclick={clearFilters} title="Clear type filter">×</button>
-          {/if}
-        </div>
-      {/if}
-
       <!-- Search row: input + mode toggle button -->
       <div class="search-row">
         <div class="search-wrap">
@@ -245,7 +189,9 @@
             onkeydown={searchKeydown}
           />
           {#if hasQuery}
-            <button class="fi-clr" onclick={clearSearch} title="Clear">×</button>
+            <button class="fi-clr" onclick={clearSearch} title="Clear"
+              ><Icon name="close" size={12} /></button
+            >
           {/if}
         </div>
 
@@ -256,6 +202,26 @@
           >
         {/if}
       </div>
+
+      <!-- Type dropdown — only in L→E words mode -->
+      {#if app.tab === 'words' && app.searchMode === 'le'}
+        <div class="filter-row">
+          <select class="sb-sel" bind:value={app.typeFilter} onchange={() => applyFilter()}>
+            <option value="">All types</option>
+            {#each groups as g}
+              <option value="__g__{g}">▶ {g}</option>
+              {#each app.types.filter((t) => (t.group_ || 'Other') === g) as t}
+                <option value={t.name}>&nbsp;&nbsp;{t.name}</option>
+              {/each}
+            {/each}
+          </select>
+          {#if app.typeFilter}
+            <button class="clr-btn" onclick={clearFilters} title="Clear type filter"
+              ><Icon name="close" size={12} /></button
+            >
+          {/if}
+        </div>
+      {/if}
 
       <!-- Status line: word count / result count — always outside the field -->
       {#if app.tab === 'words'}
@@ -334,7 +300,8 @@
         {/each}
       {:else if app.tab === 'types' || app.tab === 'authors'}
         <div class="sb-redirect">
-          → {app.tab === 'types' ? 'Types' : 'Authors'} panel
+          <Icon name={app.tab} size={20} />
+          <span>{app.tab === 'types' ? 'Types' : 'Authors'}</span>
         </div>
       {/if}
     </div>
@@ -372,6 +339,7 @@
       min-width: 100%;
       max-width: 100%;
       border-right: none;
+      height: 100%;
     }
   }
 
@@ -393,58 +361,6 @@
   @media (max-width: 640px) {
     .sb-resize {
       display: none;
-    }
-  }
-
-  /* ── Tabs ─────────────────────────────────────────────────────────────────── */
-  .sb-nav {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 2px;
-    padding: 0.22rem 0.22rem 0.16rem;
-    border-bottom: 1px solid var(--sb-border);
-    flex-shrink: 0;
-  }
-  .ntab {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 0.1rem;
-    padding: 0.26rem 0.06rem;
-    font-size: 0.55rem;
-    font-weight: 600;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    color: var(--sb-text2);
-    background: transparent;
-    border: 1px solid transparent;
-    border-radius: var(--r-sm);
-    cursor: pointer;
-    font-family: inherit;
-    transition: all 140ms;
-    text-align: center;
-    height: 30px;
-    -webkit-tap-highlight-color: transparent;
-    touch-action: manipulation;
-  }
-  .ntab:hover:not(.on) {
-    color: var(--sb-text);
-    border-color: var(--sb-border);
-    background: var(--sb-hover);
-  }
-  .ntab-label {
-    font-size: 0.5rem;
-    line-height: 1;
-  }
-  .ntab.on {
-    color: var(--gold);
-    border-color: var(--gold-d);
-    background: var(--gold-g);
-  }
-  @media (max-width: 640px) {
-    .ntab {
-      font-size: 0.65rem;
-      height: 44px;
     }
   }
 

@@ -215,7 +215,7 @@ export function activeEvent(): EventItem | null {
   return app.events.find((e) => e.id === app.prefs.eventFilter) ?? null;
 }
 // Cache for type-group lookups so applyFilter doesn't scan app.types on every word
-const _typeGroupCache = new Map<string, string | null>();
+const _typeGroupCache = new Map<string, string | undefined>();
 let _typeGroupCacheStamp = 0;
 
 export function applyFilter() {
@@ -250,10 +250,15 @@ export function applyFilter() {
       const g = tf.slice(5);
       if (_typeGroupCacheStamp !== app.types.length) {
         _typeGroupCache.clear();
-        for (const t of app.types) _typeGroupCache.set(t.name, t.group_);
+        for (const t of app.types) _typeGroupCache.set(t.name, t.group_ ?? undefined);
         _typeGroupCacheStamp = app.types.length;
       }
-      ws = ws.filter((w) => w.type_name !== null && _typeGroupCache.get(w.type_name) === g);
+      ws = ws.filter(
+        (w) =>
+          w.type_name !== null &&
+          w.type_name !== undefined &&
+          _typeGroupCache.get(w.type_name) === g
+      );
     } else {
       ws = ws.filter((w) => w.type_name === tf);
     }
