@@ -168,15 +168,14 @@
       aria-hidden={app.readonly}
     >
       <button
-        class="btn btn-au btn-sm"
+        class="btn btn-ic btn-au"
+        title="Edit word"
         onclick={() => {
           app.panel = 'word-form';
           app.editing = true;
-        }}>✎ Edit</button
+        }}><Icon name="edit" size={16} /></button
       >
-      <button class="btn btn-icon-sm btn-r" onclick={() => (confirmDel = true)}
-        ><Icon name="delete" size={14} /></button
-      >
+      <button class="btn btn-ic btn-r" title="Delete word" onclick={() => (confirmDel = true)}><Icon name="delete" size={16} /></button>
     </div>
   </div>
 
@@ -237,18 +236,16 @@
                 [{d.tags}]
               </span>
             {/if}
-            <!-- btn-icon-sm: fixed 26×26px square regardless of glyph width -->
+            <!-- btn-ic: fixed 26×26px square regardless of glyph width -->
             <div
               class="def-acts"
               style:visibility={app.readonly ? 'hidden' : 'visible'}
               aria-hidden={app.readonly}
             >
-              <button class="btn btn-icon-sm btn-ghost" onclick={() => startEditDef(d)}
-                ><Icon name="edit" size={13} /></button
-              >
+              <button class="btn btn-ic btn-ghost" onclick={() => startEditDef(d)}><Icon name="edit" size={16} /></button>
               <button
-                class="btn btn-icon-sm btn-ghost btn-r"
-                onclick={() => deleteDef(d.id, word.id)}><Icon name="delete" size={14} /></button
+                class="btn btn-ic btn-ghost btn-r"
+                onclick={() => deleteDef(d.id, word.id)}><Icon name="delete" size={16} /></button
               >
             </div>
           </div>
@@ -355,10 +352,7 @@
     padding: 0;
     transition: opacity 130ms;
   }
-  .wd-loading {
-    opacity: 0.4;
-    pointer-events: none;
-  }
+  .wd-loading { opacity: 0.4; pointer-events: none; }
   .wd-head {
     display: flex;
     align-items: flex-start;
@@ -454,7 +448,7 @@
     gap: 0.28rem;
     flex-wrap: wrap;
     margin-bottom: 0.12rem;
-    min-height: 26px; /* match btn-icon-sm height */
+    min-height: 26px; /* match btn-ic height */
   }
   .def-usage {
     font-size: var(--fs-sm);

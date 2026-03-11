@@ -66,12 +66,12 @@
             {#if !app.readonly}
               <td>
                 <div class="row-acts edit-only">
-                  <button class="btn btn-icon btn-sm btn-ghost" onclick={() => startEdit(t.id)}
-                    ><Icon name="edit" size={13} /></button
+                  <button class="btn btn-ic btn-ghost" onclick={() => startEdit(t.id)}
+                    ><Icon name="edit" size={16} /></button
                   >
                   <button
-                    class="btn btn-icon btn-sm btn-ghost btn-r"
-                    onclick={() => deleteType(t.id)}><Icon name="delete" size={14} /></button
+                    class="btn btn-ic btn-ghost btn-r"
+                    onclick={() => deleteType(t.id)}><Icon name="delete" size={16} /></button
                   >
                 </div>
               </td>

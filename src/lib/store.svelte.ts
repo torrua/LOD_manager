@@ -50,7 +50,7 @@ export const app = $state({
   history: [] as Array<{ tab: Tab; id: number }>,
   historyIdx: -1,
   toolsOpen: false,
-  toolsTab: 'database' as 'import' | 'export' | 'database' | 'settings',
+  toolsTab: 'settings' as 'import' | 'export' | 'database' | 'settings',
   newSignal: 0,
   mobileShowList: true,
   toast: null as { msg: string; kind: 'ok' | 'err' | 'info' } | null,
@@ -226,10 +226,7 @@ export function applyFilter() {
   const q = app.searchQ.trim().toLowerCase();
   const tf = app.typeFilter;
   // Fast path: no filters → assign reference directly (zero allocation)
-  if (!q && !tf) {
-    app.filteredWords = app.words;
-    return;
-  }
+  if (!q && !tf) { app.filteredWords = app.words; return; }
   let ws = app.words;
   if (q) {
     if (q.includes('*') || q.includes('?')) {
@@ -250,15 +247,10 @@ export function applyFilter() {
       const g = tf.slice(5);
       if (_typeGroupCacheStamp !== app.types.length) {
         _typeGroupCache.clear();
-        for (const t of app.types) _typeGroupCache.set(t.name, t.group_ ?? undefined);
+        for (const t of app.types) _typeGroupCache.set(t.name, t.group_);
         _typeGroupCacheStamp = app.types.length;
       }
-      ws = ws.filter(
-        (w) =>
-          w.type_name !== null &&
-          w.type_name !== undefined &&
-          _typeGroupCache.get(w.type_name) === g
-      );
+      ws = ws.filter((w) => w.type_name !== null && _typeGroupCache.get(w.type_name) === g);
     } else {
       ws = ws.filter((w) => w.type_name === tf);
     }

@@ -30,40 +30,31 @@
   import ToolsDrawer from './lib/components/ToolsDrawer.svelte';
   import Toast from './lib/components/Toast.svelte';
 
-  onMount(() => {
+  onMount(async () => {
     document.documentElement.dataset.theme = app.theme;
 
-    const init = async () => {
-      // ── DB auto-open ───────────────────────────────────────────────────────
-      // platform() may be sync or async depending on plugin-os version.
-      let currentPlatform = 'unknown';
-      try {
-        const maybePlatform = platform();
-        currentPlatform = await Promise.resolve(maybePlatform).catch(() => 'unknown');
-      } catch {
-        currentPlatform = 'unknown';
-      }
+    // ── DB auto-open ───────────────────────────────────────────────────────
+    // platform() needs to be awaited — in some plugin-os v2 versions it is
+    // async. We always await to be safe.
+    const currentPlatform = await platform().catch(() => 'unknown');
 
-      if (currentPlatform === 'android') {
-        // On Android always open the canonical path from Rust's app_data_dir.
-        // This is reliable across restarts and avoids content:// URI issues.
-        // openDb creates the file via SQLite if it doesn't exist yet.
-        const dbPath = await getDefaultDbPath().catch(() => '');
-        if (dbPath) {
-          openDb(dbPath).catch((e) => console.error('Android DB open failed:', e));
-        }
-      } else {
-        const last = getLastDbPath();
-        if (last) {
-          openDb(last).catch(() => {
-            // Path is stale (file moved/deleted) — clear it so next launch is clean
-            localStorage.removeItem('lod-last-db');
-          });
-        }
+    if (currentPlatform === 'android') {
+      // On Android always open the canonical path from Rust's app_data_dir.
+      // This is reliable across restarts and avoids content:// URI issues.
+      // openDb creates the file via SQLite if it doesn't exist yet.
+      const dbPath = await getDefaultDbPath().catch(() => '');
+      if (dbPath) {
+        openDb(dbPath).catch((e) => console.error('Android DB open failed:', e));
       }
-    };
-
-    init();
+    } else {
+      const last = getLastDbPath();
+      if (last) {
+        openDb(last).catch(() => {
+          // Path is stale (file moved/deleted) — clear it so next launch is clean
+          localStorage.removeItem('lod-last-db');
+        });
+      }
+    }
 
     const handler = (e: KeyboardEvent) => {
       if (e.ctrlKey && e.key === 'f') {
@@ -108,7 +99,7 @@
   const ALL_ITEMS = [
     {
       tab: 'words' as const,
-      icon: '📝',
+      icon: 'words',
       label: 'New Word',
       action: () => {
         app.tab = 'words';
@@ -120,7 +111,7 @@
     },
     {
       tab: 'events' as const,
-      icon: '📅',
+      icon: 'events',
       label: 'New Event',
       action: () => {
         app.tab = 'events';
@@ -132,7 +123,7 @@
     },
     {
       tab: 'types' as const,
-      icon: '🏷',
+      icon: 'types',
       label: 'New Type',
       action: () => {
         app.tab = 'types';
@@ -143,7 +134,7 @@
     },
     {
       tab: 'authors' as const,
-      icon: '👤',
+      icon: 'authors',
       label: 'New Author',
       action: () => {
         app.tab = 'authors';
@@ -155,9 +146,9 @@
   ];
   // ── Tab definitions (used in header and mobile bar)
   const TABS: Array<[string, string, string]> = [
-    ['words', 'words', 'Words'],
-    ['events', 'events', 'Events'],
-    ['types', 'types', 'Types'],
+    ['words',   'words',   'Words'],
+    ['events',  'events',  'Events'],
+    ['types',   'types',   'Types'],
     ['authors', 'authors', 'Authors'],
   ];
 
@@ -168,35 +159,21 @@
     app.searchQ = '';
     app.typeFilter = '';
     applyFilter();
-    if (t === 'types') {
-      app.panel = 'types';
-      app.mobileShowList = false;
-    } else if (t === 'authors') {
-      app.panel = 'authors';
-      app.mobileShowList = false;
-    } else if (t === 'words') {
-      app.panel = app.curWord ? 'word' : 'welcome';
-      app.mobileShowList = true;
-    } else if (t === 'events') {
-      app.panel = app.curEvent ? 'event' : 'welcome';
-      app.mobileShowList = true;
-    }
+    if (t === 'types') { app.panel = 'types'; app.mobileShowList = false; }
+    else if (t === 'authors') { app.panel = 'authors'; app.mobileShowList = false; }
+    else if (t === 'words') { app.panel = app.curWord ? 'word' : 'welcome'; app.mobileShowList = true; }
+    else if (t === 'events') { app.panel = app.curEvent ? 'event' : 'welcome'; app.mobileShowList = true; }
   }
 
   // ── Swipe gesture (mobile) ────────────────────────────────────────────────
   // Swipe right → back to word list (or browser back if nothing to show)
-  let _swipeX = 0,
-    _swipeT = 0;
+  let _swipeX = 0, _swipeT = 0;
   function onTouchStart(e: TouchEvent) {
-    const touch = e.touches[0];
-    if (!touch) return;
-    _swipeX = touch.clientX;
+    _swipeX = e.touches[0]?.clientX || 0;
     _swipeT = Date.now();
   }
   function onTouchEnd(e: TouchEvent) {
-    const changedTouch = e.changedTouches[0];
-    if (!changedTouch) return;
-    const dx = changedTouch.clientX - _swipeX;
+    const dx = (e.changedTouches[0]?.clientX || 0) - _swipeX;
     const dt = Date.now() - _swipeT;
     const fast = dt < 400;
     const bigEnough = dx > 72;
@@ -262,22 +239,16 @@
   });
 </script>
 
-<div
-  class="app"
-  data-theme={app.theme}
-  ontouchstart={onTouchStart}
-  ontouchend={onTouchEnd}
-  role="application"
->
+<div class="app" data-theme={app.theme} ontouchstart={onTouchStart} ontouchend={onTouchEnd} role="application">
   <header class="top-bar">
     <!-- Left: logo + back (mobile) -->
     <div class="tbl">
       {#if app.dbOpen && !app.mobileShowList}
         <button
-          class="btn btn-icon btn-ghost mob-only"
+          class="btn btn-ic btn-ghost mob-only"
           onclick={() =>
             app.tab === 'types' || app.tab === 'authors' ? goBack() : (app.mobileShowList = true)}
-          title="Back"><Icon name="arrow-left" /></button
+          title="Back"><Icon name="arrow-left" size={18} /></button
         >
       {/if}
       <button class="logo" onclick={handleLogoClick} aria-label="Home">
@@ -288,11 +259,10 @@
         {@const ev = activeEvent()}
         <span class="ev-badge" title="Filtered to: {ev?.name}">{ev?.annotation || ev?.name}</span>
       {/if}
-    </div>
-
-    <!-- Center: tab nav — visible on desktop only, and on mobile when db open -->
-    {#if app.dbOpen}
-      <nav class="header-tabs hide-compact">
+      <!-- Separator + tabs run directly after logo in tbl -->
+      {#if app.dbOpen}
+        <div class="hdr-sep hide-compact"></div>
+        <nav class="header-tabs hide-compact">
         {#each TABS as [t, icon, label]}
           <button
             class="htab"
@@ -304,23 +274,24 @@
             <span>{label}</span>
           </button>
         {/each}
-      </nav>
-    {/if}
+        </nav>
+      {/if}
+    </div>
 
     <!-- Right: actions -->
     <div class="tbr">
       {#if app.dbOpen}
         <button
-          class="btn btn-icon btn-ghost hide-compact"
+          class="btn btn-ic btn-ghost hide-compact"
           onclick={goBack}
           disabled={!canGoBack()}
-          title="Back (Alt+←)"><Icon name="arrow-left" /></button
+          title="Back (Alt+←)"><Icon name="arrow-left" size={18} /></button
         >
         <button
-          class="btn btn-icon btn-ghost hide-compact"
+          class="btn btn-ic btn-ghost hide-compact"
           onclick={goForward}
           disabled={!canGoForward()}
-          title="Forward (Alt+→)"><Icon name="arrow-right" /></button
+          title="Forward (Alt+→)"><Icon name="arrow-right" size={18} /></button
         >
         {#if canNew}
           <button class="btn btn-sm btn-g hide-compact" onclick={handleNew}>{newLabel()}</button>
@@ -328,21 +299,21 @@
         <div class="sep hide-compact"></div>
       {/if}
       <button
-        class="btn btn-icon btn-ghost hide-compact"
+        class="btn btn-ic btn-ghost hide-compact"
         class:btn-active={app.readonly}
         onclick={toggleReadonly}
         title={app.readonly ? 'Exit read-only' : 'Read-only'}
       >
         {#if app.readonly}<Icon name="edit-mode" />{:else}<Icon name="read-mode" />{/if}
       </button>
-      <button class="btn btn-icon btn-ghost hide-compact" onclick={toggleTheme} title="Toggle theme"
-        ><Icon name="theme" /></button
+      <button class="btn btn-ic btn-ghost hide-compact" onclick={toggleTheme} title="Toggle theme"
+        ><Icon name="theme" size={18} /></button
       >
       <button
-        class="btn btn-icon btn-ghost"
+        class="btn btn-ic btn-ghost"
         class:btn-active={app.toolsOpen}
         onclick={() => (app.toolsOpen = !app.toolsOpen)}
-        title="Tools"><Icon name="settings" /></button
+        title="Tools"><Icon name="settings" size={18} /></button
       >
     </div>
   </header>
@@ -381,19 +352,15 @@
   {:else}
     <!-- ── DESKTOP: side-by-side layout ────────────────────────────────────── -->
     <!-- ── MOBILE:  split-pane (list top / detail bottom) ──────────────────── -->
-    <div class="workspace">
+    <div class="workspace" class:tab-panel={app.tab === 'types' || app.tab === 'authors'}>
+
       <!-- Desktop sidebar / Mobile top pane (word list) -->
       <div class="sb-wrap">
         <Sidebar />
       </div>
 
       <!-- Desktop main / Mobile bottom pane (word detail) -->
-      <main
-        class="main-content"
-        class:mob-detail-empty={!app.curWord &&
-          app.loadingWordId === null &&
-          app.panel === 'welcome'}
-      >
+      <main class="main-content" class:mob-detail-empty={!app.curWord && app.loadingWordId === null && app.panel === 'welcome'}>
         {#if app.panel === 'welcome' && !app.loadingWordId}
           <div class="empty mob-empty-hint">
             <div class="empty-icon"><Icon name="words" size={36} /></div>
@@ -432,39 +399,25 @@
 
     <!-- ── MOBILE BOTTOM TAB BAR ─────────────────────────────────────────── -->
     <div class="mob-bar show-compact">
-      <!-- Tab buttons (center-weighted, safe from rounded corners) -->
-      <div class="mob-tabs">
+      <!-- All buttons share .mb — 4 tabs | divider | utils -->
+      <div class="mb-inner">
         {#each TABS as [t, icon, label]}
-          <button
-            class="mob-tab"
-            class:on={app.tab === t}
-            onclick={() => setTab(t as Tab)}
-            title={label}
-          >
-            <Icon name={icon} size={22} />
+          <button class="mb-btn" class:mb-on={app.tab === t} onclick={() => setTab(t as Tab)} title={label}>
+            <Icon name={icon} size={20} />
           </button>
         {/each}
-      </div>
-      <!-- Right utility buttons -->
-      <div class="mob-utils">
+        <div class="mb-sep"></div>
         {#if canNew}
-          <button class="mob-util-btn btn-g" onclick={() => (newSheetOpen = true)} title="New">
+          <button class="mb-btn mb-add" onclick={() => (newSheetOpen = true)} title="New">
             <Icon name="plus" size={20} />
           </button>
         {/if}
-        <button
-          class="mob-util-btn"
-          class:active={app.readonly}
-          onclick={toggleReadonly}
-          title={app.readonly ? 'Exit read-only' : 'Read-only'}
-        >
-          {#if app.readonly}<Icon name="edit-mode" size={18} />{:else}<Icon
-              name="read-mode"
-              size={18}
-            />{/if}
+        <button class="mb-btn" class:mb-on={app.readonly} onclick={toggleReadonly}
+          title={app.readonly ? 'Exit read-only' : 'Read-only'}>
+          {#if app.readonly}<Icon name="edit-mode" size={20} />{:else}<Icon name="read-mode" size={20} />{/if}
         </button>
-        <button class="mob-util-btn" onclick={toggleTheme} title="Theme">
-          <Icon name="theme" size={18} />
+        <button class="mb-btn" onclick={toggleTheme} title="Theme">
+          <Icon name="theme" size={20} />
         </button>
       </div>
     </div>
@@ -485,7 +438,7 @@
             item.action();
           }}
         >
-          <span class="sheet-item-icon">{item.icon}</span>
+          <span class="sheet-item-icon"><Icon name={item.icon} size={20} /></span>
           <span class="sheet-item-label">{item.label}</span>
         </button>
       {/each}
@@ -696,39 +649,42 @@
   :global(.btn-active) {
     color: var(--gold) !important;
   }
-  /* icon/size variants */
-  :global(.btn-icon) {
+  /*
+   * ── Button size tokens (design system) ─────────────────────────────────
+   * Base unit: 28px (desktop) / 40px (mobile touch targets)
+   *
+   * .btn          — text button  h:28  pad:0 0.55rem
+   * .btn-ic       — square icon  28×28  (use this for ALL icon-only buttons)
+   * .btn-ic     — alias for .btn-ic (legacy compat)
+   * .btn-ic  — same as .btn-ic (legacy compat, do NOT add new uses)
+   * .btn-sm       — same height as .btn, narrower pad (legacy compat)
+   * .btn-lg       — larger action h:36  pad:0 1rem
+   * ─────────────────────────────────────────────────────────────────────── */
+  :global(.btn-ic),
+  :global(.btn-icon),
+  :global(.btn-icon-sm) {
     width: 32px;
     height: 32px;
     padding: 0;
-    font-size: 1rem;
-  }
-  :global(.btn-icon-sm) {
-    width: 28px;
-    height: 28px;
-    padding: 0;
-    font-size: 0.85rem;
     flex-shrink: 0;
   }
   :global(.btn-sm) {
-    height: 28px;
-    padding: 0 0.52rem;
+    height: 26px;
+    padding: 0 0.48rem;
     font-size: var(--fs-xs);
   }
   :global(.btn-lg) {
-    height: 38px;
-    padding: 0 1.1rem;
+    height: 36px;
+    padding: 0 1rem;
     font-size: var(--fs-md);
   }
   @media (max-width: 640px) {
-    :global(.btn-icon) {
-      width: 44px;
-      height: 44px;
-    }
-    :global(.btn-icon-sm) {
-      width: 36px;
-      height: 36px;
-    }
+    :global(.btn-ic),
+    :global(.btn-icon),
+    :global(.btn-icon-sm) { width: 44px; height: 44px; }
+    :global(.btn) { height: 36px; }
+    :global(.btn-sm) { height: 32px; }
+    :global(.btn-lg) { height: 44px; }
   }
 
   /* ── Forms ── */
@@ -871,38 +827,10 @@
     border: 1px solid var(--teal-d);
     color: var(--teal);
   }
-  .wd-skeleton {
-    padding: 1rem 1.1rem;
-    display: flex;
-    flex-direction: column;
-    gap: 0.6rem;
-  }
-  .sk-line {
-    height: 13px;
-    border-radius: 4px;
-    background: linear-gradient(90deg, var(--surf2) 0%, var(--border) 40%, var(--surf2) 80%);
-    background-size: 250% 100%;
-    animation: sk-sweep 1.4s ease-in-out infinite;
-  }
-  .sk-title {
-    height: 21px;
-    width: 52%;
-  }
-  .sk-meta {
-    height: 10px;
-    width: 72%;
-  }
-  .sk-short {
-    width: 62%;
-  }
-  @keyframes sk-sweep {
-    0% {
-      background-position: 200% 0;
-    }
-    100% {
-      background-position: -100% 0;
-    }
-  }
+  .wd-skeleton { padding:1rem 1.1rem; display:flex; flex-direction:column; gap:0.6rem; }
+  .sk-line { height:13px; border-radius:4px; background:linear-gradient(90deg,var(--surf2) 0%,var(--border) 40%,var(--surf2) 80%); background-size:250% 100%; animation:sk-sweep 1.4s ease-in-out infinite; }
+  .sk-title { height:21px; width:52%; } .sk-meta { height:10px; width:72%; } .sk-short { width:62%; }
+  @keyframes sk-sweep { 0% { background-position:200% 0; } 100% { background-position:-100% 0; } }
   /* ─ Meta chip labels (used in WordDetail, EventDetail) ─ */
   :global(.mc-lbl) {
     font-size: var(--fs-label);
@@ -1030,17 +958,11 @@
   /* ── Responsive breakpoints ─────────────────────────────────────────────── */
   /* compact = width < 640px (phones in portrait) */
   @media (max-width: 640px) {
-    .hide-compact {
-      display: none !important;
-    }
-    .show-compact {
-      display: flex !important;
-    }
+    .hide-compact { display: none !important; }
+    .show-compact { display: flex !important; }
   }
   @media (min-width: 641px) {
-    .show-compact {
-      display: none !important;
-    }
+    .show-compact { display: none !important; }
   }
 
   .top-bar {
@@ -1057,9 +979,9 @@
   .tbl {
     display: flex;
     align-items: center;
-    gap: 0.35rem;
+    gap: 0.25rem;
     min-width: 0;
-    flex: 1;
+    flex: 1;           /* take remaining space so tbr stays right */
     overflow: hidden;
   }
   .tbr {
@@ -1068,13 +990,20 @@
     gap: 0.1rem;
     flex-shrink: 0;
   }
+  /* Header separator (between logo and tabs) */
+  .hdr-sep {
+    width: 1px;
+    height: 18px;
+    background: var(--border2);
+    flex-shrink: 0;
+    margin: 0 0.25rem;
+  }
   /* ── Header tabs (desktop) ── */
   .header-tabs {
     display: flex;
     align-items: center;
-    gap: 0.15rem;
-    flex: 1;
-    justify-content: center;
+    gap: 0.1rem;
+    flex-shrink: 0;
   }
   .htab {
     display: flex;
@@ -1161,87 +1090,71 @@
     }
   }
 
-  /* ── Mobile tab bar (compact only) ── */
+  /* ── Mobile bottom bar ─────────────────────────────────────────────────── */
   .mob-bar {
     position: fixed;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    height: var(--mob-bar-h, 60px);
+    left: 0; right: 0; bottom: 0;
+    height: var(--mob-bar-h, 56px);
     background: var(--surf);
     border-top: 1px solid var(--border);
-    /* Safe-area inset for phones with home bar */
     padding-bottom: env(safe-area-inset-bottom, 0px);
-    display: none; /* shown via .show-compact */
-    align-items: center;
-    justify-content: center;
-    gap: 0;
+    display: none; /* toggled by .show-compact */
+    align-items: stretch;
     z-index: 50;
-    box-shadow: 0 -2px 16px var(--shd);
+    box-shadow: 0 -1px 12px var(--shd);
   }
-  /* Tabs: centered group, pushed away from screen edges */
-  .mob-tabs {
+  .mb-inner {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 0.1rem;
+    width: 100%;
+    gap: 0.15rem;
+    /* safe-area padding keeps away from rounded corners */
+    padding: 0 max(0.75rem, env(safe-area-inset-left, 0.75rem));
+  }
+  /*
+   * .mb-btn — exactly mirrors .btn.btn-ic.btn-ghost from the top bar.
+   * Same size (44×44 on mobile), same border/bg/color tokens, same transitions.
+   * Active state uses gold (matching .btn-active).
+   */
+  .mb-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
     flex: 1;
-    /* min horizontal margin keeps buttons off rounded corners */
-    padding: 0 max(1rem, env(safe-area-inset-left, 1rem));
-  }
-  .mob-tab {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 52px;
+    max-width: 56px;    /* cap width so buttons don't stretch too wide */
     height: 44px;
-    border-radius: 10px;
-    border: none;
+    border: 1px solid transparent;
+    border-radius: var(--r-md);
     background: transparent;
     color: var(--text3);
     cursor: pointer;
-    transition: all 120ms;
+    transition: background 120ms, border-color 120ms, color 120ms;
     -webkit-tap-highlight-color: transparent;
     touch-action: manipulation;
   }
-  .mob-tab:active {
+  .mb-btn:active,
+  .mb-btn:hover {
     background: var(--surf2);
+    border-color: var(--border);
+    color: var(--text2);
   }
-  .mob-tab.on {
+  /* active/selected tab — matches .btn-active */
+  .mb-btn.mb-on {
     color: var(--gold);
     background: var(--gold-g);
+    border-color: var(--gold-d);
   }
-  /* Utility buttons: right cluster */
-  .mob-utils {
-    display: flex;
-    align-items: center;
-    gap: 0;
-    padding-right: max(0.75rem, env(safe-area-inset-right, 0.75rem));
+  .mb-btn.mb-add { color: var(--green); }
+  .mb-btn.mb-add:hover { color: var(--green); border-color: var(--green-d); background: var(--green-g); }
+  /* vertical divider between tabs and utils */
+  .mb-sep {
+    width: 1px;
+    background: var(--border2);
+    height: 28px;
+    flex: 0 0 1px;
     flex-shrink: 0;
-  }
-  .mob-util-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 44px;
-    height: 44px;
-    border-radius: 10px;
-    border: none;
-    background: transparent;
-    color: var(--text3);
-    cursor: pointer;
-    transition: all 120ms;
-    -webkit-tap-highlight-color: transparent;
-    touch-action: manipulation;
-  }
-  .mob-util-btn:active {
-    background: var(--surf2);
-  }
-  .mob-util-btn.active {
-    color: var(--gold);
-  }
-  .mob-util-btn.btn-g {
-    color: var(--green);
+    margin: 0 0.1rem;
   }
 
   .no-db {
@@ -1296,19 +1209,18 @@
     min-width: 0;
   }
 
-  /* ── Mobile workspace: split-pane (list top, detail bottom) ── */
+  /* ── Mobile workspace ───────────────────────────────────────────────────── */
   @media (max-width: 640px) {
     .workspace {
       flex-direction: column;
-      /* Reserve room for bottom bar */
-      padding-bottom: var(--mob-bar-h, 60px);
+      padding-bottom: var(--mob-bar-h, 56px);
     }
+    /* Split-pane for words/events tabs */
     .sb-wrap {
       flex-shrink: 0;
-      /* Top pane: word list — takes 42% of available height */
-      height: 42%;
-      min-height: 160px;
-      max-height: 320px;
+      height: 44%;
+      min-height: 170px;
+      max-height: 300px;
       border-bottom: 2px solid var(--border);
       width: 100%;
     }
@@ -1318,20 +1230,23 @@
       overflow-y: auto;
       min-height: 0;
     }
-    /* When no word selected, collapse detail pane to a thin hint */
+    /* Hint row when nothing selected */
     .main-content.mob-detail-empty {
       flex: 0 0 auto;
       height: auto;
       min-height: 48px;
     }
-    .mob-empty-hint {
-      padding: 0.6rem 1rem;
-      text-align: left;
+    .mob-empty-hint { padding: 0.6rem 1rem; text-align: left; }
+    .hint-tap { font-size: 0.72rem; color: var(--text3); margin: 0; }
+
+    /* Types/Authors: no split — sb takes full height, main hidden */
+    .workspace.tab-panel .sb-wrap {
+      height: 100%;
+      max-height: 100%;
+      border-bottom: none;
     }
-    .hint-tap {
-      font-size: 0.72rem;
-      color: var(--text3);
-      margin: 0;
+    .workspace.tab-panel .main-content {
+      display: none;
     }
   }
 

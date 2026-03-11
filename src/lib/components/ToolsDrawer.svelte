@@ -231,18 +231,13 @@
     { key: 'until', label: 'Until (event)' },
   ];
   // ── Swipe down to close (mobile) ────────────────────────────────────────
-  let _sy = 0,
-    _st = 0;
+  let _sy = 0, _st = 0;
   function tdTouchStart(e: TouchEvent) {
-    const touch = e.touches[0];
-    if (!touch) return;
-    _sy = touch.clientY;
+    _sy = e.touches[0]?.clientY || 0;
     _st = Date.now();
   }
   function tdTouchEnd(e: TouchEvent) {
-    const changedTouch = e.changedTouches[0];
-    if (!changedTouch) return;
-    const dy = changedTouch.clientY - _sy;
+    const dy = (e.changedTouches[0]?.clientY || 0) - _sy;
     const dt = Date.now() - _st;
     // Swipe down ≥80px in <400ms → close
     if (dt < 400 && dy > 80) app.toolsOpen = false;
@@ -252,23 +247,14 @@
 <button class="td-backdrop" onclick={() => (app.toolsOpen = false)} aria-label="Close tools"
 ></button>
 
-<div
-  class="td"
-  ontouchstart={tdTouchStart}
-  ontouchend={tdTouchEnd}
-  role="dialog"
-  aria-modal="true"
-  tabindex="-1"
->
+<div class="td" ontouchstart={tdTouchStart} ontouchend={tdTouchEnd} role="dialog" tabindex="-1">
   <div class="td-hdr">
     <span class="td-title">Tools</span>
-    <button class="btn btn-icon btn-ghost" onclick={() => (app.toolsOpen = false)}
-      ><Icon name="close" size={16} /></button
-    >
+    <button class="btn btn-ic btn-ghost" onclick={() => (app.toolsOpen = false)}><Icon name="close" size={16} /></button>
   </div>
 
   <nav class="td-tabs">
-    {#each ['database', 'import', 'export', 'settings'] as const as t}
+    {#each ['settings', 'database', 'import', 'export'] as const as t}
       <button class="td-tab" class:on={app.toolsTab === t} onclick={() => (app.toolsTab = t)}>
         {t.charAt(0).toUpperCase() + t.slice(1)}
       </button>
@@ -308,15 +294,9 @@
         </div>
         <!-- issue #1: no ellipsis on buttons -->
         <div class="td-acts">
-          <button class="btn btn-au btn-sm" onclick={handleSwitch}
-            ><Icon name="database" size={13} /> Switch DB</button
-          >
-          <button class="btn btn-g btn-sm" onclick={handleNew}
-            ><Icon name="plus" size={13} /> New DB</button
-          >
-          <button class="btn btn-r btn-sm" onclick={closeDb}
-            ><Icon name="close" size={13} /> Close</button
-          >
+          <button class="btn btn-au btn-sm" onclick={handleSwitch}><Icon name="database" size={16} /> Switch DB</button>
+          <button class="btn btn-g btn-sm" onclick={handleNew}><Icon name="plus" size={16} /> New DB</button>
+          <button class="btn btn-r btn-sm" onclick={closeDb}><Icon name="close" size={16} /> Close</button>
         </div>
       {:else}
         <p class="td-hint">No database open.</p>
@@ -385,8 +365,7 @@
                   </button>
                 {/if}
               </div>
-              <button class="btn btn-icon btn-sm btn-ghost btn-r" onclick={() => rmImp(p)}
-                ><Icon name="close" size={13} /></button
+              <button class="btn btn-ic btn-sm btn-ghost btn-r" onclick={() => rmImp(p)}><Icon name="close" size={16} /></button
               >
             </div>
           {/each}

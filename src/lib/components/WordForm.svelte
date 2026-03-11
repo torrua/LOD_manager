@@ -180,9 +180,7 @@
         {#each form.affixes as a}
           <span class="badge bd-afx"
             >{a}
-            <button class="tag-rm" onclick={() => removeAffix(a)}
-              ><Icon name="close" size={11} /></button
-            >
+            <button class="tag-rm" onclick={() => removeAffix(a)}><Icon name="close" size={14} /></button>
           </span>
         {/each}
         <input
@@ -202,9 +200,7 @@
         {#each form.spellings as s}
           <span class="badge bd-spell"
             >{s}
-            <button class="tag-rm" onclick={() => removeSpell(s)}
-              ><Icon name="close" size={11} /></button
-            >
+            <button class="tag-rm" onclick={() => removeSpell(s)}><Icon name="close" size={14} /></button>
           </span>
         {/each}
         <input

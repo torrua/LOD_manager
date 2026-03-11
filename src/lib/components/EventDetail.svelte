@@ -11,16 +11,16 @@
   let wordsRemoved = $state<string[]>([]);
   let loadingWords = $state(false);
   // collapsed state: true = collapsed
-  let addedOpen = $state(true);
-  let removedOpen = $state(true);
+  let addedOpen = $state(false);
+  let removedOpen = $state(false);
 
   $effect(() => {
     const id = event.id;
     wordsAdded = [];
     wordsRemoved = [];
     loadingWords = true;
-    addedOpen = true;
-    removedOpen = true;
+    addedOpen = false;
+    removedOpen = false;
     invoke<[string[], string[]]>('get_event_words', { eventId: id })
       .then(([a, r]) => {
         wordsAdded = a;
@@ -45,15 +45,14 @@
     {#if !app.readonly}
       <div class="ed-acts edit-only">
         <button
-          class="btn btn-au btn-sm"
+          class="btn btn-ic btn-au"
+          title="Edit event"
           onclick={() => {
             app.panel = 'event-form';
             app.editing = true;
-          }}>✎ Edit</button
+          }}><Icon name="edit" size={16} /></button
         >
-        <button class="btn btn-r btn-sm btn-icon" onclick={() => (confirmDel = true)}
-          ><Icon name="delete" size={14} /></button
-        >
+        <button class="btn btn-ic btn-r" title="Delete event" onclick={() => (confirmDel = true)}><Icon name="delete" size={16} /></button>
       </div>
     {/if}
   </div>

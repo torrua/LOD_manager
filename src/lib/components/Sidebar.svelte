@@ -189,9 +189,7 @@
             onkeydown={searchKeydown}
           />
           {#if hasQuery}
-            <button class="fi-clr" onclick={clearSearch} title="Clear"
-              ><Icon name="close" size={12} /></button
-            >
+            <button class="fi-clr" onclick={clearSearch} title="Clear"><Icon name="close" size={14} /></button>
           {/if}
         </div>
 
@@ -216,9 +214,7 @@
             {/each}
           </select>
           {#if app.typeFilter}
-            <button class="clr-btn" onclick={clearFilters} title="Clear type filter"
-              ><Icon name="close" size={12} /></button
-            >
+            <button class="clr-btn" onclick={clearFilters} title="Clear type filter"><Icon name="close" size={14} /></button>
           {/if}
         </div>
       {/if}
@@ -623,14 +619,7 @@
     animation: si-pulse 0.9s ease-in-out infinite alternate;
     pointer-events: none;
   }
-  @keyframes si-pulse {
-    from {
-      opacity: 1;
-    }
-    to {
-      opacity: 0.5;
-    }
-  }
+  @keyframes si-pulse { from { opacity:1; } to { opacity:0.5; } }
   .sn {
     font-size: 0.73rem;
     font-weight: 500;
