@@ -2,6 +2,15 @@
 
 All notable changes to LOD Manager are documented here.
 
+## [1.5.0] — 2026-03-11
+
+- Add Settings button to desktop header
+- Fix mobile "+" button to directly create new elements for current tab
+- Remove sidebar completely for Types and Authors sections in desktop mode
+- Improve button height consistency in header
+- Fix linting issues and code quality
+- Update version to 1.5.0
+
 ## [1.1.0] — 2026-03-09
 
 - Add GitHub download functionality for LOD files

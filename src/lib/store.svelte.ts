@@ -1,6 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { readFile, writeFile } from '@tauri-apps/plugin-fs';
 import { appDataDir, BaseDirectory } from '@tauri-apps/api/path';
+import { platform } from '@tauri-apps/plugin-os';
 import type {
   WordListItem,
   WordDetail,
@@ -61,6 +62,7 @@ export const app = $state({
   elFtsReady: false, // FTS index populated
   toastTimer: 0,
   dbStats: null as DbStats | null,
+  currentPlatform: 'unknown' as string,
   prefs: {
     showTypeTag: (loadPrefs().showTypeTag ?? true) as boolean,
     showDefCount: (loadPrefs().showDefCount ?? false) as boolean,
@@ -226,7 +228,10 @@ export function applyFilter() {
   const q = app.searchQ.trim().toLowerCase();
   const tf = app.typeFilter;
   // Fast path: no filters → assign reference directly (zero allocation)
-  if (!q && !tf) { app.filteredWords = app.words; return; }
+  if (!q && !tf) {
+    app.filteredWords = app.words;
+    return;
+  }
   let ws = app.words;
   if (q) {
     if (q.includes('*') || q.includes('?')) {
@@ -247,7 +252,7 @@ export function applyFilter() {
       const g = tf.slice(5);
       if (_typeGroupCacheStamp !== app.types.length) {
         _typeGroupCache.clear();
-        for (const t of app.types) _typeGroupCache.set(t.name, t.group_);
+        for (const t of app.types) _typeGroupCache.set(t.name, t.group_ || undefined);
         _typeGroupCacheStamp = app.types.length;
       }
       ws = ws.filter((w) => w.type_name !== null && _typeGroupCache.get(w.type_name) === g);
@@ -260,7 +265,7 @@ export function applyFilter() {
 
 export async function selectWord(id: number, pushHist = true) {
   if (!id) return;
-  if (app.loadingWordId === id || (app.curWord?.id === id && app.loadingWordId === null)) return;
+  if (app.loadingWordId === id) return; // Only prevent if already loading this word
   app.loadingWordId = id;
   app.tab = 'words';
   app.mobileShowList = false;
@@ -545,4 +550,12 @@ function _scrollSidebarTo(id: number) {
       }
     }
   });
+}
+
+export async function initPlatform() {
+  try {
+    app.currentPlatform = await platform();
+  } catch {
+    app.currentPlatform = 'unknown';
+  }
 }

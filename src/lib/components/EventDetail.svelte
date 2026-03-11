@@ -52,7 +52,9 @@
             app.editing = true;
           }}><Icon name="edit" size={16} /></button
         >
-        <button class="btn btn-ic btn-r" title="Delete event" onclick={() => (confirmDel = true)}><Icon name="delete" size={16} /></button>
+        <button class="btn btn-ic btn-r" title="Delete event" onclick={() => (confirmDel = true)}
+          ><Icon name="delete" size={16} /></button
+        >
       </div>
     {/if}
   </div>

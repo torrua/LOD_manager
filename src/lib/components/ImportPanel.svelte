@@ -245,7 +245,9 @@
                 </button>
               {/if}
             </div>
-            <button class="btn btn-sm btn-r btn-ic" onclick={() => remove(p)}><Icon name="close" size={16} /></button>
+            <button class="btn btn-sm btn-r btn-ic" onclick={() => remove(p)}
+              ><Icon name="close" size={16} /></button
+            >
           </div>
         {/each}
         <button class="btn btn-sm" onclick={pickFiles} style="margin-top:.3rem">Add more…</button>

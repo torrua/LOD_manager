@@ -33,7 +33,10 @@
   }
   // issue #7: respond to topbar + New signal
   $effect(() => {
-    if (app.newSignal > 0 && app.tab === 'types') startNew();
+    if (app.newSignal > 0 && app.tab === 'types') {
+      startNew();
+      app.newSignal = 0; // Reset signal after processing
+    }
   });
 </script>
 
@@ -69,9 +72,8 @@
                   <button class="btn btn-ic btn-ghost" onclick={() => startEdit(t.id)}
                     ><Icon name="edit" size={16} /></button
                   >
-                  <button
-                    class="btn btn-ic btn-ghost btn-r"
-                    onclick={() => deleteType(t.id)}><Icon name="delete" size={16} /></button
+                  <button class="btn btn-ic btn-ghost btn-r" onclick={() => deleteType(t.id)}
+                    ><Icon name="delete" size={16} /></button
                   >
                 </div>
               </td>

@@ -94,6 +94,24 @@
   let defForm = $state({ grammar: '', usage: '', body: '', tags: '' });
   let confirmDel = $state(false);
   let usedInOpen = $state(true);
+  let activeTooltip = $state<{ content: string; x: number; y: number } | null>(null);
+
+  function handleTooltipClick(e: MouseEvent | KeyboardEvent, content: string) {
+    if (app.currentPlatform === 'android' && app.prefs.showTooltips) {
+      e.preventDefault();
+      const target = e.target as HTMLElement;
+      const rect = target.getBoundingClientRect();
+      activeTooltip = {
+        content,
+        x: rect.left + rect.width / 2,
+        y: rect.top - 10,
+      };
+    }
+  }
+
+  function closeTooltip() {
+    activeTooltip = null;
+  }
 
   function startEditDef(d: Definition) {
     editingDef = d.id;
@@ -173,9 +191,11 @@
         onclick={() => {
           app.panel = 'word-form';
           app.editing = true;
-        }}><Icon name="edit" size={16} /></button
+        }}><Icon name="edit" size={app.currentPlatform === 'android' ? 18 : 16} /></button
       >
-      <button class="btn btn-ic btn-r" title="Delete word" onclick={() => (confirmDel = true)}><Icon name="delete" size={16} /></button>
+      <button class="btn btn-ic btn-r" title="Delete word" onclick={() => (confirmDel = true)}
+        ><Icon name="delete" size={app.currentPlatform === 'android' ? 18 : 16} /></button
+      >
     </div>
   </div>
 
@@ -220,19 +240,43 @@
           <div class="def-head">
             {#if d.usage}
               {@const tip = app.prefs.showTooltips ? usageTip(d.usage) : null}
-              <span class="def-usage" class:has-tip={!!tip} title={tip ?? undefined}>
+              <span
+                class="def-usage"
+                class:has-tip={!!tip}
+                title={tip ?? undefined}
+                role="button"
+                tabindex="0"
+                onclick={(e) => handleTooltipClick(e, tip || '')}
+                onkeydown={(e) => e.key === 'Enter' && handleTooltipClick(e, tip || '')}
+              >
                 {d.usage.replace('%', word.name)}
               </span>
             {/if}
             {#if d.grammar}
               {@const tip = app.prefs.showTooltips ? grammarTip(d.grammar) : null}
-              <span class="def-grammar" class:has-tip={!!tip} title={tip ?? undefined}>
+              <span
+                class="def-grammar"
+                class:has-tip={!!tip}
+                title={tip ?? undefined}
+                role="button"
+                tabindex="0"
+                onclick={(e) => handleTooltipClick(e, tip || '')}
+                onkeydown={(e) => e.key === 'Enter' && handleTooltipClick(e, tip || '')}
+              >
                 ({d.grammar})
               </span>
             {/if}
             {#if d.tags}
               {@const tip = app.prefs.showTooltips ? tagsTip(d.tags) : null}
-              <span class="def-tags" class:has-tip={!!tip} title={tip ?? undefined}>
+              <span
+                class="def-tags"
+                class:has-tip={!!tip}
+                title={tip ?? undefined}
+                role="button"
+                tabindex="0"
+                onclick={(e) => handleTooltipClick(e, tip || '')}
+                onkeydown={(e) => e.key === 'Enter' && handleTooltipClick(e, tip || '')}
+              >
                 [{d.tags}]
               </span>
             {/if}
@@ -242,10 +286,11 @@
               style:visibility={app.readonly ? 'hidden' : 'visible'}
               aria-hidden={app.readonly}
             >
-              <button class="btn btn-ic btn-ghost" onclick={() => startEditDef(d)}><Icon name="edit" size={16} /></button>
-              <button
-                class="btn btn-ic btn-ghost btn-r"
-                onclick={() => deleteDef(d.id, word.id)}><Icon name="delete" size={16} /></button
+              <button class="btn btn-ic btn-ghost" onclick={() => startEditDef(d)}
+                ><Icon name="edit" size={app.currentPlatform === 'android' ? 18 : 16} /></button
+              >
+              <button class="btn btn-ic btn-ghost btn-r" onclick={() => deleteDef(d.id, word.id)}
+                ><Icon name="delete" size={app.currentPlatform === 'android' ? 18 : 16} /></button
               >
             </div>
           </div>
@@ -290,6 +335,25 @@
         {/each}
       </div>
     {/if}
+  {/if}
+
+  <!-- Tooltip для Android -->
+  {#if activeTooltip && app.currentPlatform === 'android'}
+    <div
+      class="tooltip-popup"
+      role="dialog"
+      aria-label="Tooltip"
+      style="position: fixed; left: {activeTooltip.x}px; top: {activeTooltip.y}px; transform: translateX(-50%);"
+      onclick={closeTooltip}
+      onkeydown={(e) => e.key === 'Escape' && closeTooltip()}
+      tabindex="-1"
+    >
+      <div class="tooltip-content">
+        {#each activeTooltip.content.split('\n') as line}
+          {line}<br />
+        {/each}
+      </div>
+    </div>
   {/if}
 </article>
 
@@ -349,10 +413,13 @@
 <style>
   /* ── Word header ── */
   .wd {
-    padding: 0;
+    padding: 0.75rem 0 0;
     transition: opacity 130ms;
   }
-  .wd-loading { opacity: 0.4; pointer-events: none; }
+  .wd-loading {
+    opacity: 0.4;
+    pointer-events: none;
+  }
   .wd-head {
     display: flex;
     align-items: flex-start;
@@ -587,5 +654,23 @@
   /* row whose sec-toggle already draws the rule via ::after */
   .sec-row.no-rule {
     border-bottom: none;
+  }
+
+  /* Tooltip для Android */
+  .tooltip-popup {
+    background: var(--surf);
+    border: 1px solid var(--border);
+    border-radius: var(--r-md);
+    box-shadow: 0 4px 12px var(--shd);
+    padding: 0.5rem;
+    max-width: 200px;
+    z-index: 1000;
+    font-size: 0.7rem;
+    line-height: 1.4;
+    color: var(--text);
+  }
+
+  .tooltip-content {
+    white-space: pre-wrap;
   }
 </style>

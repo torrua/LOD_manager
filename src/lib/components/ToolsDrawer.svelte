@@ -231,7 +231,8 @@
     { key: 'until', label: 'Until (event)' },
   ];
   // ── Swipe down to close (mobile) ────────────────────────────────────────
-  let _sy = 0, _st = 0;
+  let _sy = 0,
+    _st = 0;
   function tdTouchStart(e: TouchEvent) {
     _sy = e.touches[0]?.clientY || 0;
     _st = Date.now();
@@ -250,7 +251,9 @@
 <div class="td" ontouchstart={tdTouchStart} ontouchend={tdTouchEnd} role="dialog" tabindex="-1">
   <div class="td-hdr">
     <span class="td-title">Tools</span>
-    <button class="btn btn-ic btn-ghost" onclick={() => (app.toolsOpen = false)}><Icon name="close" size={16} /></button>
+    <button class="btn btn-ic btn-ghost" onclick={() => (app.toolsOpen = false)}
+      ><Icon name="close" size={16} /></button
+    >
   </div>
 
   <nav class="td-tabs">
@@ -294,9 +297,15 @@
         </div>
         <!-- issue #1: no ellipsis on buttons -->
         <div class="td-acts">
-          <button class="btn btn-au btn-sm" onclick={handleSwitch}><Icon name="database" size={16} /> Switch DB</button>
-          <button class="btn btn-g btn-sm" onclick={handleNew}><Icon name="plus" size={16} /> New DB</button>
-          <button class="btn btn-r btn-sm" onclick={closeDb}><Icon name="close" size={16} /> Close</button>
+          <button class="btn btn-au btn-sm" onclick={handleSwitch}
+            ><Icon name="database" size={16} /> Switch DB</button
+          >
+          <button class="btn btn-g btn-sm" onclick={handleNew}
+            ><Icon name="plus" size={16} /> New DB</button
+          >
+          <button class="btn btn-r btn-sm" onclick={closeDb}
+            ><Icon name="close" size={16} /> Close</button
+          >
         </div>
       {:else}
         <p class="td-hint">No database open.</p>
@@ -365,7 +374,8 @@
                   </button>
                 {/if}
               </div>
-              <button class="btn btn-ic btn-sm btn-ghost btn-r" onclick={() => rmImp(p)}><Icon name="close" size={16} /></button
+              <button class="btn btn-ic btn-sm btn-ghost btn-r" onclick={() => rmImp(p)}
+                ><Icon name="close" size={16} /></button
               >
             </div>
           {/each}
@@ -445,7 +455,7 @@
         >
           <option value="">— All words —</option>
           {#each app.events as ev}
-            <option value={ev.id}>{ev.name}{ev.annotation ? ` · ${ev.annotation}` : ''}</option>
+            <option value={ev.id}>{ev.name}</option>
           {/each}
         </select>
         <p class="td-hint" style="margin:.25rem 0 0">
@@ -466,7 +476,11 @@
           Show tooltips on grammar codes &amp; usages
         </label>
         <p class="td-hint" style="margin:.2rem 0">
-          Hover over <code>(2v)</code>, <code>[G-J]</code>, <code>lo —</code> to see explanations.
+          {#if app.currentPlatform === 'android'}
+            Tap on <code>(2v)</code>, <code>[G-J]</code>, <code>lo —</code> to see explanations.
+          {:else}
+            Hover over <code>(2v)</code>, <code>[G-J]</code>, <code>lo —</code> to see explanations.
+          {/if}
         </p>
       </div>
 
@@ -753,11 +767,12 @@
     color: var(--text2);
     line-height: 1.6;
   }
-  .td-hint code {
-    color: var(--gold);
-    background: var(--gold-g);
-    padding: 0 3px;
-    border-radius: 2px;
+  .td-hint > code {
+    color: #c8a454 !important;
+    background: rgba(200, 164, 84, 0.1) !important;
+    padding: 0 3px !important;
+    border-radius: 2px !important;
+    border: 1px solid #7a6030 !important;
   }
   .td-warn {
     color: var(--red);
@@ -927,6 +942,14 @@
     height: 13px;
     flex-shrink: 0;
     cursor: pointer;
+  }
+
+  .ck:not(:checked) {
+    filter: sepia(1) hue-rotate(30deg) brightness(0.5) saturate(0.8);
+  }
+
+  :global([data-theme='light']) .ck:not(:checked) {
+    filter: sepia(1) hue-rotate(30deg) brightness(0.7) saturate(1.2);
   }
 
   /* GitHub section */

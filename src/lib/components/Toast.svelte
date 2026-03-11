@@ -45,20 +45,23 @@
   @keyframes toast-in {
     from {
       opacity: 0;
-      transform: translateY(6px);
+      transform: translateX(-50%) translateY(6px);
     }
     to {
       opacity: 1;
-      transform: translateY(0);
+      transform: translateX(-50%) translateY(0);
     }
   }
   /* compact: centre horizontally above bottom bar */
-  @media (max-width: 520px) {
+  @media (max-width: 640px) {
     .toast {
-      left: 1rem;
-      right: 1rem;
+      left: 50%;
+      transform: translateX(-50%);
       text-align: center;
-      bottom: calc(var(--bb-h, 48px) + 0.5rem);
+      bottom: calc(var(--bb-h, 56px) + 1rem);
+      max-width: 80vw;
+      width: auto;
+      word-wrap: break-word;
     }
   }
 </style>

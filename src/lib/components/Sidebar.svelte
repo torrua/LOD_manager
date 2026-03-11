@@ -159,11 +159,10 @@
     }
   }
 
-  // Single toggle: shows the OTHER mode you'd switch to (i.e. what clicking does)
-  // Label = current mode letter for clarity — clicking flips
-  const modeLabel = $derived(app.searchMode === 'le' ? 'E' : 'L');
+  // Single toggle: shows CURRENT mode
+  const modeLabel = $derived(app.searchMode === 'le' ? 'L' : 'E');
   const modeTitle = $derived(
-    app.searchMode === 'le' ? 'Switch to English→Loglan' : 'Switch to Loglan→English'
+    app.searchMode === 'le' ? 'Loglan→English (current)' : 'English→Loglan (current)'
   );
   const elMode = $derived(app.searchMode === 'el');
   function toggleMode() {
@@ -189,7 +188,9 @@
             onkeydown={searchKeydown}
           />
           {#if hasQuery}
-            <button class="fi-clr" onclick={clearSearch} title="Clear"><Icon name="close" size={14} /></button>
+            <button class="fi-clr" onclick={clearSearch} title="Clear"
+              ><Icon name="close" size={14} /></button
+            >
           {/if}
         </div>
 
@@ -214,7 +215,9 @@
             {/each}
           </select>
           {#if app.typeFilter}
-            <button class="clr-btn" onclick={clearFilters} title="Clear type filter"><Icon name="close" size={14} /></button>
+            <button class="clr-btn" onclick={clearFilters} title="Clear type filter"
+              ><Icon name="close" size={14} /></button
+            >
           {/if}
         </div>
       {/if}
@@ -462,7 +465,11 @@
   }
   @media (max-width: 640px) {
     .sb-fi {
-      font-size: 0.82rem;
+      font-size: 1rem;
+      height: 36px;
+    }
+    .sb-sel {
+      font-size: 0.6rem;
       height: 36px;
     }
   }
@@ -519,7 +526,7 @@
     .mode-btn {
       width: 36px;
       height: 36px;
-      font-size: 0.72rem;
+      font-size: 1rem;
     }
   }
 
@@ -593,8 +600,8 @@
     display: flex;
     align-items: center;
     gap: 0.22rem;
-    /* right: 11px clears 4px scrollbar + 3px resize + 4px visual gap */
-    padding: 0 11px 0 6px;
+    /* right: 6px clears 4px scrollbar + 2px visual gap */
+    padding: 0 6px 0 6px;
     cursor: pointer;
     border-left: 2px solid transparent;
     transition:
@@ -619,7 +626,14 @@
     animation: si-pulse 0.9s ease-in-out infinite alternate;
     pointer-events: none;
   }
-  @keyframes si-pulse { from { opacity:1; } to { opacity:0.5; } }
+  @keyframes si-pulse {
+    from {
+      opacity: 1;
+    }
+    to {
+      opacity: 0.5;
+    }
+  }
   .sn {
     font-size: 0.73rem;
     font-weight: 500;
@@ -644,12 +658,12 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    text-align: center;
   }
   .sdc {
     font-size: 0.5rem;
     color: var(--blue);
     background: rgba(106, 154, 200, 0.1);
-    border: 1px solid rgba(106, 154, 200, 0.25);
     padding: 2px 5px;
     border-radius: var(--r-sm);
     flex-shrink: 0;
@@ -661,7 +675,18 @@
       height: 44px !important;
     }
     .sn {
-      font-size: 0.84rem;
+      font-size: 1rem;
+    }
+    .st {
+      font-size: 0.65rem;
+      padding: 4px 8px;
+      border-radius: var(--r-md);
+    }
+    .sdc {
+      font-size: 0.65rem;
+      padding: 4px 8px;
+      border-radius: var(--r-md);
+      min-width: 20px;
     }
   }
 
