@@ -119,22 +119,30 @@ jobs:
 
       - name: Decode keystore
         run: |
-          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > $HOME/release.jks
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > src-tauri/gen/android/release.jks
+          echo "RELEASE_STORE_FILE=release.jks" >> src-tauri/gen/android/gradle.properties
+          echo "RELEASE_STORE_PASSWORD=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}" >> src-tauri/gen/android/gradle.properties
+          echo "RELEASE_KEY_ALIAS=${{ secrets.ANDROID_KEY_ALIAS }}" >> src-tauri/gen/android/gradle.properties
+          echo "RELEASE_KEY_PASSWORD=${{ secrets.ANDROID_KEY_PASSWORD }}" >> src-tauri/gen/android/gradle.properties
 
       - name: Build Android APK (release-signed)
-        run: npx tauri android build --target aarch64
+        run: npx tauri android build --target aarch64 --release
         env:
           NDK_HOME: ${{ env.NDK_HOME }}
-          ANDROID_KEYSTORE: $HOME/release.jks
-          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          TAURI_ANDROID_KEYSTORE: src-tauri/gen/android/release.jks
+          TAURI_ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          TAURI_ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          TAURI_ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
 
       - name: Rename APK to match release naming convention
         run: |
           VERSION="${{ github.ref_name }}"
           VERSION="${VERSION#v}"
-          APK=$(find src-tauri/gen/android -name "*.apk" | head -1)
+          # Try to find signed APK first, then fallback to unsigned
+          APK=$(find src-tauri/gen/android -name "*release*.apk" | grep -v unsigned | head -1)
+          if [ -z "$APK" ]; then
+            APK=$(find src-tauri/gen/android -name "*release*.apk" | head -1)
+          fi
           if [ -n "$APK" ]; then
             DEST="src-tauri/gen/android/LOD.Manager_${VERSION}_aarch64.apk"
             mv "$APK" "$DEST"
@@ -144,6 +152,8 @@ jobs:
       - uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
-          files: src-tauri/gen/android/LOD.Manager_*.apk
+          files: |
+            src-tauri/gen/android/LOD.Manager_*.apk
+            src-tauri/gen/android/app/build/outputs/bundle/universalRelease/app-universal-release.aab
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
