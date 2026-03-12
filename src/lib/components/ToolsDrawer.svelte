@@ -594,8 +594,8 @@
           Keywords only (search «…» terms)
         </label>
         <p class="td-hint" style="margin:.1rem 0 .35rem">
-          Match only the highlighted English keywords in definitions, not the full text. Faster and
-          more precise for exact English words.
+          Match only the highlighted English keywords in definitions, not the
+          full text. Faster and more precise for exact English words.
         </p>
         <label class="ck-row">
           <input

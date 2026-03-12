@@ -277,7 +277,7 @@ export async function selectWord(id: number, pushHist = true) {
     app.curWord = word;
     app.editing = false;
     app.panel = 'word';
-    if (pushHist) _pushHistory({ tab: 'words', id });
+    if (pushHist) pushHistory({ tab: 'words', id });
     _scrollSidebarTo(id);
   } catch {
     toast('Word not found', 'err');
@@ -320,7 +320,7 @@ export async function selectEvent(id: number, pushHist = true) {
   app.panel = 'event';
   app.tab = 'events';
   app.mobileShowList = false;
-  if (pushHist) _pushHistory({ tab: 'events', id });
+  if (pushHist) pushHistory({ tab: 'events', id });
 }
 export async function saveEvent(id: number | null, data: object) {
   const ev: EventItem = await invoke('save_event', { id, data });
@@ -506,7 +506,7 @@ export async function searchEnglishNow(q = app.elQuery) {
   }
 }
 
-function _pushHistory(entry: { tab: Tab; id: number }) {
+export function pushHistory(entry: { tab: Tab; id: number }) {
   const cur = app.history[app.historyIdx];
   if (cur && cur.tab === entry.tab && cur.id === entry.id) return;
   app.history = app.history.slice(0, app.historyIdx + 1);
@@ -515,13 +515,6 @@ function _pushHistory(entry: { tab: Tab; id: number }) {
   app.historyIdx = app.history.length - 1;
 }
 export async function goBack() {
-  // If on types/authors with no history, go to words welcome
-  if (app.tab === 'types' || app.tab === 'authors') {
-    app.tab = 'words';
-    app.panel = app.curWord ? 'word' : 'welcome';
-    app.mobileShowList = true;
-    return;
-  }
   if (app.historyIdx <= 0) return;
   app.historyIdx--;
   const e = app.history[app.historyIdx];
@@ -535,9 +528,7 @@ export async function goForward() {
   if (e?.tab === 'words') await selectWord(e.id, false);
   if (e?.tab === 'events') await selectEvent(e.id, false);
 }
-// Reactive derived booleans — export as functions since derived values cannot be exported directly from modules
-// Svelte 5: $derived in .svelte.ts tracks app.$state automatically.
-export const canGoBack = () => app.tab === 'types' || app.tab === 'authors' || app.historyIdx > 0;
+export const canGoBack = () => app.historyIdx > 0;
 export const canGoForward = () => app.historyIdx < app.history.length - 1;
 
 function _scrollSidebarTo(id: number) {

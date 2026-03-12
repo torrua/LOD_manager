@@ -17,6 +17,7 @@
     getActiveEvent,
     applyFilter,
     initPlatform,
+    pushHistory,
   } from './lib/store.svelte';
   import Icon from './lib/components/Icon.svelte';
   import type { Tab } from './types';
@@ -92,9 +93,16 @@
         goForward();
       }
     };
+    // Mouse back (button 3) / forward (button 4) — extra side buttons on desktop mice
+    const mouseHandler = (e: MouseEvent) => {
+      if (e.button === 3) { e.preventDefault(); goBack(); }
+      if (e.button === 4) { e.preventDefault(); goForward(); }
+    };
     document.addEventListener('keydown', handler);
+    document.addEventListener('mouseup', mouseHandler);
     return () => {
       document.removeEventListener('keydown', handler);
+      document.removeEventListener('mouseup', mouseHandler);
       window.removeEventListener('resize', checkMobile);
     };
   });
@@ -214,9 +222,11 @@
     } else if (t === 'words') {
       app.panel = app.curWord ? 'word' : 'welcome';
       app.mobileShowList = true;
+      if (app.curWord) pushHistory({ tab: 'words', id: app.curWord.id });
     } else if (t === 'events') {
       app.panel = app.curEvent ? 'event' : 'welcome';
       app.mobileShowList = true;
+      if (app.curEvent) pushHistory({ tab: 'events', id: app.curEvent.id });
     }
   }
 
@@ -1202,12 +1212,12 @@
     left: 0;
     right: 0;
     bottom: 0;
-    height: var(--mob-bar-h, 56px);
+    /* Height mirrors top bar: fixed content area + safe-area offset */
+    height: calc(var(--mob-bar-h, 56px) + env(safe-area-inset-bottom, 0px));
     background: var(--surf);
     border-top: 1px solid var(--border);
-    padding-bottom: env(safe-area-inset-bottom, 0px);
     display: none; /* toggled by .show-compact */
-    align-items: stretch;
+    align-items: flex-start; /* buttons sit at top of bar, safe area below */
     z-index: 50;
     box-shadow: 0 -1px 12px var(--shd);
   }
@@ -1216,9 +1226,10 @@
     align-items: center;
     justify-content: flex-end;
     width: 100%;
+    height: var(--mob-bar-h, 56px); /* content zone only, excludes safe area */
     gap: 0.15rem;
-    /* safe-area padding keeps away from rounded corners */
-    padding: 0 max(0.75rem, env(safe-area-inset-left, 0.75rem));
+    /* Match top bar horizontal padding exactly */
+    padding: 0 max(0.5rem, env(safe-area-inset-right, 0.5rem)) 0 max(0.5rem, env(safe-area-inset-left, 0.5rem));
   }
   .mb-spacer {
     flex: 1;
