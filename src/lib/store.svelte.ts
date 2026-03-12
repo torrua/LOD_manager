@@ -73,6 +73,7 @@ export const app = $state({
     elShowType: (loadPrefs().elShowType ?? true) as boolean,
     elShowCount: (loadPrefs().elShowCount ?? true) as boolean,
     elUseLike: (loadPrefs().elUseLike ?? false) as boolean,
+    elUseKeywords: (loadPrefs().elUseKeywords ?? false) as boolean,
     elShowDetails: (loadPrefs().elShowDetails ?? true) as boolean,
     eventFilter: (loadPrefs().eventFilter ?? null) as number | null,
     showTooltips: (loadPrefs().showTooltips ?? true) as boolean,
@@ -85,6 +86,7 @@ export const app = $state({
     elShowType: boolean;
     elShowCount: boolean;
     elUseLike: boolean;
+    elUseKeywords: boolean;
     elShowDetails: boolean;
     eventFilter: number | null;
     showTooltips: boolean;
@@ -478,13 +480,23 @@ export async function searchEnglishNow(q = app.elQuery) {
   app.elSearching = true;
   try {
     app.elResults = await invoke('search_english', {
-      params: { query: q, use_like: app.prefs.elUseLike, limit: 300 },
+      params: {
+        query: q,
+        use_like: app.prefs.elUseLike,
+        use_keywords_only: app.prefs.elUseKeywords,
+        limit: 300,
+      },
     });
   } catch {
     // FTS may fail on syntax error — re-try with LIKE
     try {
       app.elResults = await invoke('search_english', {
-        params: { query: q, use_like: true, limit: 300 },
+        params: {
+          query: q,
+          use_like: true,
+          use_keywords_only: app.prefs.elUseKeywords,
+          limit: 300,
+        },
       });
     } catch {
       app.elResults = [];

@@ -29,6 +29,13 @@
 
   const results = $derived(app.elResults);
   const hasMore = $derived(results.length >= 300);
+
+  function handleSelect(wordId: number) {
+    selectWord(wordId);
+    requestAnimationFrame(() => {
+      document.querySelector<HTMLElement>('.el-row.on')?.scrollIntoView({ block: 'nearest' });
+    });
+  }
 </script>
 
 <div class="el-root">
@@ -43,8 +50,8 @@
         class:on={app.curWord?.id === r.word_id}
         role="button"
         tabindex="0"
-        onclick={() => selectWord(r.word_id)}
-        onkeydown={(e) => (e.key === 'Enter' || e.key === ' ') && selectWord(r.word_id)}
+        onclick={() => handleSelect(r.word_id)}
+        onkeydown={(e) => (e.key === 'Enter' || e.key === ' ') && handleSelect(r.word_id)}
       >
         <div class="el-top">
           <span class="el-name">{r.word_name}</span>

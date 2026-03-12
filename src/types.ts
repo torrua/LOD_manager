@@ -97,6 +97,8 @@ export interface ELResult {
 export interface ELSearchParams {
   query: string;
   use_like: boolean;
+  /** When true, search only within «keyword» markers in definitions. */
+  use_keywords_only: boolean;
   limit: number;
 }
 

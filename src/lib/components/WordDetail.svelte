@@ -183,7 +183,7 @@
     {#if word.affixes.length || word.spellings.length}
       <div class="wd-badges">
         {#each word.affixes as a}
-          <button class="badge bd-afx" onclick={() => clickAffix(a)}>{a}</button>
+          <button class="ui-word af-chip" onclick={() => clickAffix(a)}>{a}</button>
         {/each}
         {#each word.spellings as s}
           <span class="badge bd-spell">{s}</span>
@@ -612,6 +612,17 @@
     color: var(--gold);
     border-color: var(--gold-d);
     background: var(--gold-g);
+  }
+  .af-chip {
+    background: var(--green-g);
+    border-color: var(--green-d);
+    color: var(--green);
+  }
+  .af-chip:hover {
+    background: var(--green-g);
+    border-color: var(--green);
+    color: var(--green);
+    filter: brightness(1.15);
   }
 
   /* ── Used In collapsible header ── */

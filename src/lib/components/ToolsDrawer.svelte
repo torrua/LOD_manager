@@ -588,6 +588,19 @@
           <input
             type="checkbox"
             class="ck"
+            checked={app.prefs.elUseKeywords}
+            onchange={(e) => setPref('elUseKeywords', (e.target as HTMLInputElement).checked)}
+          />
+          Keywords only (search «…» terms)
+        </label>
+        <p class="td-hint" style="margin:.1rem 0 .35rem">
+          Match only the highlighted English keywords in definitions, not the
+          full text. Faster and more precise for exact English words.
+        </p>
+        <label class="ck-row">
+          <input
+            type="checkbox"
+            class="ck"
             checked={app.prefs.elUseLike}
             onchange={(e) => setPref('elUseLike', (e.target as HTMLInputElement).checked)}
           />

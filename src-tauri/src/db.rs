@@ -45,8 +45,11 @@ pub fn init_schema(conn: &Connection) -> rusqlite::Result<()> {
             event_end_id    INTEGER REFERENCES events(id),
             UNIQUE(name, type_id)
         );
-        CREATE INDEX IF NOT EXISTS idx_words_name ON words(name);
+        CREATE INDEX IF NOT EXISTS idx_words_name       ON words(name);
         CREATE INDEX IF NOT EXISTS idx_words_name_lower ON words(LOWER(name));
+        CREATE INDEX IF NOT EXISTS idx_words_type_id    ON words(type_id);
+        CREATE INDEX IF NOT EXISTS idx_words_ev_start   ON words(event_start_id);
+        CREATE INDEX IF NOT EXISTS idx_words_ev_end     ON words(event_end_id);
 
         CREATE TABLE IF NOT EXISTS word_spellings (
             id      INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -61,7 +64,7 @@ pub fn init_schema(conn: &Connection) -> rusqlite::Result<()> {
             affix   TEXT NOT NULL
         );
         CREATE INDEX IF NOT EXISTS idx_word_affixes_word_id ON word_affixes(word_id);
-        CREATE INDEX IF NOT EXISTS idx_word_affixes_affix ON word_affixes(affix);
+        CREATE INDEX IF NOT EXISTS idx_word_affixes_affix   ON word_affixes(affix);
 
         CREATE TABLE IF NOT EXISTS settings (
             key   TEXT PRIMARY KEY,
@@ -78,23 +81,26 @@ pub fn init_schema(conn: &Connection) -> rusqlite::Result<()> {
             tags     TEXT,
             UNIQUE(word_id, position)
         );
-        CREATE INDEX IF NOT EXISTS idx_def_word ON definitions(word_id);
+        -- Covering index: WHERE word_id=? ORDER BY position — no separate sort step.
+        CREATE INDEX IF NOT EXISTS idx_def_word_pos ON definitions(word_id, position);
 
         INSERT OR IGNORE INTO events (name) VALUES ('Start');
     ",
     )
 }
 
-/// Add missing indexes for better performance
+/// Add any indexes that may be missing in databases created before they were
+/// added to init_schema.  Safe to call on every open (all are IF NOT EXISTS).
 pub fn add_missing_indexes(conn: &Connection) -> rusqlite::Result<()> {
     conn.execute_batch(
         "
         CREATE INDEX IF NOT EXISTS idx_word_spellings_word_id ON word_spellings(word_id);
-        CREATE INDEX IF NOT EXISTS idx_word_affixes_word_id ON word_affixes(word_id);
-        CREATE INDEX IF NOT EXISTS idx_word_affixes_affix ON word_affixes(affix);
-        CREATE INDEX IF NOT EXISTS idx_words_type_id ON words(type_id);
-        CREATE INDEX IF NOT EXISTS idx_words_event_start_id ON words(event_start_id);
-        CREATE INDEX IF NOT EXISTS idx_words_event_end_id ON words(event_end_id);
+        CREATE INDEX IF NOT EXISTS idx_word_affixes_word_id   ON word_affixes(word_id);
+        CREATE INDEX IF NOT EXISTS idx_word_affixes_affix     ON word_affixes(affix);
+        CREATE INDEX IF NOT EXISTS idx_words_type_id          ON words(type_id);
+        CREATE INDEX IF NOT EXISTS idx_words_ev_start         ON words(event_start_id);
+        CREATE INDEX IF NOT EXISTS idx_words_ev_end           ON words(event_end_id);
+        CREATE INDEX IF NOT EXISTS idx_def_word_pos           ON definitions(word_id, position);
         ",
     )
 }
@@ -169,7 +175,7 @@ pub fn migrate_words_unique_if_needed(conn: &Connection) -> rusqlite::Result<()>
             DROP TABLE words;
             ALTER TABLE words_new RENAME TO words;
 
-            CREATE INDEX IF NOT EXISTS idx_words_name ON words(name);
+            CREATE INDEX IF NOT EXISTS idx_words_name       ON words(name);
             CREATE INDEX IF NOT EXISTS idx_words_name_lower ON words(LOWER(name));
 
             PRAGMA foreign_keys=ON;
@@ -224,6 +230,10 @@ fn map_wli(r: &rusqlite::Row<'_>) -> rusqlite::Result<WordListItem> {
     })
 }
 
+/// List words with optional prefix/wildcard filter, type filter, and event filter.
+///
+/// Uses a single parameterised query across all filter combinations instead of
+/// four format! branches, so the prepared statement is compiled once per connection.
 pub fn list_words(
     conn: &Connection,
     q: &str,
@@ -235,69 +245,41 @@ pub fn list_words(
     } else if q.is_empty() {
         "%".to_string()
     } else {
-        format!("%{}%", q.to_lowercase())
+        // Prefix search — can use idx_words_name_lower
+        format!("{}%", q.to_lowercase())
     };
 
-    // Event filter: word appeared at or before this event AND has not ended before it.
-    // event_start_id <= event_id  AND  (event_end_id IS NULL OR event_end_id > event_id)
-    let ev_clause = match event_id {
-        Some(_) => {
-            " AND w.event_start_id <= ?2 AND (w.event_end_id IS NULL OR w.event_end_id > ?2)"
-        }
-        None => "",
-    };
-
-    // Use parameterized type filter to avoid any SQL injection risk.
-    // Four combinations: (search, event_id) × (type_filter present/absent).
-    let sql_base = "SELECT w.id, w.name, t.name,
-                    (SELECT COUNT(*) FROM definitions d WHERE d.word_id=w.id)
-                    FROM words w
-                    LEFT JOIN types t ON t.id=w.type_id";
-
-    let rows: rusqlite::Result<Vec<WordListItem>> = match (event_id, type_filter.is_empty()) {
-        (None, true) => {
-            let sql = format!("{sql_base} WHERE LOWER(w.name) LIKE ?1 ORDER BY LOWER(w.name)");
-            conn.prepare(&sql)?
-                .query_map(params![pattern], map_wli)?
-                .collect()
-        }
-        (None, false) => {
-            let sql = format!(
-                "{sql_base} WHERE LOWER(w.name) LIKE ?1 AND t.name=?2 ORDER BY LOWER(w.name)"
-            );
-            conn.prepare(&sql)?
-                .query_map(params![pattern, type_filter], map_wli)?
-                .collect()
-        }
-        (Some(eid), true) => {
-            let sql =
-                format!("{sql_base} WHERE LOWER(w.name) LIKE ?1{ev_clause} ORDER BY LOWER(w.name)");
-            conn.prepare(&sql)?
-                .query_map(params![pattern, eid], map_wli)?
-                .collect()
-        }
-        (Some(eid), false) => {
-            let sql = format!("{sql_base} WHERE LOWER(w.name) LIKE ?1{ev_clause} AND t.name=?3 ORDER BY LOWER(w.name)");
-            conn.prepare(&sql)?
-                .query_map(params![pattern, eid, type_filter], map_wli)?
-                .collect()
-        }
-    };
-    rows
+    // Single query: optional type filter is handled by (?2 = '' OR t.name = ?2).
+    // Optional event filter: ?3 IS NULL skips the clause entirely.
+    let sql = "
+        SELECT w.id, w.name, t.name,
+               (SELECT COUNT(*) FROM definitions d WHERE d.word_id = w.id)
+        FROM words w
+        LEFT JOIN types t ON t.id = w.type_id
+        WHERE LOWER(w.name) LIKE ?1
+          AND (?2 = '' OR t.name = ?2)
+          AND (?3 IS NULL
+               OR (w.event_start_id <= ?3
+                   AND (w.event_end_id IS NULL OR w.event_end_id > ?3)))
+        ORDER BY LOWER(w.name)
+    ";
+    conn.prepare(sql)?
+        .query_map(params![pattern, type_filter, event_id], map_wli)?
+        .collect()
 }
 
 pub fn get_word(conn: &Connection, id: i64) -> rusqlite::Result<WordDetail> {
-    // First get the main word data
+    // ── 1. Main word row ──────────────────────────────────────────────────────
     let mut word: WordDetail = conn.query_row(
         "SELECT w.id, w.name, t.name, w.type_id,
                 w.source, w.year, w.rank, w.match_,
                 w.origin, w.origin_x, w.notes,
                 es.name, ee.name
          FROM words w
-         LEFT JOIN types t ON t.id=w.type_id
-         LEFT JOIN events es ON es.id=w.event_start_id
-         LEFT JOIN events ee ON ee.id=w.event_end_id
-         WHERE w.id=?1",
+         LEFT JOIN types t  ON t.id  = w.type_id
+         LEFT JOIN events es ON es.id = w.event_start_id
+         LEFT JOIN events ee ON ee.id = w.event_end_id
+         WHERE w.id = ?1",
         params![id],
         |r| {
             Ok(WordDetail {
@@ -322,89 +304,65 @@ pub fn get_word(conn: &Connection, id: i64) -> rusqlite::Result<WordDetail> {
         },
     )?;
 
-    // Step 1: Combine affixes and spellings in one query
-    let mut stmt = conn.prepare(
-        "SELECT 
-            (SELECT GROUP_CONCAT(affix, '\x1f') FROM word_affixes WHERE word_id=?1) as affixes,
-            (SELECT GROUP_CONCAT(spelling, '\x1f') FROM word_spellings WHERE word_id=?1) as spellings"
+    // ── 2. Affixes + spellings in one round-trip ───────────────────────────────
+    let (affixes_str, spellings_str): (String, String) = conn.query_row(
+        "SELECT
+            COALESCE((SELECT GROUP_CONCAT(affix,   x'1f') FROM word_affixes   WHERE word_id=?1), ''),
+            COALESCE((SELECT GROUP_CONCAT(spelling, x'1f') FROM word_spellings WHERE word_id=?1), '')",
+        params![id],
+        |r| Ok((r.get(0)?, r.get(1)?)),
     )?;
 
-    let (affixes_str, spellings_str) = stmt.query_row(params![id], |r| {
-        let affixes: Option<String> = r.get(0)?;
-        let spellings: Option<String> = r.get(1)?;
-        Ok((affixes.unwrap_or_default(), spellings.unwrap_or_default()))
-    })?;
-
-    word.affixes = if !affixes_str.is_empty() {
-        affixes_str.split('\x1f').map(|s| s.to_string()).collect()
+    word.affixes = if affixes_str.is_empty() {
+        vec![]
     } else {
-        Vec::new()
+        affixes_str.split('\x1f').map(str::to_string).collect()
+    };
+    word.spellings = if spellings_str.is_empty() {
+        vec![]
+    } else {
+        spellings_str.split('\x1f').map(str::to_string).collect()
     };
 
-    word.spellings = if !spellings_str.is_empty() {
-        spellings_str.split('\x1f').map(|s| s.to_string()).collect()
-    } else {
-        Vec::new()
-    };
-
-    // Step 2: Get definitions in separate query
-    let definitions_str: String = conn
+    // ── 3. Definitions via json_group_array (safe — no separator collision) ───
+    // idx_def_word_pos covers (word_id, position) so the ORDER BY is free.
+    let json_str: String = conn
         .query_row(
-            "SELECT GROUP_CONCAT(
-            id || '\x1e' || position || '\x1e' || 
-            COALESCE(grammar, '') || '\x1e' || COALESCE(usage, '') || '\x1e' || 
-            COALESCE(body, '') || '\x1e' || COALESCE(tags, ''), '\x1d'
-         ) FROM definitions WHERE word_id=?1 ORDER BY position",
+            "SELECT COALESCE(
+                json_group_array(
+                    json_object(
+                        'id',       id,
+                        'position', position,
+                        'grammar',  grammar,
+                        'usage',    usage,
+                        'body',     body,
+                        'tags',     tags
+                    )
+                ),
+                '[]'
+            )
+            FROM definitions
+            WHERE word_id = ?1
+            ORDER BY position",
             params![id],
             |r| r.get(0),
         )
-        .unwrap_or_default();
+        .unwrap_or_else(|_| "[]".to_string());
 
-    word.definitions = if !definitions_str.is_empty() {
-        definitions_str
-            .split('\x1d')
-            .filter_map(|def_str| {
-                let parts: Vec<&str> = def_str.split('\x1e').collect();
-                if parts.len() >= 6 {
-                    Some(Definition {
-                        id: parts[0].parse().unwrap_or(0),
-                        position: parts[1].parse().unwrap_or(0),
-                        grammar: if parts[2].is_empty() {
-                            None
-                        } else {
-                            Some(parts[2].to_string())
-                        },
-                        usage: if parts[3].is_empty() {
-                            None
-                        } else {
-                            Some(parts[3].to_string())
-                        },
-                        body: parts[4].to_string(),
-                        tags: if parts[5].is_empty() {
-                            None
-                        } else {
-                            Some(parts[5].to_string())
-                        },
-                    })
-                } else {
-                    None
-                }
-            })
-            .collect()
-    } else {
-        Vec::new()
-    };
+    word.definitions = serde_json::from_str::<Vec<Definition>>(&json_str).unwrap_or_default();
 
-    // Get used_in words (still separate query as it's complex)
+    // ── 4. Used-in: words whose name contains one of this word's affixes ───────
+    // EXISTS with idx_word_affixes_word_id makes the inner scan O(affixes).
     let mut s = conn.prepare(
         "SELECT DISTINCT w.name FROM words w
          WHERE w.id != ?1
            AND EXISTS (
-             SELECT 1 FROM word_affixes wa
-             WHERE wa.word_id = ?1
-               AND LOWER(w.name) LIKE '%'||LOWER(wa.affix)||'%'
+               SELECT 1 FROM word_affixes wa
+               WHERE wa.word_id = ?1
+                 AND LOWER(w.name) LIKE '%' || LOWER(wa.affix) || '%'
            )
-         ORDER BY w.name LIMIT 100",
+         ORDER BY w.name
+         LIMIT 100",
     )?;
     word.used_in = s
         .query_map(params![id], |r| r.get(0))?
@@ -743,6 +701,7 @@ pub fn upsert_setting(conn: &Connection, key: &str, value: &str) -> rusqlite::Re
 pub fn init_fts(conn: &Connection) -> rusqlite::Result<()> {
     conn.execute_batch(
         "
+        -- Full-body FTS: used by default E→L search.
         CREATE VIRTUAL TABLE IF NOT EXISTS def_fts
         USING fts5(
             body,
@@ -750,24 +709,103 @@ pub fn init_fts(conn: &Connection) -> rusqlite::Result<()> {
             content_rowid='id',
             tokenize='unicode61 remove_diacritics 1'
         );
+
+        -- Keyword-only FTS: indexes text extracted from «keyword» markers.
+        -- Standalone table (not content-linked) so we populate it manually.
+        CREATE VIRTUAL TABLE IF NOT EXISTS def_kw_fts
+        USING fts5(
+            keywords,
+            tokenize='unicode61 remove_diacritics 1'
+        );
     ",
     )
 }
 
-/// Rebuild FTS index from all definitions (call after import).
+/// Extract text from between «» markers in a definition body.
+/// Returns a space-joined string of all keyword tokens, ready for FTS indexing.
+fn extract_keywords(body: &str) -> String {
+    let mut out = String::new();
+    let mut chars = body.char_indices().peekable();
+    while let Some((_, c)) = chars.next() {
+        if c == '\u{AB}' {
+            // opening «
+            let start_byte = chars
+                .peek()
+                .map(|&(i, _)| i)
+                .unwrap_or(body.len());
+            let mut end_byte = start_byte;
+            for (i, c2) in chars.by_ref() {
+                if c2 == '\u{BB}' {
+                    // closing »
+                    end_byte = i;
+                    break;
+                }
+            }
+            if end_byte > start_byte {
+                if !out.is_empty() {
+                    out.push(' ');
+                }
+                out.push_str(&body[start_byte..end_byte]);
+            }
+        }
+    }
+    out
+}
+
+/// Rebuild both FTS indexes from all definitions (call after bulk import).
 pub fn rebuild_fts(conn: &Connection) -> rusqlite::Result<()> {
+    // ── 1. Full-body FTS ──────────────────────────────────────────────────────
+    // DROP + CREATE is the only reliable way to recover from corrupt / out-of-sync
+    // FTS5 shadow tables (which cause "database disk image is malformed").
+    // After a clean CREATE the 'rebuild' command repopulates from the content table.
     conn.execute_batch(
         "
-        DELETE FROM def_fts;
-        INSERT INTO def_fts(rowid, body) SELECT id, body FROM definitions;
+        DROP TABLE IF EXISTS def_fts;
+        CREATE VIRTUAL TABLE def_fts
+        USING fts5(
+            body,
+            content='definitions',
+            content_rowid='id',
+            tokenize='unicode61 remove_diacritics 1'
+        );
+        INSERT INTO def_fts(def_fts) VALUES('rebuild');
     ",
-    )
+    )?;
+
+    // ── 2. Keyword FTS (standalone) ───────────────────────────────────────────
+    // Same approach: drop/create guarantees a clean state.
+    conn.execute_batch(
+        "
+        DROP TABLE IF EXISTS def_kw_fts;
+        CREATE VIRTUAL TABLE def_kw_fts
+        USING fts5(
+            keywords,
+            tokenize='unicode61 remove_diacritics 1'
+        );
+    ",
+    )?;
+
+    let mut sel =
+        conn.prepare("SELECT id, body FROM definitions WHERE body LIKE '%\u{AB}%'")?;
+    let rows: Vec<(i64, String)> = sel
+        .query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?
+        .filter_map(std::result::Result::ok)
+        .collect();
+
+    let mut ins = conn.prepare("INSERT INTO def_kw_fts(rowid, keywords) VALUES(?1, ?2)")?;
+    for (id, body) in rows {
+        let kw = extract_keywords(&body);
+        if !kw.is_empty() {
+            ins.execute(params![id, kw])?;
+        }
+    }
+    Ok(())
 }
 
 /// Update FTS when a single definition is saved.
 #[allow(dead_code)]
 pub fn fts_update(conn: &Connection, def_id: i64, body: &str) -> rusqlite::Result<()> {
-    // FTS5 content table: delete old, insert new
+    // Full-body FTS5 content table: delete old, insert new.
     conn.execute(
         "INSERT INTO def_fts(def_fts, rowid, body) VALUES('delete', ?1, '')",
         params![def_id],
@@ -777,26 +815,30 @@ pub fn fts_update(conn: &Connection, def_id: i64, body: &str) -> rusqlite::Resul
         "INSERT INTO def_fts(rowid, body) VALUES(?1, ?2)",
         params![def_id, body],
     )?;
+
+    // Keyword FTS: replace.
+    conn.execute(
+        "INSERT INTO def_kw_fts(def_kw_fts, rowid, keywords) VALUES('delete', ?1, '')",
+        params![def_id],
+    )
+    .ok();
+    let kw = extract_keywords(body);
+    if !kw.is_empty() {
+        conn.execute(
+            "INSERT INTO def_kw_fts(rowid, keywords) VALUES(?1, ?2)",
+            params![def_id, kw],
+        )?;
+    }
     Ok(())
 }
 
-/// FTS5-based E→L search. Returns one row per matched definition,
-/// grouped by word on the frontend (or here if we pre-aggregate).
+/// FTS5-based E→L search over full definition bodies.
 pub fn search_english_fts(
     conn: &Connection,
     q: &str,
     limit: i64,
 ) -> rusqlite::Result<Vec<ELResult>> {
-    // Sanitise query: escape special FTS5 chars, add * for prefix matching
-    let q_clean = q.trim().replace('"', "\"\"");
-    let fts_query = if q_clean.contains(' ') {
-        // phrase search
-        format!("\"{q_clean}\"")
-    } else {
-        // prefix
-        format!("{q_clean}*")
-    };
-
+    let fts_query = build_fts_query(q);
     let sql = "
         WITH ranked AS (
             SELECT
@@ -804,7 +846,6 @@ pub fn search_english_fts(
                 w.name          AS word_name,
                 t.name          AS type_name,
                 d.grammar       AS grammar,
-                -- FTS5 snippet: 10 tokens, bold markers
                 snippet(def_fts, 0, '«', '»', '…', 10) AS snip,
                 fts.rank        AS rank
             FROM def_fts fts
@@ -820,6 +861,62 @@ pub fn search_english_fts(
                 word_id, word_name, type_name,
                 MIN(grammar)    AS grammar,
                 MIN(snip)       AS snippet,
+                COUNT(*)        AS match_count,
+                MIN(rank)       AS best_rank
+            FROM ranked
+            GROUP BY word_id
+        )
+        SELECT word_id, word_name, type_name, grammar, snippet, match_count
+        FROM agg
+        ORDER BY best_rank, word_name
+        LIMIT ?2
+    ";
+    let mut stmt = conn.prepare(sql)?;
+    let rows = stmt.query_map(params![fts_query, limit], |r| {
+        Ok(ELResult {
+            word_id: r.get(0)?,
+            word_name: r.get(1)?,
+            type_name: r.get(2)?,
+            grammar: r.get(3)?,
+            snippet: r.get::<_, String>(4).unwrap_or_default(),
+            match_count: r.get(5)?,
+        })
+    })?;
+    rows.collect()
+}
+
+/// FTS5 keyword-only E→L search (searches only «keyword» terms in definitions).
+pub fn search_english_keywords_fts(
+    conn: &Connection,
+    q: &str,
+    limit: i64,
+) -> rusqlite::Result<Vec<ELResult>> {
+    let fts_query = build_fts_query(q);
+    let sql = "
+        WITH ranked AS (
+            SELECT
+                w.id            AS word_id,
+                w.name          AS word_name,
+                t.name          AS type_name,
+                d.grammar       AS grammar,
+                -- Use the full body for the snippet (more readable than keywords-only)
+                snippet(def_fts, 0, '«', '»', '…', 10) AS snip,
+                kw.rank         AS rank
+            FROM def_kw_fts kw
+            JOIN definitions d ON d.id  = kw.rowid
+            JOIN words       w ON w.id  = d.word_id
+            LEFT JOIN types  t ON t.id  = w.type_id
+            -- Also join def_fts so we can call snippet() on the body column
+            LEFT JOIN def_fts ON def_fts.rowid = d.id
+            WHERE def_kw_fts MATCH ?1
+            ORDER BY rank
+            LIMIT ?2
+        ),
+        agg AS (
+            SELECT
+                word_id, word_name, type_name,
+                MIN(grammar)    AS grammar,
+                COALESCE(MIN(snip), '')  AS snippet,
                 COUNT(*)        AS match_count,
                 MIN(rank)       AS best_rank
             FROM ranked
@@ -872,16 +969,15 @@ pub fn search_english_like(
         GROUP BY word_id
         ORDER BY word_name
     ";
-    let q_pat = pat.clone();
     let mut stmt = conn.prepare(sql)?;
-    let rows = stmt.query_map(params![q_pat, limit * 3], |r| {
+    let rows = stmt.query_map(params![pat, limit * 3], |r| {
         let body: String = r.get(4)?;
         Ok(ELResult {
             word_id: r.get(0)?,
             word_name: r.get(1)?,
             type_name: r.get(2)?,
             grammar: r.get(3)?,
-            snippet: body, // full body; frontend truncates
+            snippet: body,
             match_count: r.get(5)?,
         })
     })?;
@@ -891,19 +987,90 @@ pub fn search_english_like(
     Ok(results)
 }
 
-/// Check if FTS index is populated.
+/// LIKE-based keyword-only fallback: matches only text inside «» markers.
+pub fn search_english_keywords_like(
+    conn: &Connection,
+    q: &str,
+    limit: i64,
+) -> rusqlite::Result<Vec<ELResult>> {
+    // Match definitions where the query appears as the start of a «keyword».
+    // Pattern: «<query>…»  (prefix match inside keyword markers).
+    let q_clean = q.trim().to_lowercase();
+    let pat = format!("%\u{AB}{}%\u{BB}%", q_clean);
+    let sql = "
+        WITH matched AS (
+            SELECT
+                w.id            AS word_id,
+                w.name          AS word_name,
+                t.name          AS type_name,
+                d.grammar       AS grammar,
+                d.body          AS body,
+                COUNT(*) OVER (PARTITION BY w.id) AS match_count
+            FROM definitions d
+            JOIN words       w ON w.id = d.word_id
+            LEFT JOIN types  t ON t.id = w.type_id
+            WHERE LOWER(d.body) LIKE ?1
+            ORDER BY w.name
+            LIMIT ?2
+        )
+        SELECT word_id, word_name, type_name, grammar, body, match_count
+        FROM matched
+        GROUP BY word_id
+        ORDER BY word_name
+    ";
+    let mut stmt = conn.prepare(sql)?;
+    let rows = stmt.query_map(params![pat, limit * 3], |r| {
+        let body: String = r.get(4)?;
+        Ok(ELResult {
+            word_id: r.get(0)?,
+            word_name: r.get(1)?,
+            type_name: r.get(2)?,
+            grammar: r.get(3)?,
+            snippet: body,
+            match_count: r.get(5)?,
+        })
+    })?;
+    let mut results: Vec<ELResult> = rows.filter_map(std::result::Result::ok).collect();
+    let lim: usize = limit.try_into().unwrap_or(0);
+    results.truncate(lim);
+    Ok(results)
+}
+
+/// Sanitise a user query string into a valid FTS5 query.
+fn build_fts_query(q: &str) -> String {
+    let q_clean = q.trim().replace('"', "\"\"");
+    if q_clean.contains(' ') {
+        format!("\"{q_clean}\"") // phrase search
+    } else {
+        format!("{q_clean}*") // prefix search
+    }
+}
+
+/// Check if BOTH FTS indexes are populated.
 pub fn fts_is_ready(conn: &Connection) -> bool {
-    conn.query_row(
-        "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='def_fts'",
-        [],
-        |r| r.get::<_, i64>(0),
-    )
-    .unwrap_or(0)
+    let fts_ok = conn
+        .query_row(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='def_fts'",
+            [],
+            |r| r.get::<_, i64>(0),
+        )
+        .unwrap_or(0)
         > 0
         && conn
             .query_row("SELECT COUNT(*) FROM def_fts", [], |r| r.get::<_, i64>(0))
             .unwrap_or(0)
-            > 0
+            > 0;
+
+    let kw_ok = conn
+        .query_row(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='def_kw_fts'",
+            [],
+            |r| r.get::<_, i64>(0),
+        )
+        .unwrap_or(0)
+        > 0;
+
+    fts_ok && kw_ok
 }
 
 /// Words added (`event_start`) and removed (`event_end`) for a given event.
@@ -912,9 +1079,7 @@ pub fn get_event_words(
     event_id: i64,
 ) -> rusqlite::Result<(Vec<String>, Vec<String>)> {
     let mut s = conn.prepare(
-        "SELECT w.name, t.name FROM words w
-         LEFT JOIN types t ON t.id = w.type_id
-         WHERE w.event_start_id = ?1 ORDER BY w.name",
+        "SELECT w.name FROM words w WHERE w.event_start_id = ?1 ORDER BY w.name",
     )?;
     let added: Vec<String> = s
         .query_map(params![event_id], |r| r.get(0))?

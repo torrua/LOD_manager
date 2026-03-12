@@ -168,6 +168,9 @@ pub struct ELResult {
 #[derive(Serialize, Deserialize, Clone)]
 pub struct ELSearchParams {
     pub query: String,
-    pub use_like: bool, // fallback to LIKE if true
+    /// Use LIKE instead of FTS5 (fallback for databases without a built index).
+    pub use_like: bool,
+    /// Search only within «keyword» markers instead of full definition body.
+    pub use_keywords_only: bool,
     pub limit: i64,
 }

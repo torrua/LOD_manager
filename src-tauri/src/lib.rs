@@ -212,26 +212,58 @@ fn search_english(state: Db, params: ELSearchParams) -> Res<Vec<ELResult>> {
     if params.query.trim().is_empty() {
         return Ok(vec![]);
     }
-    if params.use_like {
-        with_db(&state, |conn| {
-            db::search_english_like(conn, &params.query, params.limit)
-        })
-    } else {
-        with_db(&state, |conn| {
-            match db::search_english_fts(conn, &params.query, params.limit) {
+
+    if params.use_keywords_only {
+        // ── Keyword-only mode: search «...» markers ───────────────────────
+        if params.use_like {
+            return with_db(&state, |conn| {
+                db::search_english_keywords_like(conn, &params.query, params.limit)
+            });
+        }
+        return with_db(&state, |conn| {
+            match db::search_english_keywords_fts(conn, &params.query, params.limit) {
                 Ok(r) if !r.is_empty() => Ok(r),
-                _ => db::search_english_like(conn, &params.query, params.limit),
+                // FTS may be empty or query may be malformed — fall back to LIKE
+                _ => db::search_english_keywords_like(conn, &params.query, params.limit),
             }
-        })
+        });
     }
+
+    // ── Full-body mode ────────────────────────────────────────────────────
+    if params.use_like {
+        return with_db(&state, |conn| {
+            db::search_english_like(conn, &params.query, params.limit)
+        });
+    }
+    with_db(&state, |conn| {
+        match db::search_english_fts(conn, &params.query, params.limit) {
+            Ok(r) if !r.is_empty() => Ok(r),
+            _ => db::search_english_like(conn, &params.query, params.limit),
+        }
+    })
 }
 
 #[tauri::command]
 fn rebuild_fts(state: Db) -> Res<i64> {
-    with_db(&state, |conn| {
-        db::rebuild_fts(conn)?;
-        conn.query_row("SELECT COUNT(*) FROM def_fts", [], |r| r.get(0))
-    })
+    // Open a *separate* connection for the rebuild so the shared Mutex is NOT
+    // held during the potentially long operation.  Other commands (fts_is_ready,
+    // list_words, etc.) can proceed normally while the rebuild runs.
+    let path = state.db_path.lock().map_err(err)?.clone();
+    if path.is_empty() {
+        return Err("No database open".to_string());
+    }
+    let conn = Connection::open(&path).map_err(err)?;
+    // WAL mode so the rebuild writer doesn't block readers on the main connection.
+    conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;")
+        .map_err(err)?;
+    db::rebuild_fts(&conn).map_err(err)?;
+    let body_count: i64 = conn
+        .query_row("SELECT COUNT(*) FROM def_fts", [], |r| r.get(0))
+        .map_err(err)?;
+    let kw_count: i64 = conn
+        .query_row("SELECT COUNT(*) FROM def_kw_fts", [], |r| r.get(0))
+        .map_err(err)?;
+    Ok(body_count + kw_count)
 }
 
 #[tauri::command]
