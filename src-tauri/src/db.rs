@@ -90,7 +90,7 @@ pub fn init_schema(conn: &Connection) -> rusqlite::Result<()> {
 }
 
 /// Add any indexes that may be missing in databases created before they were
-/// added to init_schema.  Safe to call on every open (all are IF NOT EXISTS).
+/// added to `init_schema`.  Safe to call on every open (all are IF NOT EXISTS).
 pub fn add_missing_indexes(conn: &Connection) -> rusqlite::Result<()> {
     conn.execute_batch(
         "

@@ -113,8 +113,8 @@ pub fn import_files(conn: &mut Connection, paths: &[String]) -> ImportResult {
     let tx = conn.transaction().unwrap();
 
     // 1. Types
-    if let Some(p) = type_file {
-        if let Ok(content) = fs::read_to_string(&p) {
+    if let Some(p) = type_file
+        && let Ok(content) = fs::read_to_string(&p) {
             for r in rows(&content) {
                 if let Some(name) = r.first().filter(|s| !s.is_empty()) {
                     let type_x = r.get(1).and_then(|s| opt(s));
@@ -133,11 +133,10 @@ pub fn import_files(conn: &mut Connection, paths: &[String]) -> ImportResult {
             }
             result.messages.push(format!("Types: {}", result.types));
         }
-    }
 
     // 2. Authors
-    if let Some(p) = author_file {
-        if let Ok(content) = fs::read_to_string(&p) {
+    if let Some(p) = author_file
+        && let Ok(content) = fs::read_to_string(&p) {
             for r in rows(&content) {
                 if let Some(initials) = r.first().filter(|s| !s.is_empty()) {
                     let full_name = r.get(1).and_then(|s| opt(s));
@@ -155,12 +154,11 @@ pub fn import_files(conn: &mut Connection, paths: &[String]) -> ImportResult {
             }
             result.messages.push(format!("Authors: {}", result.authors));
         }
-    }
 
     // 3. Events
     let mut event_id_map: HashMap<String, i64> = HashMap::new();
-    if let Some(p) = event_file {
-        if let Ok(content) = fs::read_to_string(&p) {
+    if let Some(p) = event_file
+        && let Ok(content) = fs::read_to_string(&p) {
             for r in rows(&content) {
                 if r.len() < 2 {
                     continue;
@@ -174,8 +172,8 @@ pub fn import_files(conn: &mut Connection, paths: &[String]) -> ImportResult {
                 let notes = r.get(3).and_then(|s| opt(s));
                 let suffix = r.get(4).and_then(|s| opt(s));
                 let annotation = r.get(5).and_then(|s| opt(s));
-                if tx.execute("INSERT OR IGNORE INTO events (name, date, annotation, suffix, notes) VALUES (?1,?2,?3,?4,?5)", params![name, date, annotation, suffix, notes]).is_ok() {
-                    if let Ok(eid) = tx.query_row("SELECT id FROM events WHERE name=?1", params![name], |row| row.get::<_, i64>(0)) {
+                if tx.execute("INSERT OR IGNORE INTO events (name, date, annotation, suffix, notes) VALUES (?1,?2,?3,?4,?5)", params![name, date, annotation, suffix, notes]).is_ok()
+                    && let Ok(eid) = tx.query_row("SELECT id FROM events WHERE name=?1", params![name], |row| row.get::<_, i64>(0)) {
                         event_id_map.insert(old_id.clone(), eid);
                         if tx.changes() > 0 { result.events += 1; }
                     }
@@ -183,14 +181,13 @@ pub fn import_files(conn: &mut Connection, paths: &[String]) -> ImportResult {
             }
             result.messages.push(format!("Events: {}", result.events));
         }
-    }
 
     // 4. Words
     let mut word_staging: HashMap<String, WordData> = HashMap::new();
     let mut old_id_to_db_id: HashMap<String, i64> = HashMap::new();
 
-    if let Some(p) = word_file {
-        if let Ok(content) = fs::read_to_string(&p) {
+    if let Some(p) = word_file
+        && let Ok(content) = fs::read_to_string(&p) {
             for r in rows(&content) {
                 if r.len() < 2 {
                     continue;
@@ -218,10 +215,9 @@ pub fn import_files(conn: &mut Connection, paths: &[String]) -> ImportResult {
                 );
             }
         }
-    }
 
-    if let Some(p) = spell_file {
-        if let Ok(content) = fs::read_to_string(&p) {
+    if let Some(p) = spell_file
+        && let Ok(content) = fs::read_to_string(&p) {
             let start_id = tx
                 .query_row("SELECT id FROM events WHERE name='Start'", [], |r| r.get(0))
                 .unwrap_or(1);
@@ -271,11 +267,10 @@ pub fn import_files(conn: &mut Connection, paths: &[String]) -> ImportResult {
             }
             result.messages.push(format!("Words: {}", result.words));
         }
-    }
 
     // 5. Definitions
-    if let Some(p) = def_file {
-        if let Ok(content) = fs::read_to_string(&p) {
+    if let Some(p) = def_file
+        && let Ok(content) = fs::read_to_string(&p) {
             let mut def_count = 0usize;
             for r in rows(&content) {
                 if r.len() < 5 {
@@ -295,25 +290,21 @@ pub fn import_files(conn: &mut Connection, paths: &[String]) -> ImportResult {
                     .get(old_word_id)
                     .copied()
                     .or_else(|| old_word_id.parse().ok())
-                {
-                    if tx.execute("INSERT OR IGNORE INTO definitions (word_id, position, grammar, usage, body, tags) VALUES (?1,?2,?3,?4,?5,?6)", params![wid, position, grammar, usage, body, tags]).is_ok() && tx.changes() > 0 {
+                    && tx.execute("INSERT OR IGNORE INTO definitions (word_id, position, grammar, usage, body, tags) VALUES (?1,?2,?3,?4,?5,?6)", params![wid, position, grammar, usage, body, tags]).is_ok() && tx.changes() > 0 {
                         def_count += 1;
                     }
-                }
             }
             result.definitions = def_count;
             result
                 .messages
                 .push(format!("Definitions: {}", result.definitions));
         }
-    }
 
     let _ = tx.commit();
-    if let Some(p) = &settings_file {
-        if let Ok(n) = import_settings(conn, p) {
+    if let Some(p) = &settings_file
+        && let Ok(n) = import_settings(conn, p) {
             result.settings += n;
         }
-    }
     result
 }
 
