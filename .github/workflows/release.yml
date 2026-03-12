@@ -81,7 +81,7 @@ jobs:
           java-version: '17'
           distribution: temurin
 
-      - uses: android-actions/setup-android@v3
+      - uses: android-actions/setup-android@v4
 
       - name: Set NDK_HOME to pre-installed NDK
         run: |
