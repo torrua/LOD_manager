@@ -90,7 +90,7 @@ pub fn init_schema(conn: &Connection) -> rusqlite::Result<()> {
 }
 
 /// Add any indexes that may be missing in databases created before they were
-/// added to init_schema.  Safe to call on every open (all are IF NOT EXISTS).
+/// added to `init_schema`.  Safe to call on every open (all are IF NOT EXISTS).
 pub fn add_missing_indexes(conn: &Connection) -> rusqlite::Result<()> {
     conn.execute_batch(
         "
@@ -729,7 +729,7 @@ fn extract_keywords(body: &str) -> String {
     while let Some((_, c)) = chars.next() {
         if c == '\u{AB}' {
             // opening «
-            let start_byte = chars.peek().map(|&(i, _)| i).unwrap_or(body.len());
+            let start_byte = chars.peek().map_or(body.len(), |&(i, _)| i);
             let mut end_byte = start_byte;
             for (i, c2) in chars.by_ref() {
                 if c2 == '\u{BB}' {
@@ -992,7 +992,7 @@ pub fn search_english_keywords_like(
     // Match definitions where the query appears as the start of a «keyword».
     // Pattern: «<query>…»  (prefix match inside keyword markers).
     let q_clean = q.trim().to_lowercase();
-    let pat = format!("%\u{AB}{}%\u{BB}%", q_clean);
+    let pat = format!("%\u{{AB}}{q_clean}%\u{{BB}}%");
     let sql = "
         WITH matched AS (
             SELECT
