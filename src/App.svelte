@@ -318,7 +318,9 @@
       </button>
       {#if app.dbOpen && getActiveEvent()}
         {@const activeEvent = getActiveEvent()}
-        <span class="ev-badge" title="Filtered to: {activeEvent?.name}">{activeEvent?.annotation || activeEvent?.name}</span>
+        <span class="ev-badge" title="Filtered to: {activeEvent?.name}"
+          >{activeEvent?.annotation || activeEvent?.name}</span
+        >
       {/if}
       <!-- Separator + tabs run directly after logo in tbl -->
       {#if app.dbOpen}

@@ -155,13 +155,13 @@
   // Build visible meta chips once per word change.
   const visibleMeta = $derived(
     [
-      { key: 'type',   label: 'Type',  val: word.type_name },
-      { key: 'source', label: 'Src',   val: word.source },
-      { key: 'year',   label: 'Year',  val: word.year },
-      { key: 'rank',   label: 'Rank',  val: word.rank },
-      { key: 'match',  label: 'Match', val: word.match_ },
-      { key: 'event',  label: 'From',  val: word.event_start_name },
-      { key: 'until',  label: 'Until', val: word.event_end_name },
+      { key: 'type', label: 'Type', val: word.type_name },
+      { key: 'source', label: 'Src', val: word.source },
+      { key: 'year', label: 'Year', val: word.year },
+      { key: 'rank', label: 'Rank', val: word.rank },
+      { key: 'match', label: 'Match', val: word.match_ },
+      { key: 'event', label: 'From', val: word.event_start_name },
+      { key: 'until', label: 'Until', val: word.event_end_name },
     ].filter((f) => app.prefs.visibleMeta.includes(f.key) && f.val)
   );
 </script>

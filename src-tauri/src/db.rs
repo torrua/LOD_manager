@@ -328,13 +328,13 @@ pub fn get_word(conn: &Connection, id: i64) -> rusqlite::Result<WordDetail> {
             (SELECT GROUP_CONCAT(affix, '\x1f') FROM word_affixes WHERE word_id=?1) as affixes,
             (SELECT GROUP_CONCAT(spelling, '\x1f') FROM word_spellings WHERE word_id=?1) as spellings"
     )?;
-    
+
     let (affixes_str, spellings_str) = stmt.query_row(params![id], |r| {
         let affixes: Option<String> = r.get(0)?;
         let spellings: Option<String> = r.get(1)?;
         Ok((affixes.unwrap_or_default(), spellings.unwrap_or_default()))
     })?;
-    
+
     word.affixes = if !affixes_str.is_empty() {
         affixes_str.split('\x1f').map(|s| s.to_string()).collect()
     } else {
@@ -348,32 +348,49 @@ pub fn get_word(conn: &Connection, id: i64) -> rusqlite::Result<WordDetail> {
     };
 
     // Step 2: Get definitions in separate query
-    let definitions_str: String = conn.query_row(
-        "SELECT GROUP_CONCAT(
+    let definitions_str: String = conn
+        .query_row(
+            "SELECT GROUP_CONCAT(
             id || '\x1e' || position || '\x1e' || 
             COALESCE(grammar, '') || '\x1e' || COALESCE(usage, '') || '\x1e' || 
             COALESCE(body, '') || '\x1e' || COALESCE(tags, ''), '\x1d'
          ) FROM definitions WHERE word_id=?1 ORDER BY position",
-        params![id],
-        |r| r.get(0)
-    ).unwrap_or_default();
-    
+            params![id],
+            |r| r.get(0),
+        )
+        .unwrap_or_default();
+
     word.definitions = if !definitions_str.is_empty() {
-        definitions_str.split('\x1d').filter_map(|def_str| {
-            let parts: Vec<&str> = def_str.split('\x1e').collect();
-            if parts.len() >= 6 {
-                Some(Definition {
-                    id: parts[0].parse().unwrap_or(0),
-                    position: parts[1].parse().unwrap_or(0),
-                    grammar: if parts[2].is_empty() { None } else { Some(parts[2].to_string()) },
-                    usage: if parts[3].is_empty() { None } else { Some(parts[3].to_string()) },
-                    body: parts[4].to_string(),
-                    tags: if parts[5].is_empty() { None } else { Some(parts[5].to_string()) },
-                })
-            } else {
-                None
-            }
-        }).collect()
+        definitions_str
+            .split('\x1d')
+            .filter_map(|def_str| {
+                let parts: Vec<&str> = def_str.split('\x1e').collect();
+                if parts.len() >= 6 {
+                    Some(Definition {
+                        id: parts[0].parse().unwrap_or(0),
+                        position: parts[1].parse().unwrap_or(0),
+                        grammar: if parts[2].is_empty() {
+                            None
+                        } else {
+                            Some(parts[2].to_string())
+                        },
+                        usage: if parts[3].is_empty() {
+                            None
+                        } else {
+                            Some(parts[3].to_string())
+                        },
+                        body: parts[4].to_string(),
+                        tags: if parts[5].is_empty() {
+                            None
+                        } else {
+                            Some(parts[5].to_string())
+                        },
+                    })
+                } else {
+                    None
+                }
+            })
+            .collect()
     } else {
         Vec::new()
     };

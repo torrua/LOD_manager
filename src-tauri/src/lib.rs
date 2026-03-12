@@ -335,48 +335,63 @@ mod tests {
         db::init_schema(&conn).unwrap();
         db::init_fts(&conn).unwrap();
         db::add_missing_indexes(&conn).unwrap(); // Add the new indexes
-        
+
         // Create test data
         conn.execute(
             "INSERT INTO types (name, group_) VALUES (?1, ?2)",
-            ("test_type", "test_group")
-        ).unwrap();
-        
+            ("test_type", "test_group"),
+        )
+        .unwrap();
+
         let type_id: i64 = conn.last_insert_rowid();
-        
+
         conn.execute(
             "INSERT INTO words (name, type_id, source, year, rank, match_, origin, notes) 
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
-            ("testword", type_id, "test_source", "2023", "A", "exact", "test_origin", "test_notes")
-        ).unwrap();
-        
+            (
+                "testword",
+                type_id,
+                "test_source",
+                "2023",
+                "A",
+                "exact",
+                "test_origin",
+                "test_notes",
+            ),
+        )
+        .unwrap();
+
         let word_id: i64 = conn.last_insert_rowid();
-        
+
         // Add affixes
         conn.execute(
             "INSERT INTO word_affixes (word_id, affix) VALUES (?1, ?2), (?1, ?3)",
-            (word_id, "test", "affix")
-        ).unwrap();
-        
+            (word_id, "test", "affix"),
+        )
+        .unwrap();
+
         // Add spellings
         conn.execute(
             "INSERT INTO word_spellings (word_id, spelling) VALUES (?1, ?2), (?1, ?3)",
-            (word_id, "spelling1", "spelling2")
-        ).unwrap();
-        
+            (word_id, "spelling1", "spelling2"),
+        )
+        .unwrap();
+
         // Add definitions
         conn.execute(
             "INSERT INTO definitions (word_id, position, grammar, usage, body, tags) 
              VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-            (word_id, 0, "grammar1", "usage1", "body1", "tags1")
-        ).unwrap();
-        
+            (word_id, 0, "grammar1", "usage1", "body1", "tags1"),
+        )
+        .unwrap();
+
         conn.execute(
             "INSERT INTO definitions (word_id, position, grammar, usage, body, tags) 
              VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-            (word_id, 1, "grammar2", "usage2", "body2", "tags2")
-        ).unwrap();
-        
+            (word_id, 1, "grammar2", "usage2", "body2", "tags2"),
+        )
+        .unwrap();
+
         // Test performance with optimal 3-query approach
         let start = Instant::now();
         for _ in 0..100 {
@@ -387,13 +402,16 @@ mod tests {
             assert_eq!(word.definitions.len(), 2);
         }
         let duration = start.elapsed();
-        
-        println!("100 get_word calls with optimal 3-query approach took: {:?}", duration);
+
+        println!(
+            "100 get_word calls with optimal 3-query approach took: {:?}",
+            duration
+        );
         println!("Average per call: {:?}", duration / 100);
-        
+
         // Should be very fast
         assert!(duration.as_millis() < 1000, "get_word should be very fast");
-        
+
         // Test that invalid ID returns error properly
         let result = db::get_word(&conn, 999999);
         assert!(result.is_err(), "Invalid word ID should return error");

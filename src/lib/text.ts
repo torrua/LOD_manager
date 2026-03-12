@@ -20,11 +20,16 @@ export function renderBody(text: string | null | undefined): string {
 export function esc(s: string | null | undefined): string {
   return String(s ?? '').replace(/[&<>"]/g, (c) => {
     switch (c) {
-      case '&': return '&amp;';
-      case '<': return '&lt;';
-      case '>': return '&gt;';
-      case '"': return '&quot;';
-      default: return c;
+      case '&':
+        return '&amp;';
+      case '<':
+        return '&lt;';
+      case '>':
+        return '&gt;';
+      case '"':
+        return '&quot;';
+      default:
+        return c;
     }
   });
 }

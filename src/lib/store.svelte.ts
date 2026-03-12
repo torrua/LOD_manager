@@ -214,7 +214,8 @@ export async function loadWords() {
 }
 // Reactive derived — tracks app.events and app.prefs.eventFilter automatically.
 // Export as function since derived values cannot be exported directly from modules
-export const getActiveEvent = () => app.prefs.eventFilter ? (app.events.find((e) => e.id === app.prefs.eventFilter) ?? null) : null;
+export const getActiveEvent = () =>
+  app.prefs.eventFilter ? (app.events.find((e) => e.id === app.prefs.eventFilter) ?? null) : null;
 // Cache for type-group lookups so applyFilter doesn't scan app.types on every word
 const _typeGroupCache = new Map<string, string | undefined>();
 let _typeGroupCacheStamp = 0;
