@@ -992,7 +992,7 @@ pub fn search_english_keywords_like(
     // Match definitions where the query appears as the start of a «keyword».
     // Pattern: «<query>…»  (prefix match inside keyword markers).
     let q_clean = q.trim().to_lowercase();
-    let pat = format!("%\u{{AB}}{q_clean}%\u{{BB}}%");
+    let pat = format!("%\u{AB}{q_clean}%\u{BB}%");
     let sql = "
         WITH matched AS (
             SELECT
