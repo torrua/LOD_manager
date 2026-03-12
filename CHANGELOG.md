@@ -2,6 +2,30 @@
 
 All notable changes to LOD Manager are documented here.
 
+## [1.6.0] — 2026-03-12
+
+### 🚀 Performance Improvements
+- **Search Speed**: Significantly improved English-to-Loglan search performance with optimized database queries
+- **Database Indexes**: Added missing indexes for better query performance across all tables
+- **FTS Rebuild**: Enhanced full-text search index rebuilding process with better error handling
+
+### 🐛 Bug Fixes
+- **Word Navigation**: Fixed jump to word functionality for smoother navigation between search results
+- **Unicode Handling**: Fixed unicode escape sequences in keyword search patterns
+- **Code Quality**: Resolved Clippy linting warnings and enforced stricter code standards
+- **Formatting**: Fixed prettier formatting issues across frontend components
+
+### 🔧 Technical Improvements
+- **Database Schema**: Improved database consistency with proper indexing strategy
+- **Error Handling**: Enhanced error handling in database operations
+- **Build Process**: Improved CI/CD pipeline with comprehensive formatting checks
+- **Documentation**: Updated inline documentation with proper markdown formatting
+
+### 📝 Code Quality
+- Enforced stricter Rust linting rules with Clippy
+- Improved code comments for better maintainability
+- Standardized error handling patterns
+
 ## [1.5.0] — 2026-03-11
 
 - Add Settings button to desktop header
