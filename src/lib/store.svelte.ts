@@ -212,10 +212,9 @@ export async function loadWords() {
   app.wordCount = app.words.length;
   applyFilter();
 }
-export function activeEvent(): EventItem | null {
-  if (!app.prefs.eventFilter) return null;
-  return app.events.find((e) => e.id === app.prefs.eventFilter) ?? null;
-}
+// Reactive derived — tracks app.events and app.prefs.eventFilter automatically.
+// Export as function since derived values cannot be exported directly from modules
+export const getActiveEvent = () => app.prefs.eventFilter ? (app.events.find((e) => e.id === app.prefs.eventFilter) ?? null) : null;
 // Cache for type-group lookups so applyFilter doesn't scan app.types on every word
 const _typeGroupCache = new Map<string, string | undefined>();
 let _typeGroupCacheStamp = 0;
@@ -523,14 +522,10 @@ export async function goForward() {
   if (e?.tab === 'words') await selectWord(e.id, false);
   if (e?.tab === 'events') await selectEvent(e.id, false);
 }
-// Can go back if: on types/authors tab (escape to words), or history has previous entry
-export function canGoBack() {
-  if (app.tab === 'types' || app.tab === 'authors') return true;
-  return app.historyIdx > 0;
-}
-export function canGoForward() {
-  return app.historyIdx < app.history.length - 1;
-}
+// Reactive derived booleans — export as functions since derived values cannot be exported directly from modules
+// Svelte 5: $derived in .svelte.ts tracks app.$state automatically.
+export const canGoBack = () => app.tab === 'types' || app.tab === 'authors' || app.historyIdx > 0;
+export const canGoForward = () => app.historyIdx < app.history.length - 1;
 
 function _scrollSidebarTo(id: number) {
   requestAnimationFrame(() => {
@@ -550,6 +545,10 @@ function _scrollSidebarTo(id: number) {
       }
     }
   });
+}
+
+export async function getEventWords(eventId: number): Promise<[string[], string[]]> {
+  return invoke('get_event_words', { eventId });
 }
 
 export async function initPlatform() {

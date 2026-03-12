@@ -1,7 +1,6 @@
 <script lang="ts">
   import Icon from './Icon.svelte';
-  import { invoke } from '@tauri-apps/api/core';
-  import { app, deleteEvent, selectWord } from '../store.svelte';
+  import { app, deleteEvent, selectWord, getEventWords } from '../store.svelte';
   import type { EventItem } from '../../types';
 
   const { event }: { event: EventItem } = $props();
@@ -21,7 +20,7 @@
     loadingWords = true;
     addedOpen = false;
     removedOpen = false;
-    invoke<[string[], string[]]>('get_event_words', { eventId: id })
+    getEventWords(id)
       .then(([a, r]) => {
         wordsAdded = a;
         wordsRemoved = r;

@@ -152,17 +152,17 @@
     applyFilter();
   }
 
-  const META_FIELDS = [
-    { key: 'type', label: 'Type', val: () => word.type_name },
-    { key: 'source', label: 'Src', val: () => word.source },
-    { key: 'year', label: 'Year', val: () => word.year },
-    { key: 'rank', label: 'Rank', val: () => word.rank },
-    { key: 'match', label: 'Match', val: () => word.match_ },
-    { key: 'event', label: 'From', val: () => word.event_start_name },
-    { key: 'until', label: 'Until', val: () => word.event_end_name },
-  ] as const;
+  // Build visible meta chips once per word change.
   const visibleMeta = $derived(
-    META_FIELDS.filter((f) => app.prefs.visibleMeta.includes(f.key) && f.val())
+    [
+      { key: 'type',   label: 'Type',  val: word.type_name },
+      { key: 'source', label: 'Src',   val: word.source },
+      { key: 'year',   label: 'Year',  val: word.year },
+      { key: 'rank',   label: 'Rank',  val: word.rank },
+      { key: 'match',  label: 'Match', val: word.match_ },
+      { key: 'event',  label: 'From',  val: word.event_start_name },
+      { key: 'until',  label: 'Until', val: word.event_end_name },
+    ].filter((f) => app.prefs.visibleMeta.includes(f.key) && f.val)
   );
 </script>
 
@@ -205,7 +205,7 @@
       {#each visibleMeta as f}
         <div class="meta-chip">
           <span class="mc-lbl">{f.label}</span>
-          <span class="mc-val">{f.val()}</span>
+          <span class="mc-val">{f.val}</span>
         </div>
       {/each}
     </div>

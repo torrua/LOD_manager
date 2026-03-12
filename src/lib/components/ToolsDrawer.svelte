@@ -1,7 +1,5 @@
 <script lang="ts">
-  import { save as saveDialog } from '@tauri-apps/plugin-dialog';
-  import { open as openFilePicker } from '@tauri-apps/plugin-dialog';
-  import { open as openDbDialog } from '@tauri-apps/plugin-dialog';
+  import { save as saveDialog, open as openFilePicker } from '@tauri-apps/plugin-dialog';
   import Icon from './Icon.svelte';
   import {
     app,
@@ -199,7 +197,7 @@
 
   // ── Database ──────────────────────────────────────────────────────────────
   async function handleSwitch() {
-    const p = await openDbDialog({
+    const p = await openFilePicker({
       title: 'Open LOD Database',
       filters: [{ name: 'SQLite', extensions: ['db', 'sqlite', 'sqlite3'] }],
     });

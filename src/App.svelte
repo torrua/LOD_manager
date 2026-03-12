@@ -14,7 +14,7 @@
     getDefaultDbPath,
     openDb,
     createDb,
-    activeEvent,
+    getActiveEvent,
     applyFilter,
     initPlatform,
   } from './lib/store.svelte';
@@ -316,9 +316,9 @@
         <Icon name="logo" size={20} />
         <span class="logo-text">LOD</span>
       </button>
-      {#if app.dbOpen && activeEvent()}
-        {@const ev = activeEvent()}
-        <span class="ev-badge" title="Filtered to: {ev?.name}">{ev?.annotation || ev?.name}</span>
+      {#if app.dbOpen && getActiveEvent()}
+        {@const activeEvent = getActiveEvent()}
+        <span class="ev-badge" title="Filtered to: {activeEvent?.name}">{activeEvent?.annotation || activeEvent?.name}</span>
       {/if}
       <!-- Separator + tabs run directly after logo in tbl -->
       {#if app.dbOpen}
@@ -466,13 +466,6 @@
               <h3>Select a word</h3>
             {/if}
           </div>
-        {:else if app.loadingWordId !== null}
-          <div class="wd-skeleton" aria-busy="true">
-            <div class="sk-line sk-title"></div>
-            <div class="sk-line sk-meta"></div>
-            <div class="sk-line"></div>
-            <div class="sk-line sk-short"></div>
-          </div>
         {:else if app.panel === 'word' && app.curWord}
           <WordDetail word={app.curWord} loading={false} />
         {:else if app.panel === 'word-form'}
@@ -614,25 +607,7 @@
     --shd-lg: rgba(0, 0, 0, 0.72);
     --overlay: rgba(0, 0, 0, 0.65);
     --bb-h: 48px;
-    /* ─ Design system ─ */
-    --sp-1: 4px;
-    --sp-2: 8px;
-    --sp-3: 12px;
-    --sp-4: 16px;
-    --sp-5: 24px;
-    --r-sm: 3px;
-    --r-md: 4px;
-    --r-lg: 6px;
-    --r-xl: 8px;
-    --fs-label: 0.52rem;
-    --fs-xs: 0.65rem;
-    --fs-sm: 0.72rem;
-    --fs-base: 0.78rem;
-    --fs-md: 0.82rem;
-    --fs-lg: 1rem;
-    --fs-xl: 1.4rem;
-    --red: #c44444;
-    --green: #5a8;
+    /* ─ Design system tokens live in :root (see below) ─ */
   }
   :global([data-theme='light']) {
     --bg: #f0ebe0;
@@ -669,16 +644,26 @@
     --shd-lg: rgba(0, 0, 0, 0.22);
     --overlay: rgba(0, 0, 0, 0.52);
     --bb-h: 48px;
-    /* ─ Design system (same scale, same vars) ─ */
+    /* ─ Design system tokens live in :root (see below) ─ */
+  }
+
+  /* ─────────────────────────────────────────────────────────────────────────
+   * Design system — theme-independent tokens (same values in dark & light).
+   * Kept in :root so they don't bloat every [data-theme] block.
+   * ───────────────────────────────────────────────────────────────────────── */
+  :global(:root) {
+    /* Spacing scale (4px base) */
     --sp-1: 4px;
     --sp-2: 8px;
     --sp-3: 12px;
     --sp-4: 16px;
     --sp-5: 24px;
+    /* Border-radius scale */
     --r-sm: 3px;
     --r-md: 4px;
     --r-lg: 6px;
     --r-xl: 8px;
+    /* Type scale */
     --fs-label: 0.52rem;
     --fs-xs: 0.65rem;
     --fs-sm: 0.72rem;
@@ -686,8 +671,6 @@
     --fs-md: 0.82rem;
     --fs-lg: 1rem;
     --fs-xl: 1.4rem;
-    --red: #c44444;
-    --green: #5a8;
   }
 
   /* ── Buttons ── */
@@ -948,38 +931,6 @@
     background: var(--teal-g);
     border: 1px solid var(--teal-d);
     color: var(--teal);
-  }
-  .wd-skeleton {
-    padding: 1rem 1.1rem;
-    display: flex;
-    flex-direction: column;
-    gap: 0.6rem;
-  }
-  .sk-line {
-    height: 13px;
-    border-radius: 4px;
-    background: linear-gradient(90deg, var(--surf2) 0%, var(--border) 40%, var(--surf2) 80%);
-    background-size: 250% 100%;
-    animation: sk-sweep 1.4s ease-in-out infinite;
-  }
-  .sk-title {
-    height: 21px;
-    width: 52%;
-  }
-  .sk-meta {
-    height: 10px;
-    width: 72%;
-  }
-  .sk-short {
-    width: 62%;
-  }
-  @keyframes sk-sweep {
-    0% {
-      background-position: 200% 0;
-    }
-    100% {
-      background-position: -100% 0;
-    }
   }
   /* ─ Meta chip labels (used in WordDetail, EventDetail) ─ */
   :global(.mc-lbl) {

@@ -16,10 +16,15 @@ export function renderBody(text: string | null | undefined): string {
   return t;
 }
 
+/** HTML-escape a string in a single pass (avoids 4 serial replace calls). */
 export function esc(s: string | null | undefined): string {
-  return String(s ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
+  return String(s ?? '').replace(/[&<>"]/g, (c) => {
+    switch (c) {
+      case '&': return '&amp;';
+      case '<': return '&lt;';
+      case '>': return '&gt;';
+      case '"': return '&quot;';
+      default: return c;
+    }
+  });
 }

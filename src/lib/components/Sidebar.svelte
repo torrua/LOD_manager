@@ -122,24 +122,26 @@
     }
   }
 
-  // Status line below search field
-  const statusLine = $derived((): string => {
-    if (app.tab !== 'words') return '';
-    if (app.searchMode === 'el') {
-      if (app.elSearching) return 'Searching…';
-      if (app.elQuery.trim() && app.elResults.length > 0) {
-        const n = app.elResults.length;
-        return `${n}${n >= 300 ? '+' : ''} word${n !== 1 ? 's' : ''}`;
+  // Status line below search field — plain derived string, not a derived function.
+  const statusLine = $derived(
+    (() => {
+      if (app.tab !== 'words') return '';
+      if (app.searchMode === 'el') {
+        if (app.elSearching) return 'Searching…';
+        if (app.elQuery.trim() && app.elResults.length > 0) {
+          const n = app.elResults.length;
+          return `${n}${n >= 300 ? '+' : ''} word${n !== 1 ? 's' : ''}`;
+        }
+        return '';
       }
-      return '';
-    }
-    // L→E
-    const f = app.filteredWords.length,
-      t = app.words.length;
-    const active = app.searchQ.trim() || app.typeFilter;
-    if (active && f < t) return `${f} / ${t}`;
-    return t > 0 ? t.toLocaleString() : '';
-  });
+      // L→E
+      const f = app.filteredWords.length,
+        t = app.words.length;
+      const active = app.searchQ.trim() || app.typeFilter;
+      if (active && f < t) return `${f} / ${t}`;
+      return t > 0 ? t.toLocaleString() : '';
+    })()
+  );
 
   const hasQuery = $derived(app.searchMode === 'el' ? !!app.elQuery : !!app.searchQ);
   const searchVal = $derived(app.searchMode === 'el' ? app.elQuery : app.searchQ);
@@ -225,8 +227,8 @@
       <!-- Status line: word count / result count — always outside the field -->
       {#if app.tab === 'words'}
         <div class="status-line">
-          {#if statusLine()}
-            <span class="status-count">{statusLine()}</span>
+          {#if statusLine}
+            <span class="status-count">{statusLine}</span>
           {/if}
           {#if elMode && !app.elFtsReady && app.dbOpen}
             <span class="fts-warn" title="FTS index not ready — open Tools → Settings → Rebuild FTS"
@@ -258,7 +260,7 @@
           <div class="empty">No words found</div>
         {:else}
           <div style="height:{topPad}px;flex-shrink:0"></div>
-          {#each app.filteredWords.slice(vStart, vEnd) as w (w.id)}
+          {#each app.filteredWords.slice(vStart, vEnd) as w, i (w.id)}
             <div
               class="si"
               style="height:{ROW_H}px"
@@ -267,7 +269,7 @@
               role="button"
               tabindex="0"
               onclick={() => selectWord(w.id)}
-              onkeydown={(e) => itemKeydown(e, app.filteredWords.indexOf(w))}
+              onkeydown={(e) => itemKeydown(e, vStart + i)}
             >
               <span class="sn">{w.name}</span>
               {#if app.prefs.showTypeTag && w.type_name}

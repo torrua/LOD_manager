@@ -53,12 +53,15 @@ pub fn init_schema(conn: &Connection) -> rusqlite::Result<()> {
             word_id INTEGER NOT NULL REFERENCES words(id) ON DELETE CASCADE,
             spelling TEXT NOT NULL
         );
+        CREATE INDEX IF NOT EXISTS idx_word_spellings_word_id ON word_spellings(word_id);
 
         CREATE TABLE IF NOT EXISTS word_affixes (
             id      INTEGER PRIMARY KEY AUTOINCREMENT,
             word_id INTEGER NOT NULL REFERENCES words(id) ON DELETE CASCADE,
             affix   TEXT NOT NULL
         );
+        CREATE INDEX IF NOT EXISTS idx_word_affixes_word_id ON word_affixes(word_id);
+        CREATE INDEX IF NOT EXISTS idx_word_affixes_affix ON word_affixes(affix);
 
         CREATE TABLE IF NOT EXISTS settings (
             key   TEXT PRIMARY KEY,
@@ -79,6 +82,20 @@ pub fn init_schema(conn: &Connection) -> rusqlite::Result<()> {
 
         INSERT OR IGNORE INTO events (name) VALUES ('Start');
     ",
+    )
+}
+
+/// Add missing indexes for better performance
+pub fn add_missing_indexes(conn: &Connection) -> rusqlite::Result<()> {
+    conn.execute_batch(
+        "
+        CREATE INDEX IF NOT EXISTS idx_word_spellings_word_id ON word_spellings(word_id);
+        CREATE INDEX IF NOT EXISTS idx_word_affixes_word_id ON word_affixes(word_id);
+        CREATE INDEX IF NOT EXISTS idx_word_affixes_affix ON word_affixes(affix);
+        CREATE INDEX IF NOT EXISTS idx_words_type_id ON words(type_id);
+        CREATE INDEX IF NOT EXISTS idx_words_event_start_id ON words(event_start_id);
+        CREATE INDEX IF NOT EXISTS idx_words_event_end_id ON words(event_end_id);
+        ",
     )
 }
 
@@ -270,6 +287,7 @@ pub fn list_words(
 }
 
 pub fn get_word(conn: &Connection, id: i64) -> rusqlite::Result<WordDetail> {
+    // First get the main word data
     let mut word: WordDetail = conn.query_row(
         "SELECT w.id, w.name, t.name, w.type_id,
                 w.source, w.year, w.rank, w.match_,
@@ -304,38 +322,63 @@ pub fn get_word(conn: &Connection, id: i64) -> rusqlite::Result<WordDetail> {
         },
     )?;
 
-    // affixes
-    let mut s = conn.prepare("SELECT affix FROM word_affixes WHERE word_id=?1 ORDER BY id")?;
-    word.affixes = s
-        .query_map(params![id], |r| r.get(0))?
-        .filter_map(std::result::Result::ok)
-        .collect();
+    // Step 1: Combine affixes and spellings in one query
+    let mut stmt = conn.prepare(
+        "SELECT 
+            (SELECT GROUP_CONCAT(affix, '\x1f') FROM word_affixes WHERE word_id=?1) as affixes,
+            (SELECT GROUP_CONCAT(spelling, '\x1f') FROM word_spellings WHERE word_id=?1) as spellings"
+    )?;
+    
+    let (affixes_str, spellings_str) = stmt.query_row(params![id], |r| {
+        let affixes: Option<String> = r.get(0)?;
+        let spellings: Option<String> = r.get(1)?;
+        Ok((affixes.unwrap_or_default(), spellings.unwrap_or_default()))
+    })?;
+    
+    word.affixes = if !affixes_str.is_empty() {
+        affixes_str.split('\x1f').map(|s| s.to_string()).collect()
+    } else {
+        Vec::new()
+    };
 
-    // spellings
-    let mut s = conn.prepare("SELECT spelling FROM word_spellings WHERE word_id=?1 ORDER BY id")?;
-    word.spellings = s
-        .query_map(params![id], |r| r.get(0))?
-        .filter_map(std::result::Result::ok)
-        .collect();
+    word.spellings = if !spellings_str.is_empty() {
+        spellings_str.split('\x1f').map(|s| s.to_string()).collect()
+    } else {
+        Vec::new()
+    };
 
-    // definitions
-    let mut s = conn.prepare(
-        "SELECT id, position, grammar, usage, body, tags FROM definitions WHERE word_id=?1 ORDER BY position")?;
-    word.definitions = s
-        .query_map(params![id], |r| {
-            Ok(Definition {
-                id: r.get(0)?,
-                position: r.get(1)?,
-                grammar: r.get(2)?,
-                usage: r.get(3)?,
-                body: r.get(4)?,
-                tags: r.get(5)?,
-            })
-        })?
-        .filter_map(std::result::Result::ok)
-        .collect();
+    // Step 2: Get definitions in separate query
+    let definitions_str: String = conn.query_row(
+        "SELECT GROUP_CONCAT(
+            id || '\x1e' || position || '\x1e' || 
+            COALESCE(grammar, '') || '\x1e' || COALESCE(usage, '') || '\x1e' || 
+            COALESCE(body, '') || '\x1e' || COALESCE(tags, ''), '\x1d'
+         ) FROM definitions WHERE word_id=?1 ORDER BY position",
+        params![id],
+        |r| r.get(0)
+    ).unwrap_or_default();
+    
+    word.definitions = if !definitions_str.is_empty() {
+        definitions_str.split('\x1d').filter_map(|def_str| {
+            let parts: Vec<&str> = def_str.split('\x1e').collect();
+            if parts.len() >= 6 {
+                Some(Definition {
+                    id: parts[0].parse().unwrap_or(0),
+                    position: parts[1].parse().unwrap_or(0),
+                    grammar: if parts[2].is_empty() { None } else { Some(parts[2].to_string()) },
+                    usage: if parts[3].is_empty() { None } else { Some(parts[3].to_string()) },
+                    body: parts[4].to_string(),
+                    tags: if parts[5].is_empty() { None } else { Some(parts[5].to_string()) },
+                })
+            } else {
+                None
+            }
+        }).collect()
+    } else {
+        Vec::new()
+    };
 
-    // used_in: words that contain this word's affixes in their name
+    // Get used_in words (still separate query as it's complex)
     let mut s = conn.prepare(
         "SELECT DISTINCT w.name FROM words w
          WHERE w.id != ?1
