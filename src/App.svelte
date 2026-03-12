@@ -95,8 +95,14 @@
     };
     // Mouse back (button 3) / forward (button 4) — extra side buttons on desktop mice
     const mouseHandler = (e: MouseEvent) => {
-      if (e.button === 3) { e.preventDefault(); goBack(); }
-      if (e.button === 4) { e.preventDefault(); goForward(); }
+      if (e.button === 3) {
+        e.preventDefault();
+        goBack();
+      }
+      if (e.button === 4) {
+        e.preventDefault();
+        goForward();
+      }
     };
     document.addEventListener('keydown', handler);
     document.addEventListener('mouseup', mouseHandler);
@@ -1229,7 +1235,8 @@
     height: var(--mob-bar-h, 56px); /* content zone only, excludes safe area */
     gap: 0.15rem;
     /* Match top bar horizontal padding exactly */
-    padding: 0 max(0.5rem, env(safe-area-inset-right, 0.5rem)) 0 max(0.5rem, env(safe-area-inset-left, 0.5rem));
+    padding: 0 max(0.5rem, env(safe-area-inset-right, 0.5rem)) 0
+      max(0.5rem, env(safe-area-inset-left, 0.5rem));
   }
   .mb-spacer {
     flex: 1;
