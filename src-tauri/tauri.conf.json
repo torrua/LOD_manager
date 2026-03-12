@@ -38,7 +38,8 @@
       "icons/Square44x44Logo.png"
     ],
     "android": {
-      "minSdkVersion": 24
+      "minSdkVersion": 24,
+      "signing": true
     },
     "iOS": {
       "minimumSystemVersion": "16"
