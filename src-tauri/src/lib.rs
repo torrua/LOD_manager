@@ -435,17 +435,14 @@ mod tests {
         }
         let duration = start.elapsed();
 
-        println!(
-            "100 get_word calls with optimal 3-query approach took: {:?}",
-            duration
-        );
+        println!("100 get_word calls with optimal 3-query approach took: {duration:?}");
         println!("Average per call: {:?}", duration / 100);
 
         // Should be very fast
         assert!(duration.as_millis() < 1000, "get_word should be very fast");
 
         // Test that invalid ID returns error properly
-        let result = db::get_word(&conn, 999999);
+        let result = db::get_word(&conn, 999_999);
         assert!(result.is_err(), "Invalid word ID should return error");
     }
 }
