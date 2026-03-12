@@ -147,9 +147,19 @@
     }
   }
   function clickAffix(a: string) {
-    app.tab = 'words';
-    app.searchQ = a;
-    applyFilter();
+    // Try to find exact match first (like xref)
+    const found = app.words.find((w) => w.name === a);
+    if (found) {
+      selectWord(found.id);
+    } else {
+      // Fallback to search if no exact match
+      app.tab = 'words';
+      app.searchQ = a;
+      applyFilter();
+      if (app.filteredWords.length > 0 && app.filteredWords[0]) {
+        selectWord(app.filteredWords[0].id);
+      }
+    }
   }
 
   // Build visible meta chips once per word change.
