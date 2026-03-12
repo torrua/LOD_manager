@@ -177,7 +177,6 @@ pub fn import_files(conn: &mut Connection, paths: &[String]) -> ImportResult {
                         event_id_map.insert(old_id.clone(), eid);
                         if tx.changes() > 0 { result.events += 1; }
                     }
-                }
             }
             result.messages.push(format!("Events: {}", result.events));
         }
