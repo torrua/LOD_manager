@@ -435,10 +435,7 @@ mod tests {
         }
         let duration = start.elapsed();
 
-        println!(
-            "100 get_word calls with optimal 3-query approach took: {:?}",
-            duration
-        );
+        println!("100 get_word calls with optimal 3-query approach took: {duration:?}");
         println!("Average per call: {:?}", duration / 100);
 
         // Should be very fast
