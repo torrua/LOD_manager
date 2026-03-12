@@ -108,14 +108,14 @@ jobs:
           NDK_HOME: ${{ env.NDK_HOME }}
 
       # ═══════════════════════════════════════════════════════════════════════
-# ПОДПИСЬ APK — АКТИВЕН ВАРИАНТ B (release-подпись через keystore)
-#
-# Требуются 4 секрета в GitHub → Settings → Secrets → Actions:
-#   ANDROID_KEYSTORE_BASE64   = $(base64 -w0 release.jks)
-#   ANDROID_KEYSTORE_PASSWORD = <пароль хранилища>
-#   ANDROID_KEY_ALIAS        = lod-manager
-#   ANDROID_KEY_PASSWORD     = <пароль ключа>
-# ═══════════════════════════════════════════════════════════════════════
+      # ПОДПИСЬ APK — АКТИВЕН ВАРИАНТ B (release-подпись через keystore)
+      #
+      # Требуются 4 секрета в GitHub → Settings → Secrets → Actions:
+      #   ANDROID_KEYSTORE_BASE64   = $(base64 -w0 release.jks)
+      #   ANDROID_KEYSTORE_PASSWORD = <пароль хранилища>
+      #   ANDROID_KEY_ALIAS        = lod-manager
+      #   ANDROID_KEY_PASSWORD     = <пароль ключа>
+      # ═══════════════════════════════════════════════════════════════════════
 
       - name: Decode keystore
         run: |
