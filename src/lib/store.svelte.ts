@@ -63,6 +63,7 @@ export const app = $state({
   toastTimer: 0,
   dbStats: null as DbStats | null,
   currentPlatform: 'unknown' as string,
+  suggestImport: false, // set true when DB opened/created empty
   prefs: {
     showTypeTag: (loadPrefs().showTypeTag ?? true) as boolean,
     showDefCount: (loadPrefs().showDefCount ?? false) as boolean,
@@ -155,6 +156,7 @@ export async function openDb(path: string) {
   app.panel = 'welcome';
   app.toolsOpen = false;
   toast(`Opened — ${app.words.length.toLocaleString()} words`, 'ok');
+  if (app.words.length === 0) app.suggestImport = true;
   checkFts().catch(() => {});
   loadDbStats().catch(() => {});
 }
@@ -167,6 +169,7 @@ export async function createDb(path: string) {
   app.panel = 'welcome';
   app.toolsOpen = false;
   toast('New database created', 'ok');
+  app.suggestImport = true;
 }
 export function getLastDbPath(): string {
   return localStorage.getItem('lod-last-db') || '';
@@ -259,10 +262,15 @@ export function applyFilter() {
       }
       ws = ws.filter((w) => w.type_name !== null && _typeGroupCache.get(w.type_name) === g);
     } else {
-      ws = ws.filter((w) => w.type_name === tf);
+      ws = ws.filter((w) => w.type_name === app.typeFilter);
     }
   }
   app.filteredWords = ws;
+
+  // Auto-select single word if there's exactly one result
+  if (ws.length === 1 && ws[0]) {
+    selectWord(ws[0].id);
+  }
 }
 
 export async function selectWord(id: number, pushHist = true) {
@@ -278,7 +286,7 @@ export async function selectWord(id: number, pushHist = true) {
     app.editing = false;
     app.panel = 'word';
     if (pushHist) pushHistory({ tab: 'words', id });
-    _scrollSidebarTo(id);
+    // Removed auto-scroll - let keyboard navigation handle scrolling
   } catch {
     toast('Word not found', 'err');
     if (app.loadingWordId === id) app.mobileShowList = true;
@@ -531,6 +539,7 @@ export async function goForward() {
 export const canGoBack = () => app.historyIdx > 0;
 export const canGoForward = () => app.historyIdx < app.history.length - 1;
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function _scrollSidebarTo(id: number) {
   requestAnimationFrame(() => {
     const list = document.getElementById('sb-list');

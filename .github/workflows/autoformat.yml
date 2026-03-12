@@ -16,8 +16,11 @@ jobs:
     name: Prettier + rustfmt
     runs-on: ubuntu-latest
 
+    # Don't re-run on our own formatting commits (prevents infinite loops)
+    if: "!contains(github.event.head_commit.message, '[autoformat]')"
+
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
         with:
           # Use the default GITHUB_TOKEN — allows pushing back to the branch.
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -25,7 +28,7 @@ jobs:
           fetch-depth: 0
 
       # ── JavaScript / Svelte ──────────────────────────────────────────────
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v4
         with:
           node-version: 24
           cache: npm
@@ -35,6 +38,8 @@ jobs:
 
       - name: Prettier — fix in place
         run: npm run format
+        # Don't fail the whole job if prettier errors on a malformed file
+        continue-on-error: true
 
       # ── Rust ─────────────────────────────────────────────────────────────
       - name: Install Rust stable + rustfmt
@@ -44,10 +49,11 @@ jobs:
 
       - name: rustfmt — fix in place
         run: cargo fmt --manifest-path src-tauri/Cargo.toml
+        continue-on-error: true
 
       # ── Commit back if anything changed ──────────────────────────────────
       - name: Commit formatting changes (if any)
-        uses: stefanzweifel/git-auto-commit-action@v7
+        uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: 'style: auto-format [autoformat]'
           commit_author: 'github-actions[bot] <github-actions[bot]@users.noreply.github.com>'

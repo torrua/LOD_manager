@@ -1,6 +1,6 @@
 {
   "name": "lod-manager",
-  "version": "1.6.1",
+  "version": "1.6.2",
   "type": "module",
   "scripts": {
     "prepare": "husky",

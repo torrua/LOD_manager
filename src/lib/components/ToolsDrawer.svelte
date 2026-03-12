@@ -1,5 +1,6 @@
 <script lang="ts">
   import { save as saveDialog, open as openFilePicker } from '@tauri-apps/plugin-dialog';
+  import { getVersion } from '@tauri-apps/api/app';
   import Icon from './Icon.svelte';
   import {
     app,
@@ -16,6 +17,12 @@
     loadWords,
   } from '../store.svelte';
   import type { ImportResult } from '../../types';
+
+  // ── App version ───────────────────────────────────────────────────────────
+  let appVersion = $state('…');
+  getVersion()
+    .then((v) => (appVersion = v))
+    .catch(() => (appVersion = '—'));
 
   // ── Import ────────────────────────────────────────────────────────────────
   let impPaths = $state<string[]>([]);
@@ -618,6 +625,11 @@
           {/if}
         </div>
       </div>
+
+      <!-- App version -->
+      <div class="settings-group version-group">
+        <span class="version-label">LOD Manager v{appVersion}</span>
+      </div>
     {/if}
   </div>
 </div>
@@ -1050,5 +1062,16 @@
   .fi-name-btn:hover {
     color: var(--text);
     text-decoration: underline;
+  }
+
+  .version-group {
+    border-top: 1px solid var(--border);
+    padding-top: 0.6rem;
+    margin-top: 0.4rem;
+  }
+  .version-label {
+    font-size: 0.58rem;
+    color: var(--text3);
+    letter-spacing: 0.04em;
   }
 </style>

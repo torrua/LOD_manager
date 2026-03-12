@@ -118,6 +118,18 @@
     else document.documentElement.removeAttribute('data-ro');
   });
 
+  $effect(() => {
+    // Re-attach whenever db opens (DOM changes)
+    if (app.dbOpen) {
+      // Small delay to let DOM settle
+      const tid = setTimeout(() => {
+        // No smart bars logic needed
+      }, 100);
+      return () => clearTimeout(tid);
+    }
+    return;
+  });
+
   // ── compact bottom-bar new-item sheet ─────────────────────────────
   let newSheetOpen = $state(false);
 
@@ -249,12 +261,22 @@
     const dt = Date.now() - _swipeT;
     const fast = dt < 400;
     const bigEnough = dx > 72;
-    if (fast && bigEnough && !app.mobileShowList) {
-      // Swipe right = go back to list or go back in history
-      if (app.tab === 'types' || app.tab === 'authors') {
-        goBack();
-      } else {
-        app.mobileShowList = true;
+    const fromEdge = _swipeX < 30; // edge swipe always triggers goBack
+    if (fast && bigEnough) {
+      if (fromEdge) {
+        // Edge swipe = unconditional history back
+        if (canGoBack()) {
+          goBack();
+        } else if (!app.mobileShowList) {
+          app.mobileShowList = true;
+        }
+      } else if (!app.mobileShowList) {
+        // Swipe right in detail view = go back to list or history
+        if (app.tab === 'types' || app.tab === 'authors') {
+          goBack();
+        } else {
+          app.mobileShowList = true;
+        }
       }
     }
   }
@@ -315,6 +337,15 @@
     };
     document.addEventListener('keydown', close, true);
     return () => document.removeEventListener('keydown', close, true);
+  });
+
+  // When DB opened/created empty, nudge user to import
+  $effect(() => {
+    if (app.suggestImport) {
+      app.suggestImport = false;
+      app.toolsOpen = true;
+      app.toolsTab = 'import';
+    }
   });
 </script>
 
@@ -774,9 +805,11 @@
     width: 32px;
     height: 32px;
     padding: 0;
-    gap: 0;
-    flex-shrink: 0;
-    box-sizing: border-box;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--r-sm);
+    font-size: var(--fs-md);
   }
   :global(.btn-sm) {
     height: 26px;

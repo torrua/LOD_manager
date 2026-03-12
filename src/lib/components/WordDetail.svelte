@@ -99,12 +99,24 @@
   function handleTooltipClick(e: MouseEvent | KeyboardEvent, content: string) {
     if (app.currentPlatform === 'android' && app.prefs.showTooltips) {
       e.preventDefault();
+      e.stopPropagation();
       const target = e.target as HTMLElement;
       const rect = target.getBoundingClientRect();
+      // Estimate tooltip width ~180px, clamp so it never clips left/right edge
+      const TW = 180;
+      const margin = 8;
+      const rawX = rect.left + rect.width / 2;
+      const clampedX = Math.max(
+        TW / 2 + margin,
+        Math.min(window.innerWidth - TW / 2 - margin, rawX)
+      );
+      // If tooltip would go above screen, flip to below element
+      const rawY = rect.top - 10;
+      const clampedY = rawY < 60 ? rect.bottom + 10 : rawY;
       activeTooltip = {
         content,
-        x: rect.left + rect.width / 2,
-        y: rect.top - 10,
+        x: clampedX,
+        y: clampedY,
       };
     }
   }
@@ -349,12 +361,18 @@
 
   <!-- Tooltip для Android -->
   {#if activeTooltip && app.currentPlatform === 'android'}
+    <!-- svelte-ignore a11y_click_events_have_key_events -->
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div class="tooltip-backdrop" onclick={closeTooltip}></div>
     <div
       class="tooltip-popup"
       role="dialog"
       aria-label="Tooltip"
-      style="position: fixed; left: {activeTooltip.x}px; top: {activeTooltip.y}px; transform: translateX(-50%);"
-      onclick={closeTooltip}
+      style="position: fixed; left: {activeTooltip.x}px; top: {activeTooltip.y}px; transform: translate(-50%, -100%);"
+      onclick={(e) => {
+        e.stopPropagation();
+        closeTooltip();
+      }}
       onkeydown={(e) => e.key === 'Escape' && closeTooltip()}
       tabindex="-1"
     >
@@ -423,7 +441,7 @@
 <style>
   /* ── Word header ── */
   .wd {
-    padding: 0.75rem 0 0;
+    padding: 0.75rem 0 0.5rem;
     transition: opacity 130ms;
   }
   .wd-loading {
@@ -509,14 +527,16 @@
   .def-list {
     list-style: decimal;
     padding-left: 1.4rem;
-    margin-top: 0.38rem;
+    margin-top: 0.2rem;
+    margin-bottom: 0;
   }
   .def-item {
-    padding: 0.32rem 0 0.32rem 0.2rem;
+    padding: 0.2rem 0 0.2rem 0.2rem;
     border-bottom: 1px solid var(--border);
   }
   .def-item:last-child {
     border-bottom: none;
+    padding-bottom: 0;
   }
 
   .def-head {
@@ -524,7 +544,7 @@
     align-items: center;
     gap: 0.28rem;
     flex-wrap: wrap;
-    margin-bottom: 0.12rem;
+    margin-bottom: 0.05rem;
     min-height: 26px; /* match btn-ic height */
   }
   .def-usage {
@@ -571,7 +591,7 @@
   .def-form {
     list-style: none;
     margin-left: -1.4rem;
-    padding: 0.4rem 0.2rem;
+    padding: 0.2rem 0.2rem 0;
   }
   .def-editor {
     background: var(--surf2);
@@ -678,6 +698,13 @@
   }
 
   /* Tooltip для Android */
+  .tooltip-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 999;
+    background: transparent;
+  }
+
   .tooltip-popup {
     background: var(--surf);
     border: 1px solid var(--border);
