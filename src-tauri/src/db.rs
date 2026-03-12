@@ -729,10 +729,7 @@ fn extract_keywords(body: &str) -> String {
     while let Some((_, c)) = chars.next() {
         if c == '\u{AB}' {
             // opening «
-            let start_byte = chars
-                .peek()
-                .map(|&(i, _)| i)
-                .unwrap_or(body.len());
+            let start_byte = chars.peek().map(|&(i, _)| i).unwrap_or(body.len());
             let mut end_byte = start_byte;
             for (i, c2) in chars.by_ref() {
                 if c2 == '\u{BB}' {
@@ -785,8 +782,7 @@ pub fn rebuild_fts(conn: &Connection) -> rusqlite::Result<()> {
     ",
     )?;
 
-    let mut sel =
-        conn.prepare("SELECT id, body FROM definitions WHERE body LIKE '%\u{AB}%'")?;
+    let mut sel = conn.prepare("SELECT id, body FROM definitions WHERE body LIKE '%\u{AB}%'")?;
     let rows: Vec<(i64, String)> = sel
         .query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?
         .filter_map(std::result::Result::ok)
@@ -1078,9 +1074,8 @@ pub fn get_event_words(
     conn: &Connection,
     event_id: i64,
 ) -> rusqlite::Result<(Vec<String>, Vec<String>)> {
-    let mut s = conn.prepare(
-        "SELECT w.name FROM words w WHERE w.event_start_id = ?1 ORDER BY w.name",
-    )?;
+    let mut s =
+        conn.prepare("SELECT w.name FROM words w WHERE w.event_start_id = ?1 ORDER BY w.name")?;
     let added: Vec<String> = s
         .query_map(params![event_id], |r| r.get(0))?
         .filter_map(std::result::Result::ok)
