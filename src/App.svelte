@@ -195,10 +195,14 @@
     const currentTab = app.tab;
     const dbOpen = app.dbOpen;
     const mobileShowList = app.mobileShowList;
-    
+
     // Only show bars on actual navigation changes, not on every render
     return () => {
-      if (currentTab !== app.tab || dbOpen !== app.dbOpen || mobileShowList !== app.mobileShowList) {
+      if (
+        currentTab !== app.tab ||
+        dbOpen !== app.dbOpen ||
+        mobileShowList !== app.mobileShowList
+      ) {
         showBars();
       }
     };
@@ -1229,7 +1233,9 @@
     .workspace {
       flex: 1;
       padding-top: calc(48px + env(safe-area-inset-top, 0px));
-      transition: padding-top 200ms ease-in-out, padding-bottom 200ms ease-in-out;
+      transition:
+        padding-top 200ms ease-in-out,
+        padding-bottom 200ms ease-in-out;
     }
     .bars-hidden .workspace {
       padding-top: 0;

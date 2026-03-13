@@ -83,7 +83,7 @@ export interface AppInfo {
   word_count: number;
   definition_count: number;
 }
-export type Tab = "words" | "events" | "types" | "authors";
+export type Tab = 'words' | 'events' | 'types' | 'authors';
 
 export interface ELResult {
   word_id: number;
@@ -102,4 +102,4 @@ export interface ELSearchParams {
   limit: number;
 }
 
-export type SearchMode = "le" | "el";
+export type SearchMode = 'le' | 'el';

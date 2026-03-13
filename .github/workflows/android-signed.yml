@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Tag to attach the signed APK to (e.g. v1.0.0)"
+        description: 'Tag to attach the signed APK to (e.g. v1.0.0)'
         required: true
 
 permissions:
@@ -35,7 +35,7 @@ jobs:
 
       - uses: actions/setup-java@v5
         with:
-          java-version: "17"
+          java-version: '17'
           distribution: temurin
 
       - uses: android-actions/setup-android@v3

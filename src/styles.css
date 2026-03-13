@@ -24,6 +24,6 @@ body {
   /* Prevent flash of unstyled content while JS boots */
   background: #0d0c09;
   color: #ddd0b8;
-  font-family: "JetBrains Mono", "Cascadia Code", "Consolas", monospace;
+  font-family: 'JetBrains Mono', 'Cascadia Code', 'Consolas', monospace;
   overflow: hidden;
 }

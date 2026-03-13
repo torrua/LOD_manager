@@ -55,9 +55,9 @@ jobs:
       - name: Commit formatting changes (if any)
         uses: stefanzweifel/git-auto-commit-action@v7
         with:
-          commit_message: "style: auto-format [autoformat]"
-          commit_author: "github-actions[bot] <github-actions[bot]@users.noreply.github.com>"
+          commit_message: 'style: auto-format [autoformat]'
+          commit_author: 'github-actions[bot] <github-actions[bot]@users.noreply.github.com>'
           # Exclude .github/ — GITHUB_TOKEN cannot push workflow file changes
           # without the `workflows` permission, and CI files shouldn't be
           # auto-formatted anyway.
-          file_pattern: ". :!.github"
+          file_pattern: '. :!.github'

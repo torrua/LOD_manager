@@ -3,7 +3,7 @@ name: Release
 on:
   push:
     tags:
-      - "v[0-9]+.[0-9]+.[0-9]+"
+      - 'v[0-9]+.[0-9]+.[0-9]+'
 
 permissions:
   contents: write
@@ -78,7 +78,7 @@ jobs:
 
       - uses: actions/setup-java@v5
         with:
-          java-version: "17"
+          java-version: '17'
           distribution: temurin
 
       - uses: android-actions/setup-android@v3

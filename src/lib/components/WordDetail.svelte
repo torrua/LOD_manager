@@ -106,7 +106,10 @@
       const TW = 180;
       const margin = 8;
       const rawX = rect.left + rect.width / 2;
-      const clampedX = Math.max(TW / 2 + margin, Math.min(window.innerWidth - TW / 2 - margin, rawX));
+      const clampedX = Math.max(
+        TW / 2 + margin,
+        Math.min(window.innerWidth - TW / 2 - margin, rawX)
+      );
       // If tooltip would go above screen, flip to below element
       const rawY = rect.top - 10;
       const clampedY = rawY < 60 ? rect.bottom + 10 : rawY;
@@ -366,7 +369,10 @@
       role="dialog"
       aria-label="Tooltip"
       style="position: fixed; left: {activeTooltip.x}px; top: {activeTooltip.y}px; transform: translate(-50%, -100%);"
-      onclick={(e) => { e.stopPropagation(); closeTooltip(); }}
+      onclick={(e) => {
+        e.stopPropagation();
+        closeTooltip();
+      }}
       onkeydown={(e) => e.key === 'Escape' && closeTooltip()}
       tabindex="-1"
     >
