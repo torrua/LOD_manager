@@ -225,6 +225,26 @@
       loadDbStats().catch(() => {});
   });
 
+  // ── Database info parsing ──────────────────────────────────────────────────
+  const dbInfo = $derived(() => {
+    if (!app.dbStats?.settings) return null;
+
+    const setting = app.dbStats.settings.find((s) => s.key === 'database_info');
+    if (!setting?.value) return null;
+
+    // Parse format: "07.10.2020 07:10:20@2@10141@4.5.8"
+    const parts = setting.value.split('@');
+    if (parts.length < 4) return null;
+
+    const dateTime = parts[0]; // "07.10.2020 07:10:20"
+    const version = parts[3]; // "4.5.8"
+
+    return {
+      created: dateTime,
+      version,
+    };
+  });
+
   // ── Settings meta fields ──────────────────────────────────────────────────
   const META_OPTS = [
     { key: 'type', label: 'Type' },
@@ -276,6 +296,12 @@
         <div class="db-stat-grid">
           <span class="dsl">File</span>
           <span class="dsv" title={app.dbPath}>{app.dbPath.split(/[/\\]/).pop()}</span>
+          {#if dbInfo()}
+            <span class="dsl">Created</span>
+            <span class="dsv">{dbInfo()?.created}</span>
+            <span class="dsl">Version</span>
+            <span class="dsv">{dbInfo()?.version}</span>
+          {/if}
           {#if app.dbStats}
             <span class="dsl">Words</span>
             <span class="dsv">{app.dbStats.word_count.toLocaleString()}</span>
@@ -292,8 +318,10 @@
                 >{app.dbStats.settings.length} keys</span
               >
               {#each app.dbStats.settings.slice(0, 8) as s}
-                <span class="dsl dsl-sub">{s.key}</span>
-                <span class="dsv dsv-sub">{s.value}</span>
+                {#if s.key !== 'database_info'}
+                  <span class="dsl dsl-sub">{s.key}</span>
+                  <span class="dsv dsv-sub">{s.value}</span>
+                {/if}
               {/each}
             {/if}
           {:else}

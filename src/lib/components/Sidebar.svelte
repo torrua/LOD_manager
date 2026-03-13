@@ -322,9 +322,9 @@
             role="button"
             tabindex="0"
             onclick={(e) => {
-                e.preventDefault();
-                selectEvent(ev.id);
-              }}
+              e.preventDefault();
+              selectEvent(ev.id);
+            }}
             onkeydown={(e) => itemKeydown(e, i)}
           >
             <span class="sn">{ev.name}</span>

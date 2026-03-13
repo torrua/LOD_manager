@@ -325,22 +325,23 @@ export async function loadEvents() {
 // Automatically select the latest event if no filter is set
 export async function autoSelectLatestEvent() {
   if (!app.events || app.events.length === 0) return;
-  
+
   // Only auto-select if user hasn't already set a filter
   if (app.prefs.eventFilter !== null) return;
-  
+
   let latestEvent;
-  
+
   // First try to find the latest event by date
-  const eventsWithDate = app.events.filter(e => e.date !== null);
+  const eventsWithDate = app.events.filter((e) => e.date !== null);
   if (eventsWithDate.length > 0) {
-    latestEvent = eventsWithDate
-      .sort((a, b) => new Date(b.date ?? 0).getTime() - new Date(a.date ?? 0).getTime())[0];
+    latestEvent = eventsWithDate.sort(
+      (a, b) => new Date(b.date ?? 0).getTime() - new Date(a.date ?? 0).getTime()
+    )[0];
   } else {
     // Fallback: use the event with the highest ID (most recently added)
     latestEvent = app.events.sort((a, b) => b.id - a.id)[0];
   }
-  
+
   if (latestEvent) {
     setPref('eventFilter', latestEvent.id);
     await loadWords(); // Refresh word list with new filter
@@ -563,7 +564,6 @@ export async function goForward() {
 }
 export const canGoBack = () => app.historyIdx > 0;
 export const canGoForward = () => app.historyIdx < app.history.length - 1;
-
 
 export async function getEventWords(eventId: number): Promise<[string[], string[]]> {
   return invoke('get_event_words', { eventId });

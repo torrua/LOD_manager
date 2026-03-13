@@ -305,12 +305,15 @@ pub fn import_files(conn: &mut Connection, paths: &[String]) -> ImportResult {
             .push(format!("Definitions: {}", result.definitions));
     }
 
-    let _ = tx.commit();
-    if let Some(p) = &settings_file
-        && let Ok(n) = import_settings(conn, p)
-    {
-        result.settings += n;
+    // 6. Settings - import before commit
+    if let Some(p) = &settings_file {
+        if let Ok(n) = import_settings(&tx, p) {
+            result.settings += n;
+            result.messages.push(format!("Settings: {}", result.settings));
+        }
     }
+
+    let _ = tx.commit();
     result
 }
 
@@ -322,12 +325,17 @@ fn import_settings(conn: &Connection, path: &str) -> Result<usize, Box<dyn std::
         .map(str::trim)
         .filter(|l| !l.is_empty() && !l.starts_with('#') && !l.starts_with("//"))
     {
-        let (k, v) = line
-            .split_once('=')
-            .or_else(|| line.split_once('\t'))
-            .map_or(("", ""), |(a, b)| (a.trim(), b.trim()));
-        if !k.is_empty() {
-            conn.execute("INSERT INTO settings(key,value) VALUES(?1,?2) ON CONFLICT(key) DO UPDATE SET value=excluded.value", params![k, v])?;
+        // Handle both key=value format and special database_info format
+        if let Some((k, v)) = line.split_once('=').or_else(|| line.split_once('\t')) {
+            let (k, v) = (k.trim(), v.trim());
+            if !k.is_empty() {
+                conn.execute("INSERT INTO settings(key,value) VALUES(?1,?2) ON CONFLICT(key) DO UPDATE SET value=excluded.value", params![k, v])?;
+                count += 1;
+            }
+        } else if line.contains('@') && line.chars().filter(|&c| c == '@').count() >= 3 {
+            // Special format like "07.10.2020 07:10:20@2@10141@4.5.8"
+            // Store as database_info key
+            conn.execute("INSERT INTO settings(key,value) VALUES(?1,?2) ON CONFLICT(key) DO UPDATE SET value=excluded.value", params!["database_info", line])?;
             count += 1;
         }
     }

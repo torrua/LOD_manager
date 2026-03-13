@@ -1,9 +1,9 @@
 name: Test Android Signing Methods
 
 on:
-  workflow_dispatch:  # позволяет запустить вручную
+  workflow_dispatch: # позволяет запустить вручную
   push:
-    branches: [ main, master ]  # замените на вашу ветку разработки
+    branches: [main, master] # замените на вашу ветку разработки
 
 permissions:
   contents: read
@@ -16,9 +16,9 @@ jobs:
       fail-fast: false
       matrix:
         method:
-          - gradle-props          # только gradle.properties
-          - env-vars              # только переменные окружения TAURI_ANDROID_*
-          - both-absolute         # комбинация с абсолютным путём к keystore
+          - gradle-props # только gradle.properties
+          - env-vars # только переменные окружения TAURI_ANDROID_*
+          - both-absolute # комбинация с абсолютным путём к keystore
 
     steps:
       - uses: actions/checkout@v6
