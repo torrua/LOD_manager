@@ -45,15 +45,7 @@
   const topPad = $derived(vStart * ROW_H);
   const botPad = $derived(Math.max(0, (app.filteredWords.length - vEnd) * ROW_H));
 
-  $effect(() => {
-    const id = app.curWord?.id;
-    if (!id || !listEl || app.tab !== 'words' || app.searchMode !== 'le') return;
-    const idx = app.filteredWords.findIndex((x) => x.id === id);
-    if (idx < 0) return;
-    const top = idx * ROW_H;
-    if (top < listEl.scrollTop || top + ROW_H > listEl.scrollTop + clientH)
-      listEl.scrollTop = Math.max(0, top - clientH / 2 + ROW_H / 2);
-  });
+  // Auto-scroll functionality removed
 
   // ── Keyboard nav ─────────────────────────────────────────────────────────
   function searchKeydown(e: KeyboardEvent) {
@@ -80,7 +72,6 @@
       const nxtWord = app.filteredWords[nxt];
       if (nxt < app.filteredWords.length && nxtWord) {
         selectWord(nxtWord.id);
-        scrollToIdx(nxt);
       }
     }
     if (e.key === 'ArrowUp') {
@@ -90,7 +81,6 @@
         const prevWord = app.filteredWords[absIdx - 1];
         if (prevWord) {
           selectWord(prevWord.id);
-          scrollToIdx(absIdx - 1);
         }
       }
     }
@@ -100,12 +90,7 @@
       if (cur) selectWord(cur.id);
     }
   }
-  function scrollToIdx(idx: number) {
-    if (!listEl) return;
-    const top = idx * ROW_H;
-    if (top < listEl.scrollTop || top + ROW_H > listEl.scrollTop + clientH)
-      listEl.scrollTop = Math.max(0, top - clientH / 2 + ROW_H / 2);
-  }
+  // Auto-scroll functionality removed - list stays in place
 
   // ── Filter helpers ────────────────────────────────────────────────────────
   const groups = $derived([...new Set(app.types.map((t) => t.group_ || 'Other'))].sort());
@@ -205,14 +190,15 @@
         {/if}
       </div>
 
-      <!-- E→L sub-filters: FTS vs Keywords — shown below search in EL mode -->
+      <!-- E→L sub-filters: FTS vs LIKE vs Keywords — shown below search in EL mode -->
       {#if app.tab === 'words' && elMode}
         <div class="filter-row el-filters">
           <button
             class="el-filter-btn"
-            class:el-filter-on={!app.prefs.elUseKeywords}
+            class:el-filter-on={!app.prefs.elUseKeywords && !app.prefs.elUseLike}
             onclick={() => {
               setPref('elUseKeywords', false);
+              setPref('elUseLike', false);
               if (app.elQuery) searchEnglishNow();
             }}
             title="Full-text search across all definition text (FTS5)"
@@ -221,9 +207,22 @@
           </button>
           <button
             class="el-filter-btn"
+            class:el-filter-on={app.prefs.elUseLike}
+            onclick={() => {
+              setPref('elUseLike', true);
+              setPref('elUseKeywords', false);
+              if (app.elQuery) searchEnglishNow();
+            }}
+            title="Pattern matching with LIKE operator"
+          >
+            LIKE
+          </button>
+          <button
+            class="el-filter-btn"
             class:el-filter-on={app.prefs.elUseKeywords}
             onclick={() => {
               setPref('elUseKeywords', true);
+              setPref('elUseLike', false);
               if (app.elQuery) searchEnglishNow();
             }}
             title="Search only highlighted «keywords» in definitions"
@@ -297,7 +296,10 @@
               class:loading={app.loadingWordId === w.id}
               role="button"
               tabindex="0"
-              onclick={() => selectWord(w.id)}
+              onclick={(e) => {
+                e.preventDefault();
+                selectWord(w.id);
+              }}
               onkeydown={(e) => itemKeydown(e, vStart + i)}
             >
               <span class="sn">{w.name}</span>
@@ -319,7 +321,10 @@
             class:on={app.curEvent?.id === ev.id}
             role="button"
             tabindex="0"
-            onclick={() => selectEvent(ev.id)}
+            onclick={(e) => {
+                e.preventDefault();
+                selectEvent(ev.id);
+              }}
             onkeydown={(e) => itemKeydown(e, i)}
           >
             <span class="sn">{ev.name}</span>
@@ -573,12 +578,13 @@
     background: var(--inp-bg);
     color: var(--sb-text2);
     font-family: inherit;
-    font-size: 0.58rem;
+    font-size: 0.54rem;
     font-weight: 600;
-    letter-spacing: 0.03em;
+    letter-spacing: 0.02em;
     cursor: pointer;
     transition: all 140ms;
     -webkit-tap-highlight-color: transparent;
+    padding: 0 0.2rem;
   }
   .el-filter-btn:hover {
     border-color: var(--gold-d);
@@ -592,7 +598,8 @@
   @media (max-width: 640px) {
     .el-filter-btn {
       height: 28px;
-      font-size: 0.68rem;
+      font-size: 0.62rem;
+      padding: 0 0.3rem;
     }
   }
 
@@ -642,6 +649,8 @@
     scrollbar-width: thin;
     scrollbar-color: var(--sb-border) transparent;
     /* NO padding-right: items fill full width so highlight reaches edge */
+    /* Prevent scroll on focus */
+    scroll-behavior: auto;
   }
   .sb-list::-webkit-scrollbar {
     width: 5px;
@@ -677,6 +686,9 @@
     flex-shrink: 0;
     -webkit-tap-highlight-color: transparent;
     touch-action: manipulation;
+    /* Prevent scroll on focus */
+    scroll-margin: 0;
+    scroll-padding: 0;
   }
   .si:hover,
   .si:focus {

@@ -32,9 +32,7 @@
 
   function handleSelect(wordId: number) {
     selectWord(wordId);
-    requestAnimationFrame(() => {
-      document.querySelector<HTMLElement>('.el-row.on')?.scrollIntoView({ block: 'nearest' });
-    });
+    // Removed auto-scroll - let user control position
   }
 </script>
 

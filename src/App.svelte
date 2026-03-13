@@ -118,95 +118,12 @@
     else document.documentElement.removeAttribute('data-ro');
   });
 
-  // ── Smart bars: hide on scroll-down, show on scroll-up / at bottom ────────
-  let barsHidden = $state(false);
-  // Per-element last Y — still needed to compute delta correctly per container
-  const _lastY = new WeakMap<Element, number>();
-  // Single shared RAF flag — both containers feed one decision per frame
-  let _rafId = 0;
-  let _pendingEl: Element | null = null;
-  const HIDE_TOLERANCE = 4;
-  const SHOW_TOLERANCE = 5;
-  const AT_BOTTOM_PX = 48;
+  // ── Smart bars: DISABLED ────────
+  const barsHidden = $state(false);
 
-  function showBars() {
-    if (barsHidden) barsHidden = false;
-  }
+  // Smart bars functionality removed
 
-  function handleSmartScroll(el: Element) {
-    if (window.innerWidth > 640) return;
-    // Record which element fired last — the RAF will read it
-    _pendingEl = el;
-    if (_rafId) return; // already scheduled
-    _rafId = requestAnimationFrame(() => {
-      _rafId = 0;
-      const target = _pendingEl;
-      _pendingEl = null;
-      if (!target) return;
-
-      const st = target.scrollTop;
-      const last = _lastY.get(target) ?? st;
-      _lastY.set(target, st);
-
-      const atBottom = target.scrollHeight - st - target.clientHeight < AT_BOTTOM_PX;
-      const atTop = st < 8;
-
-      if (atTop || atBottom) {
-        showBars();
-        return;
-      }
-
-      const delta = st - last;
-      if (delta > HIDE_TOLERANCE && !barsHidden) {
-        barsHidden = true;
-      } else if (delta < -SHOW_TOLERANCE && barsHidden) {
-        showBars();
-      }
-    });
-  }
-
-  $effect(() => {
-    let main: Element | null = null;
-    let sbList: Element | null = null;
-    const onMain = () => main && handleSmartScroll(main);
-    const onSb = () => sbList && handleSmartScroll(sbList);
-
-    if (app.dbOpen) {
-      // Use tick so DOM is settled before querying elements
-      import('svelte').then(({ tick }) =>
-        tick().then(() => {
-          main = document.querySelector('.main-content');
-          sbList = document.querySelector('.sb-list');
-          main?.addEventListener('scroll', onMain, { passive: true });
-          sbList?.addEventListener('scroll', onSb, { passive: true });
-        })
-      );
-    }
-
-    return () => {
-      main?.removeEventListener('scroll', onMain);
-      sbList?.removeEventListener('scroll', onSb);
-    };
-  });
-
-  // Reset bars when navigating (tab change, db close, etc.)
-  $effect(() => {
-    // Track tab changes and db state — any change shows the bars
-    const currentTab = app.tab;
-    const dbOpen = app.dbOpen;
-    const mobileShowList = app.mobileShowList;
-
-    // Only show bars on actual navigation changes, not on every render
-    return () => {
-      if (
-        currentTab !== app.tab ||
-        dbOpen !== app.dbOpen ||
-        mobileShowList !== app.mobileShowList
-      ) {
-        showBars();
-      }
-    };
-  });
+  // Smart bars functionality removed
 
   // ── compact bottom-bar new-item sheet ─────────────────────────────
   let newSheetOpen = $state(false);
@@ -334,7 +251,6 @@
     _swipeX = e.touches[0]?.clientX || 0;
     _swipeT = Date.now();
     // Restore bars only on edge-swipe intent, not on every tap
-    if (barsHidden && _swipeX < 30) showBars();
   }
   function onTouchEnd(e: TouchEvent) {
     const dx = (e.changedTouches[0]?.clientX || 0) - _swipeX;
@@ -356,8 +272,7 @@
           app.mobileShowList = true;
         }
       }
-      // Swipe navigation = user is reorienting — show the bars
-      showBars();
+      // Swipe navigation = user is reorienting
     }
   }
 
@@ -1187,59 +1102,26 @@
   }
 
   /*
-   * Smart bars — mobile only.
-   *
-   * Bars:    position:fixed, animate via transform (GPU, no reflow).
-   * Content: padding-top animates in sync with top-bar transform so the
-   *          content edge tracks the bar edge and freed space is visible.
-   *          Same duration/easing → bar and content move as one unit.
+   * Smart bars — DISABLED.
+   * Panels are now always visible on mobile.
    */
   @media (max-width: 640px) {
     .app {
       height: 100dvh;
     }
 
-    /* Top bar: fixed, slides up when hidden */
+    /* Top bar: normal layout (no auto-hide) */
     .top-bar {
-      position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      z-index: 60;
+      position: relative;
       flex-shrink: unset;
-      will-change: transform;
-      transition: transform 200ms ease-in-out;
-    }
-    .bars-hidden .top-bar {
-      transform: translateY(-100%);
-      pointer-events: none;
     }
 
-    /* Bottom bar: already fixed, slides down when hidden */
-    .mob-bar {
-      will-change: transform;
-      transition: transform 200ms ease-in-out;
-    }
-    .bars-hidden .mob-bar {
-      transform: translateY(100%);
-      pointer-events: none;
-    }
+    /* Bottom bar: normal layout (no auto-hide) */
 
-    /*
-     * Workspace padding-top mirrors top-bar height and animates together.
-     * When bar hides → padding collapses → content fills the freed space.
-     * padding-bottom (mob-bar) handled in the mobile workspace block below.
-     */
+    /* Workspace: normal layout (no auto-hide) */
     .workspace {
       flex: 1;
-      padding-top: calc(48px + env(safe-area-inset-top, 0px));
-      transition:
-        padding-top 200ms ease-in-out,
-        padding-bottom 200ms ease-in-out;
-    }
-    .bars-hidden .workspace {
-      padding-top: 0;
-      padding-bottom: 0;
+      padding-bottom: var(--mob-bar-h, 56px);
     }
   }
 
@@ -1521,7 +1403,9 @@
       padding-top: calc(48px + env(safe-area-inset-top, 0px) + 1rem);
     }
     .workspace {
+      flex: 1;
       flex-direction: column;
+      padding-top: 0;
       padding-bottom: var(--mob-bar-h, 56px);
     }
     /* Header tabs mobile styles */
