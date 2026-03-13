@@ -20,9 +20,7 @@
 
   // ── App version ───────────────────────────────────────────────────────────
   let appVersion = $state('…');
-  getVersion()
-    .then((v) => (appVersion = v))
-    .catch(() => (appVersion = '—'));
+  getVersion().then((v) => (appVersion = v)).catch(() => (appVersion = '—'));
 
   // ── Import ────────────────────────────────────────────────────────────────
   let impPaths = $state<string[]>([]);

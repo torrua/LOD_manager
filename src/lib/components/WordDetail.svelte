@@ -106,10 +106,7 @@
       const TW = 180;
       const margin = 8;
       const rawX = rect.left + rect.width / 2;
-      const clampedX = Math.max(
-        TW / 2 + margin,
-        Math.min(window.innerWidth - TW / 2 - margin, rawX)
-      );
+      const clampedX = Math.max(TW / 2 + margin, Math.min(window.innerWidth - TW / 2 - margin, rawX));
       // If tooltip would go above screen, flip to below element
       const rawY = rect.top - 10;
       const clampedY = rawY < 60 ? rect.bottom + 10 : rawY;
@@ -369,10 +366,7 @@
       role="dialog"
       aria-label="Tooltip"
       style="position: fixed; left: {activeTooltip.x}px; top: {activeTooltip.y}px; transform: translate(-50%, -100%);"
-      onclick={(e) => {
-        e.stopPropagation();
-        closeTooltip();
-      }}
+      onclick={(e) => { e.stopPropagation(); closeTooltip(); }}
       onkeydown={(e) => e.key === 'Escape' && closeTooltip()}
       tabindex="-1"
     >
@@ -441,7 +435,7 @@
 <style>
   /* ── Word header ── */
   .wd {
-    padding: 0.75rem 0 0.5rem;
+    padding: 0.75rem 0 3.5rem;
     transition: opacity 130ms;
   }
   .wd-loading {
@@ -527,16 +521,14 @@
   .def-list {
     list-style: decimal;
     padding-left: 1.4rem;
-    margin-top: 0.2rem;
-    margin-bottom: 0;
+    margin-top: 0.38rem;
   }
   .def-item {
-    padding: 0.2rem 0 0.2rem 0.2rem;
+    padding: 0.32rem 0 0.32rem 0.2rem;
     border-bottom: 1px solid var(--border);
   }
   .def-item:last-child {
     border-bottom: none;
-    padding-bottom: 0;
   }
 
   .def-head {
@@ -544,7 +536,7 @@
     align-items: center;
     gap: 0.28rem;
     flex-wrap: wrap;
-    margin-bottom: 0.05rem;
+    margin-bottom: 0.12rem;
     min-height: 26px; /* match btn-ic height */
   }
   .def-usage {
@@ -591,7 +583,7 @@
   .def-form {
     list-style: none;
     margin-left: -1.4rem;
-    padding: 0.2rem 0.2rem 0;
+    padding: 0.4rem 0.2rem;
   }
   .def-editor {
     background: var(--surf2);

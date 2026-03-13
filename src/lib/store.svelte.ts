@@ -1,7 +1,7 @@
-import { invoke } from '@tauri-apps/api/core';
-import { readFile, writeFile } from '@tauri-apps/plugin-fs';
-import { appDataDir, BaseDirectory } from '@tauri-apps/api/path';
-import { platform } from '@tauri-apps/plugin-os';
+import { invoke } from "@tauri-apps/api/core";
+import { readFile, writeFile } from "@tauri-apps/plugin-fs";
+import { appDataDir, BaseDirectory } from "@tauri-apps/api/path";
+import { platform } from "@tauri-apps/plugin-os";
 import type {
   WordListItem,
   WordDetail,
@@ -13,56 +13,56 @@ import type {
   ELResult,
   SearchMode,
   Tab,
-} from '../types';
+} from "../types";
 
 // ─── Preferences ─────────────────────────────────────────────────────────────
 function loadPrefs() {
   try {
-    return JSON.parse(localStorage.getItem('lod-prefs') || '{}');
+    return JSON.parse(localStorage.getItem("lod-prefs") || "{}");
   } catch {
     return {};
   }
 }
 function savePrefs() {
-  localStorage.setItem('lod-prefs', JSON.stringify(app.prefs));
+  localStorage.setItem("lod-prefs", JSON.stringify(app.prefs));
 }
 
-const DEFAULT_META = ['type', 'source', 'year', 'rank', 'match', 'event'];
+const DEFAULT_META = ["type", "source", "year", "rank", "match", "event"];
 
 export const app = $state({
   dbOpen: false,
-  dbPath: '',
+  dbPath: "",
   wordCount: 0,
-  theme: (localStorage.getItem('lod-theme') || 'dark') as 'dark' | 'light',
-  readonly: localStorage.getItem('lod-ro') === '1',
-  tab: 'words' as Tab,
+  theme: (localStorage.getItem("lod-theme") || "dark") as "dark" | "light",
+  readonly: localStorage.getItem("lod-ro") === "1",
+  tab: "words" as Tab,
   words: [] as WordListItem[],
   filteredWords: [] as WordListItem[],
-  searchQ: '',
-  typeFilter: '',
+  searchQ: "",
+  typeFilter: "",
   curWord: null as WordDetail | null,
   loadingWordId: null as number | null,
   curEvent: null as EventItem | null,
   types: [] as TypeItem[],
   authors: [] as AuthorItem[],
   events: [] as EventItem[],
-  panel: 'welcome' as string,
+  panel: "welcome" as string,
   editing: false,
   history: [] as Array<{ tab: Tab; id: number }>,
   historyIdx: -1,
   toolsOpen: false,
-  toolsTab: 'settings' as 'import' | 'export' | 'database' | 'settings',
+  toolsTab: "settings" as "import" | "export" | "database" | "settings",
   newSignal: 0,
   mobileShowList: true,
-  toast: null as { msg: string; kind: 'ok' | 'err' | 'info' } | null,
-  searchMode: 'le' as SearchMode, // L→E or E→L
-  elQuery: '',
+  toast: null as { msg: string; kind: "ok" | "err" | "info" } | null,
+  searchMode: "le" as SearchMode, // L→E or E→L
+  elQuery: "",
   elResults: [] as ELResult[],
   elSearching: false,
   elFtsReady: false, // FTS index populated
   toastTimer: 0,
   dbStats: null as DbStats | null,
-  currentPlatform: 'unknown' as string,
+  currentPlatform: "unknown" as string,
   suggestImport: false, // set true when DB opened/created empty
   prefs: {
     showTypeTag: (loadPrefs().showTypeTag ?? true) as boolean,
@@ -94,27 +94,31 @@ export const app = $state({
   },
 });
 
-export function setPref<K extends keyof typeof app.prefs>(k: K, v: (typeof app.prefs)[K]) {
+export function setPref<K extends keyof typeof app.prefs>(
+  k: K,
+  v: (typeof app.prefs)[K],
+) {
   app.prefs[k] = v;
   savePrefs();
 }
 export function toggleMetaField(field: string) {
   const idx = app.prefs.visibleMeta.indexOf(field);
-  if (idx >= 0) app.prefs.visibleMeta = app.prefs.visibleMeta.filter((f) => f !== field);
+  if (idx >= 0)
+    app.prefs.visibleMeta = app.prefs.visibleMeta.filter((f) => f !== field);
   else app.prefs.visibleMeta = [...app.prefs.visibleMeta, field];
   savePrefs();
 }
 
 export function toggleTheme() {
-  app.theme = app.theme === 'dark' ? 'light' : 'dark';
-  localStorage.setItem('lod-theme', app.theme);
+  app.theme = app.theme === "dark" ? "light" : "dark";
+  localStorage.setItem("lod-theme", app.theme);
   document.documentElement.dataset.theme = app.theme;
 }
 export function toggleReadonly() {
   app.readonly = !app.readonly;
-  localStorage.setItem('lod-ro', app.readonly ? '1' : '0');
+  localStorage.setItem("lod-ro", app.readonly ? "1" : "0");
 }
-export function toast(msg: string, kind: 'ok' | 'err' | 'info' = 'ok') {
+export function toast(msg: string, kind: "ok" | "err" | "info" = "ok") {
   clearTimeout(app.toastTimer);
   app.toast = { msg, kind };
   app.toastTimer = setTimeout(() => {
@@ -125,58 +129,60 @@ export function toast(msg: string, kind: 'ok' | 'err' | 'info' = 'ok') {
 /// Ask Rust for the canonical default DB path (app_data_dir/lod.db).
 /// This works reliably on Android where JS path construction can mismatch.
 export async function getDefaultDbPath(): Promise<string> {
-  return invoke('get_default_db_path');
+  return invoke("get_default_db_path");
 }
 
 export async function openDb(path: string) {
   // Android file picker returns content:// URIs which SQLite cannot open
   // directly. Copy the file to app data dir and open from there instead.
   let actualPath = path;
-  if (path.startsWith('content://')) {
+  if (path.startsWith("content://")) {
     try {
       const bytes = await readFile(path);
       const destName = `imported_${Date.now()}.db`;
       await writeFile(destName, bytes, { baseDir: BaseDirectory.AppData });
       const dir = await appDataDir();
-      actualPath = dir.endsWith('/') ? `${dir}${destName}` : `${dir}/${destName}`;
+      actualPath = dir.endsWith("/")
+        ? `${dir}${destName}`
+        : `${dir}/${destName}`;
     } catch (e) {
       throw new Error(
-        `Cannot read Android file: ${String(e)}. Try using "New Database" and importing your data instead.`
+        `Cannot read Android file: ${String(e)}. Try using "New Database" and importing your data instead.`,
       );
     }
   }
-  const info: AppInfo = await invoke('open_database', { path: actualPath });
+  const info: AppInfo = await invoke("open_database", { path: actualPath });
   app.dbOpen = true;
   app.dbPath = info.db_path;
   // Only persist non-Android paths; Android always derives path from app_data_dir
-  if (!actualPath.startsWith('content://')) {
-    localStorage.setItem('lod-last-db', actualPath);
+  if (!actualPath.startsWith("content://")) {
+    localStorage.setItem("lod-last-db", actualPath);
   }
   await loadAll();
-  app.panel = 'welcome';
+  app.panel = "welcome";
   app.toolsOpen = false;
-  toast(`Opened — ${app.words.length.toLocaleString()} words`, 'ok');
+  toast(`Opened — ${app.words.length.toLocaleString()} words`, "ok");
   if (app.words.length === 0) app.suggestImport = true;
   checkFts().catch(() => {});
   loadDbStats().catch(() => {});
 }
 export async function createDb(path: string) {
-  const info: AppInfo = await invoke('create_database', { path });
+  const info: AppInfo = await invoke("create_database", { path });
   app.dbOpen = true;
   app.dbPath = info.db_path;
-  localStorage.setItem('lod-last-db', path);
+  localStorage.setItem("lod-last-db", path);
   await loadAll();
-  app.panel = 'welcome';
+  app.panel = "welcome";
   app.toolsOpen = false;
-  toast('New database created', 'ok');
+  toast("New database created", "ok");
   app.suggestImport = true;
 }
 export function getLastDbPath(): string {
-  return localStorage.getItem('lod-last-db') || '';
+  return localStorage.getItem("lod-last-db") || "";
 }
 export function closeDb() {
   app.dbOpen = false;
-  app.dbPath = '';
+  app.dbPath = "";
   app.wordCount = 0;
   app.words = [];
   app.filteredWords = [];
@@ -186,32 +192,32 @@ export function closeDb() {
   app.curWord = null;
   app.loadingWordId = null;
   app.curEvent = null;
-  app.panel = 'welcome';
+  app.panel = "welcome";
   app.toolsOpen = false;
   app.mobileShowList = true;
   app.editing = false;
-  app.tab = 'words';
+  app.tab = "words";
   app.history = [];
   app.historyIdx = -1;
   app.dbStats = null;
-  localStorage.removeItem('lod-last-db');
+  localStorage.removeItem("lod-last-db");
 }
 export async function loadDbStats() {
-  app.dbStats = await invoke('get_db_stats');
+  app.dbStats = await invoke("get_db_stats");
 }
 
 async function loadAll() {
   try {
     await Promise.all([loadWords(), loadTypes(), loadEvents(), loadAuthors()]);
   } catch (e) {
-    console.error('loadAll:', e);
+    console.error("loadAll:", e);
   }
 }
 
 export async function loadWords() {
-  app.words = await invoke('get_words', {
-    q: '',
-    typeFilter: '',
+  app.words = await invoke("get_words", {
+    q: "",
+    typeFilter: "",
     eventId: app.prefs.eventFilter ?? null,
   });
   app.wordCount = app.words.length;
@@ -220,7 +226,9 @@ export async function loadWords() {
 // Reactive derived — tracks app.events and app.prefs.eventFilter automatically.
 // Export as function since derived values cannot be exported directly from modules
 export const getActiveEvent = () =>
-  app.prefs.eventFilter ? (app.events.find((e) => e.id === app.prefs.eventFilter) ?? null) : null;
+  app.prefs.eventFilter
+    ? (app.events.find((e) => e.id === app.prefs.eventFilter) ?? null)
+    : null;
 // Cache for type-group lookups so applyFilter doesn't scan app.types on every word
 const _typeGroupCache = new Map<string, string | undefined>();
 let _typeGroupCacheStamp = 0;
@@ -239,13 +247,13 @@ export function applyFilter() {
   }
   let ws = app.words;
   if (q) {
-    if (q.includes('*') || q.includes('?')) {
+    if (q.includes("*") || q.includes("?")) {
       const pat = new RegExp(
         `^${q
-          .replace(/[.+^${}()|[\]\\]/g, '\\$&')
-          .replace(/\*/g, '.*')
-          .replace(/\?/g, '.')}$`,
-        'i'
+          .replace(/[.+^${}()|[\]\\]/g, "\\$&")
+          .replace(/\*/g, ".*")
+          .replace(/\?/g, ".")}$`,
+        "i",
       );
       ws = ws.filter((w) => pat.test(w.name));
     } else {
@@ -253,130 +261,129 @@ export function applyFilter() {
     }
   }
   if (tf) {
-    if (tf.startsWith('__g__')) {
+    if (tf.startsWith("__g__")) {
       const g = tf.slice(5);
       if (_typeGroupCacheStamp !== app.types.length) {
         _typeGroupCache.clear();
-        for (const t of app.types) _typeGroupCache.set(t.name, t.group_ || undefined);
+        for (const t of app.types)
+          _typeGroupCache.set(t.name, t.group_ || undefined);
         _typeGroupCacheStamp = app.types.length;
       }
-      ws = ws.filter((w) => w.type_name !== null && _typeGroupCache.get(w.type_name) === g);
+      ws = ws.filter(
+        (w) => w.type_name !== null && _typeGroupCache.get(w.type_name) === g,
+      );
     } else {
-      ws = ws.filter((w) => w.type_name === app.typeFilter);
+      ws = ws.filter((w) => w.type_name === tf);
     }
   }
   app.filteredWords = ws;
-
-  // Auto-select single word if there's exactly one result
-  if (ws.length === 1 && ws[0]) {
-    selectWord(ws[0].id);
-  }
 }
 
 export async function selectWord(id: number, pushHist = true) {
   if (!id) return;
   if (app.loadingWordId === id) return; // Only prevent if already loading this word
   app.loadingWordId = id;
-  app.tab = 'words';
+  app.tab = "words";
   app.mobileShowList = false;
   try {
-    const word: WordDetail = await invoke('get_word', { id });
+    const word: WordDetail = await invoke("get_word", { id });
     if (app.loadingWordId !== id) return; // race: newer request took over
     app.curWord = word;
     app.editing = false;
-    app.panel = 'word';
-    if (pushHist) pushHistory({ tab: 'words', id });
-    // Removed auto-scroll - let keyboard navigation handle scrolling
+    app.panel = "word";
+    if (pushHist) pushHistory({ tab: "words", id });
+    _scrollSidebarTo(id);
   } catch {
-    toast('Word not found', 'err');
+    toast("Word not found", "err");
     if (app.loadingWordId === id) app.mobileShowList = true;
   } finally {
     if (app.loadingWordId === id) app.loadingWordId = null;
   }
 }
 export async function saveWord(id: number | null, data: object) {
-  const w: WordDetail = await invoke('save_word', { id, data });
-  toast(id ? 'Saved!' : 'Created!', 'ok');
+  const w: WordDetail = await invoke("save_word", { id, data });
+  toast(id ? "Saved!" : "Created!", "ok");
   app.curWord = w;
   app.editing = false;
-  app.panel = 'word';
+  app.panel = "word";
   await loadWords();
 }
 export async function deleteWord(id: number) {
-  await invoke('delete_word', { id });
-  toast('Deleted', 'ok');
+  await invoke("delete_word", { id });
+  toast("Deleted", "ok");
   app.curWord = null;
-  app.panel = 'welcome';
+  app.panel = "welcome";
   app.mobileShowList = true;
   await loadWords();
 }
 export async function saveDef(id: number | null, wordId: number, data: object) {
-  app.curWord = await invoke('save_definition', { id, wordId, data });
-  toast(id ? 'Updated' : 'Added', 'ok');
+  app.curWord = await invoke("save_definition", { id, wordId, data });
+  toast(id ? "Updated" : "Added", "ok");
 }
 export async function deleteDef(id: number, wordId: number) {
-  app.curWord = await invoke('delete_definition', { id, wordId });
-  toast('Deleted', 'ok');
+  app.curWord = await invoke("delete_definition", { id, wordId });
+  toast("Deleted", "ok");
 }
 
 export async function loadEvents() {
-  app.events = await invoke('get_events');
+  app.events = await invoke("get_events");
 }
 export async function selectEvent(id: number, pushHist = true) {
   app.curEvent = app.events.find((e) => e.id === id) || null;
   app.editing = false;
-  app.panel = 'event';
-  app.tab = 'events';
+  app.panel = "event";
+  app.tab = "events";
   app.mobileShowList = false;
-  if (pushHist) pushHistory({ tab: 'events', id });
+  if (pushHist) pushHistory({ tab: "events", id });
 }
 export async function saveEvent(id: number | null, data: object) {
-  const ev: EventItem = await invoke('save_event', { id, data });
-  toast(id ? 'Saved!' : 'Created!', 'ok');
+  const ev: EventItem = await invoke("save_event", { id, data });
+  toast(id ? "Saved!" : "Created!", "ok");
   await loadEvents();
   app.curEvent = app.events.find((e) => e.id === ev.id) || null;
   app.editing = false;
-  app.panel = 'event';
+  app.panel = "event";
 }
 export async function deleteEvent(id: number) {
-  await invoke('delete_event', { id });
-  toast('Deleted', 'ok');
+  await invoke("delete_event", { id });
+  toast("Deleted", "ok");
   app.curEvent = null;
-  app.panel = 'welcome';
+  app.panel = "welcome";
   app.mobileShowList = true;
   await loadEvents();
 }
 
 export async function loadTypes() {
-  app.types = await invoke('get_types');
+  app.types = await invoke("get_types");
 }
 export async function saveType(id: number | null, data: object) {
-  app.types = await invoke('save_type', { id, data });
-  toast(id ? 'Updated!' : 'Created!', 'ok');
+  app.types = await invoke("save_type", { id, data });
+  toast(id ? "Updated!" : "Created!", "ok");
 }
 export async function deleteType(id: number) {
-  app.types = await invoke('delete_type', { id });
-  toast('Deleted', 'ok');
+  app.types = await invoke("delete_type", { id });
+  toast("Deleted", "ok");
 }
 
 export async function loadAuthors() {
-  app.authors = await invoke('get_authors');
+  app.authors = await invoke("get_authors");
 }
 export async function saveAuthor(id: number | null, data: object) {
-  app.authors = await invoke('save_author', { id, data });
-  toast(id ? 'Updated!' : 'Added!', 'ok');
+  app.authors = await invoke("save_author", { id, data });
+  toast(id ? "Updated!" : "Added!", "ok");
 }
 export async function deleteAuthor(id: number) {
-  app.authors = await invoke('delete_author', { id });
-  toast('Deleted', 'ok');
+  app.authors = await invoke("delete_author", { id });
+  toast("Deleted", "ok");
 }
 
 export async function importFiles(paths: string[], fileNames?: string[]) {
   // Check for different URI types
   const hasContentUris = paths.some(
-    (p) => p.startsWith('content://') || p.startsWith('msf:') || p.includes('%3A')
+    (p) =>
+      p.startsWith("content://") || p.startsWith("msf:") || p.includes("%3A"),
   );
-  const hasGitHubUris = paths.some((p) => p.startsWith('github://'));
+  const hasGitHubUris = paths.some((p) => p.startsWith("github://"));
 
   let result;
   if (hasGitHubUris) {
@@ -384,10 +391,10 @@ export async function importFiles(paths: string[], fileNames?: string[]) {
     const files: [string, string][] = [];
     for (let i = 0; i < paths.length; i++) {
       const p = paths[i];
-      if (!p || !p.startsWith('github://')) continue;
+      if (!p || !p.startsWith("github://")) continue;
 
       // Parse github://filename:content format
-      const colonIndex = p.indexOf(':', 9); // 9 = length of "github://"
+      const colonIndex = p.indexOf(":", 9); // 9 = length of "github://"
       if (colonIndex === -1) continue;
 
       const name = p.substring(9, colonIndex);
@@ -395,7 +402,7 @@ export async function importFiles(paths: string[], fileNames?: string[]) {
 
       files.push([name, content]);
     }
-    result = await invoke('import_lod_contents', { files });
+    result = await invoke("import_lod_contents", { files });
   } else if (hasContentUris) {
     // Read each file as text in JS, pair with its name for the Rust importer
     const files: [string, string][] = [];
@@ -405,44 +412,51 @@ export async function importFiles(paths: string[], fileNames?: string[]) {
       // Use provided filename or derive from path/index
       let name = fileNames?.[i];
       if (!name) {
-        if (p.startsWith('content://')) {
+        if (p.startsWith("content://")) {
           // For Android content URIs, try to extract meaningful filename
           const decoded = decodeURIComponent(p);
-          const uriParts = decoded.split('/');
+          const uriParts = decoded.split("/");
           const lastPart = uriParts[uriParts.length - 1];
-          const cleanName = lastPart?.split('?')[0]?.split('#')[0] || '';
+          const cleanName = lastPart?.split("?")[0]?.split("#")[0] || "";
           // If it looks like a filename, use it; otherwise use generic name
-          if (cleanName && (cleanName.includes('.') || cleanName.length > 10)) {
+          if (cleanName && (cleanName.includes(".") || cleanName.length > 10)) {
             name = cleanName;
           } else {
             // Try to get document ID or use timestamp-based name
-            const docId = uriParts.find((part) => part.includes('document'))?.split('document/')[1];
-            name = docId ? `file_${docId}.txt` : `android_file_${Date.now()}_${i}.txt`;
+            const docId = uriParts
+              .find((part) => part.includes("document"))
+              ?.split("document/")[1];
+            name = docId
+              ? `file_${docId}.txt`
+              : `android_file_${Date.now()}_${i}.txt`;
           }
         } else {
           // For regular file paths
-          name = p.split('/').pop() || `file_${i}.txt`;
+          name = p.split("/").pop() || `file_${i}.txt`;
         }
       }
-      if (!name.endsWith('.txt')) name = `${name}.txt`;
+      if (!name.endsWith(".txt")) name = `${name}.txt`;
       try {
         const bytes = await readFile(p);
-        const text = new TextDecoder('utf-8').decode(bytes);
+        const text = new TextDecoder("utf-8").decode(bytes);
         files.push([name, text]);
       } catch (e) {
-        console.warn('Could not read import file:', p, e);
+        console.warn("Could not read import file:", p, e);
       }
     }
-    result = await invoke('import_lod_contents', { files });
+    result = await invoke("import_lod_contents", { files });
   } else {
-    result = await invoke('import_lod_files', { paths });
+    result = await invoke("import_lod_files", { paths });
   }
   await loadAll();
   loadDbStats().catch(() => {});
   return result;
 }
-export async function exportHtmlToFile(path: string, eventName: string | null): Promise<void> {
-  await invoke('export_html_to_file', { path, eventName });
+export async function exportHtmlToFile(
+  path: string,
+  eventName: string | null,
+): Promise<void> {
+  await invoke("export_html_to_file", { path, eventName });
 }
 
 // ─── E→L Search ──────────────────────────────────────────────────────────────
@@ -451,25 +465,25 @@ let _elTimer = 0;
 export function setSearchMode(mode: SearchMode) {
   app.searchMode = mode;
   app.elResults = [];
-  if (mode === 'le') {
-    app.elQuery = '';
+  if (mode === "le") {
+    app.elQuery = "";
   }
 }
 
 export async function checkFts() {
   if (!app.dbOpen) return;
-  app.elFtsReady = await invoke('fts_is_ready');
+  app.elFtsReady = await invoke("fts_is_ready");
 }
 
 export async function rebuildFts() {
   if (!app.dbOpen) return;
-  toast('Rebuilding FTS index…', 'info');
+  toast("Rebuilding FTS index…", "info");
   try {
-    const count: number = await invoke('rebuild_fts');
+    const count: number = await invoke("rebuild_fts");
     app.elFtsReady = true;
-    toast(`FTS ready — ${count.toLocaleString()} entries`, 'ok');
+    toast(`FTS ready — ${count.toLocaleString()} entries`, "ok");
   } catch (e) {
-    toast(String(e), 'err');
+    toast(String(e), "err");
   }
 }
 
@@ -487,7 +501,7 @@ export async function searchEnglishNow(q = app.elQuery) {
   if (!q.trim() || !app.dbOpen) return;
   app.elSearching = true;
   try {
-    app.elResults = await invoke('search_english', {
+    app.elResults = await invoke("search_english", {
       params: {
         query: q,
         use_like: app.prefs.elUseLike,
@@ -498,7 +512,7 @@ export async function searchEnglishNow(q = app.elQuery) {
   } catch {
     // FTS may fail on syntax error — re-try with LIKE
     try {
-      app.elResults = await invoke('search_english', {
+      app.elResults = await invoke("search_english", {
         params: {
           query: q,
           use_like: true,
@@ -526,27 +540,26 @@ export async function goBack() {
   if (app.historyIdx <= 0) return;
   app.historyIdx--;
   const e = app.history[app.historyIdx];
-  if (e?.tab === 'words') await selectWord(e.id, false);
-  if (e?.tab === 'events') await selectEvent(e.id, false);
+  if (e?.tab === "words") await selectWord(e.id, false);
+  if (e?.tab === "events") await selectEvent(e.id, false);
 }
 export async function goForward() {
   if (app.historyIdx >= app.history.length - 1) return;
   app.historyIdx++;
   const e = app.history[app.historyIdx];
-  if (e?.tab === 'words') await selectWord(e.id, false);
-  if (e?.tab === 'events') await selectEvent(e.id, false);
+  if (e?.tab === "words") await selectWord(e.id, false);
+  if (e?.tab === "events") await selectEvent(e.id, false);
 }
 export const canGoBack = () => app.historyIdx > 0;
 export const canGoForward = () => app.historyIdx < app.history.length - 1;
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function _scrollSidebarTo(id: number) {
   requestAnimationFrame(() => {
-    const list = document.getElementById('sb-list');
+    const list = document.getElementById("sb-list");
     if (!list) return;
     const item = document.getElementById(`wi${id}`);
     if (item) {
-      item.scrollIntoView({ block: 'nearest' });
+      item.scrollIntoView({ block: "nearest" });
     } else {
       const idx = app.filteredWords.findIndex((x) => x.id === id);
       if (idx >= 0) {
@@ -560,14 +573,16 @@ function _scrollSidebarTo(id: number) {
   });
 }
 
-export async function getEventWords(eventId: number): Promise<[string[], string[]]> {
-  return invoke('get_event_words', { eventId });
+export async function getEventWords(
+  eventId: number,
+): Promise<[string[], string[]]> {
+  return invoke("get_event_words", { eventId });
 }
 
 export async function initPlatform() {
   try {
     app.currentPlatform = await platform();
   } catch {
-    app.currentPlatform = 'unknown';
+    app.currentPlatform = "unknown";
   }
 }

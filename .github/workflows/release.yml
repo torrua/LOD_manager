@@ -3,7 +3,7 @@ name: Release
 on:
   push:
     tags:
-      - 'v[0-9]+.[0-9]+.[0-9]+'
+      - "v[0-9]+.[0-9]+.[0-9]+"
 
 permissions:
   contents: write
@@ -78,10 +78,10 @@ jobs:
 
       - uses: actions/setup-java@v5
         with:
-          java-version: '17'
+          java-version: "17"
           distribution: temurin
 
-      - uses: android-actions/setup-android@v4
+      - uses: android-actions/setup-android@v3
 
       - name: Set NDK_HOME to pre-installed NDK
         run: |
@@ -120,13 +120,20 @@ jobs:
       - name: Decode keystore
         run: |
           echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > src-tauri/gen/android/release.jks
-          echo "RELEASE_STORE_FILE=release.jks" >> src-tauri/gen/android/gradle.properties
-          echo "RELEASE_STORE_PASSWORD=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}" >> src-tauri/gen/android/gradle.properties
-          echo "RELEASE_KEY_ALIAS=${{ secrets.ANDROID_KEY_ALIAS }}" >> src-tauri/gen/android/gradle.properties
-          echo "RELEASE_KEY_PASSWORD=${{ secrets.ANDROID_KEY_PASSWORD }}" >> src-tauri/gen/android/gradle.properties
+
+          # gradle.properties may lack a trailing newline after `tauri android init`,
+          # which causes the next append to produce "falseRELEASE_STORE_FILE=...".
+          # printf '\n' guarantees a clean new line before our properties.
+          {
+            printf '\n'
+            printf 'RELEASE_STORE_FILE=release.jks\n'
+            printf 'RELEASE_STORE_PASSWORD=%s\n' "${{ secrets.ANDROID_KEYSTORE_PASSWORD }}"
+            printf 'RELEASE_KEY_ALIAS=%s\n'      "${{ secrets.ANDROID_KEY_ALIAS }}"
+            printf 'RELEASE_KEY_PASSWORD=%s\n'   "${{ secrets.ANDROID_KEY_PASSWORD }}"
+          } >> src-tauri/gen/android/gradle.properties
 
       - name: Build Android APK (release-signed)
-        run: npx tauri android build --target aarch64 --apk
+        run: npx tauri android build --target aarch64 --release
         env:
           NDK_HOME: ${{ env.NDK_HOME }}
           TAURI_ANDROID_KEYSTORE: src-tauri/gen/android/release.jks

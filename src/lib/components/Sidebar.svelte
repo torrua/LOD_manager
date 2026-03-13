@@ -38,48 +38,22 @@
   let listEl = $state<HTMLElement | undefined>(undefined);
   let scrollTop = $state(0),
     clientH = $state(600);
-
-  // Update clientH when list element size changes
-  $effect(() => {
-    if (!listEl) return;
-
-    let height = listEl.clientHeight;
-
-    // On mobile, subtract bottom bar height from visible area
-    if (window.innerWidth <= 640) {
-      const mobBarHeight = 56; // var(--mob-bar-h, 56px)
-      height -= mobBarHeight;
-    }
-
-    clientH = height;
-
-    // Add ResizeObserver for real-time size tracking
-    const resizeObserver = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        let newHeight = entry.contentRect.height;
-
-        // On mobile, subtract bottom bar height from visible area
-        if (window.innerWidth <= 640) {
-          const mobBarHeight = 56; // var(--mob-bar-h, 56px)
-          newHeight -= mobBarHeight;
-        }
-
-        clientH = newHeight;
-      }
-    });
-
-    resizeObserver.observe(listEl);
-
-    return () => {
-      resizeObserver.disconnect();
-    };
-  });
   const vStart = $derived(Math.max(0, Math.floor(scrollTop / ROW_H) - 10));
   const vEnd = $derived(
     Math.min(app.filteredWords.length, Math.ceil((scrollTop + clientH) / ROW_H) + 10)
   );
   const topPad = $derived(vStart * ROW_H);
   const botPad = $derived(Math.max(0, (app.filteredWords.length - vEnd) * ROW_H));
+
+  $effect(() => {
+    const id = app.curWord?.id;
+    if (!id || !listEl || app.tab !== 'words' || app.searchMode !== 'le') return;
+    const idx = app.filteredWords.findIndex((x) => x.id === id);
+    if (idx < 0) return;
+    const top = idx * ROW_H;
+    if (top < listEl.scrollTop || top + ROW_H > listEl.scrollTop + clientH)
+      listEl.scrollTop = Math.max(0, top - clientH / 2 + ROW_H / 2);
+  });
 
   // ── Keyboard nav ─────────────────────────────────────────────────────────
   function searchKeydown(e: KeyboardEvent) {
@@ -92,17 +66,11 @@
     }
     if (e.key === 'ArrowDown') {
       e.preventDefault();
-      if (app.filteredWords[0]) {
-        selectWord(app.filteredWords[0].id);
-        scrollToIdx(0); // Scroll to first result
-      }
+      if (app.filteredWords[0]) selectWord(app.filteredWords[0].id);
     }
     if (e.key === 'Enter') {
       e.preventDefault();
-      if (app.filteredWords[0]) {
-        selectWord(app.filteredWords[0].id);
-        scrollToIdx(0); // Scroll to first result
-      }
+      if (app.filteredWords[0]) selectWord(app.filteredWords[0].id);
     }
   }
   function itemKeydown(e: KeyboardEvent, absIdx: number) {
@@ -135,16 +103,8 @@
   function scrollToIdx(idx: number) {
     if (!listEl) return;
     const top = idx * ROW_H;
-    let actualClientHeight = clientH;
-
-    // On mobile, subtract bottom bar height from visible area
-    if (window.innerWidth <= 640) {
-      const mobBarHeight = 56;
-      actualClientHeight -= mobBarHeight;
-    }
-
-    if (top < listEl.scrollTop || top + ROW_H > listEl.scrollTop + actualClientHeight)
-      listEl.scrollTop = Math.max(0, top - actualClientHeight / 2 + ROW_H / 2);
+    if (top < listEl.scrollTop || top + ROW_H > listEl.scrollTop + clientH)
+      listEl.scrollTop = Math.max(0, top - clientH / 2 + ROW_H / 2);
   }
 
   // ── Filter helpers ────────────────────────────────────────────────────────

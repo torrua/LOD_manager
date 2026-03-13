@@ -20,7 +20,7 @@ jobs:
     if: "!contains(github.event.head_commit.message, '[autoformat]')"
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           # Use the default GITHUB_TOKEN — allows pushing back to the branch.
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -28,7 +28,7 @@ jobs:
           fetch-depth: 0
 
       # ── JavaScript / Svelte ──────────────────────────────────────────────
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: 24
           cache: npm
@@ -53,11 +53,11 @@ jobs:
 
       # ── Commit back if anything changed ──────────────────────────────────
       - name: Commit formatting changes (if any)
-        uses: stefanzweifel/git-auto-commit-action@v5
+        uses: stefanzweifel/git-auto-commit-action@v7
         with:
-          commit_message: 'style: auto-format [autoformat]'
-          commit_author: 'github-actions[bot] <github-actions[bot]@users.noreply.github.com>'
+          commit_message: "style: auto-format [autoformat]"
+          commit_author: "github-actions[bot] <github-actions[bot]@users.noreply.github.com>"
           # Exclude .github/ — GITHUB_TOKEN cannot push workflow file changes
           # without the `workflows` permission, and CI files shouldn't be
           # auto-formatted anyway.
-          file_pattern: '. :!.github'
+          file_pattern: ". :!.github"
