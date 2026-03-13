@@ -2,6 +2,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { readFile, writeFile } from '@tauri-apps/plugin-fs';
 import { appDataDir, BaseDirectory } from '@tauri-apps/api/path';
 import { platform } from '@tauri-apps/plugin-os';
+// Test comment for pre-commit hook
 import type {
   WordListItem,
   WordDetail,
