@@ -309,7 +309,9 @@ pub fn import_files(conn: &mut Connection, paths: &[String]) -> ImportResult {
     if let Some(p) = &settings_file {
         if let Ok(n) = import_settings(&tx, p) {
             result.settings += n;
-            result.messages.push(format!("Settings: {}", result.settings));
+            result
+                .messages
+                .push(format!("Settings: {}", result.settings));
         }
     }
 
