@@ -306,13 +306,13 @@ pub fn import_files(conn: &mut Connection, paths: &[String]) -> ImportResult {
     }
 
     // 6. Settings - import before commit
-    if let Some(p) = &settings_file {
-        if let Ok(n) = import_settings(&tx, p) {
-            result.settings += n;
-            result
-                .messages
-                .push(format!("Settings: {}", result.settings));
-        }
+    if let Some(p) = &settings_file
+        && let Ok(n) = import_settings(&tx, p)
+    {
+        result.settings += n;
+        result
+            .messages
+            .push(format!("Settings: {}", result.settings));
     }
 
     let _ = tx.commit();
