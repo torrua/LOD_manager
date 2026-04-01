@@ -233,11 +233,9 @@ pub fn generate_html(
     {
         let all_words: Vec<(i64, String)> = {
             let mut stmt = conn.prepare("SELECT id, name FROM words")?;
-            let result = stmt
-                .query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?
+            stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?
                 .filter_map(std::result::Result::ok)
-                .collect();
-            result
+                .collect()
         };
         for (word_id, affixes) in &afx_map {
             let mut matches: Vec<String> = Vec::new();
