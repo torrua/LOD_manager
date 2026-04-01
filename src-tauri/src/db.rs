@@ -644,13 +644,28 @@ pub fn get_stats(conn: &Connection) -> rusqlite::Result<AppInfo> {
 }
 
 pub fn get_db_stats(conn: &Connection) -> rusqlite::Result<DbStats> {
-    let wc: i64 = conn.query_row("SELECT COUNT(*) FROM words", [], |r| r.get(0))?;
-    let dc: i64 = conn.query_row("SELECT COUNT(*) FROM definitions", [], |r| r.get(0))?;
-    let ec: i64 = conn.query_row("SELECT COUNT(*) FROM events", [], |r| r.get(0))?;
-    let tc: i64 = conn.query_row("SELECT COUNT(*) FROM types", [], |r| r.get(0))?;
-    let ac: i64 = conn.query_row("SELECT COUNT(*) FROM authors", [], |r| r.get(0))?;
-    let axc: i64 = conn.query_row("SELECT COUNT(*) FROM word_affixes", [], |r| r.get(0))?;
-    let sc: i64 = conn.query_row("SELECT COUNT(*) FROM word_spellings", [], |r| r.get(0))?;
+    let mut s = conn.prepare(
+        "SELECT
+            (SELECT COUNT(*) FROM words) AS wc,
+            (SELECT COUNT(*) FROM definitions) AS dc,
+            (SELECT COUNT(*) FROM events) AS ec,
+            (SELECT COUNT(*) FROM types) AS tc,
+            (SELECT COUNT(*) FROM authors) AS ac,
+            (SELECT COUNT(*) FROM word_affixes) AS axc,
+            (SELECT COUNT(*) FROM word_spellings) AS sc",
+    )?;
+    let (wc, dc, ec, tc, ac, axc, sc): (i64, i64, i64, i64, i64, i64, i64) =
+        s.query_row([], |r| {
+            Ok((
+                r.get(0)?,
+                r.get(1)?,
+                r.get(2)?,
+                r.get(3)?,
+                r.get(4)?,
+                r.get(5)?,
+                r.get(6)?,
+            ))
+        })?;
     let settings = list_settings(conn)?;
     Ok(DbStats {
         db_path: String::new(),
