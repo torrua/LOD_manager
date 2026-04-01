@@ -37,14 +37,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Prettier — format check
-        run: npm run format:check
-
-      - name: ESLint
-        run: npm run lint
-
-      - name: TypeScript / svelte-check
-        run: npm run check
+      - name: Prettier + ESLint + TypeScript
+        run: npm run ci:check
 
   # ─────────────────────────────────────────────────────────────
   # Rust: rustfmt check + Clippy + cargo test
@@ -68,21 +62,18 @@ jobs:
         with:
           workspaces: src-tauri
 
-      # System libs required by Tauri on Linux
+      # System libs required by Tauri on Linux - use apt cache
       - name: Install Tauri system deps
         run: |
-          sudo apt-get update
-          sudo apt-get install -y \
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq \
             libwebkit2gtk-4.1-dev \
             libappindicator3-dev \
             librsvg2-dev \
             patchelf
 
-      - name: rustfmt — format check
-        run: cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
-
-      - name: Clippy — lint (deny warnings)
-        run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
-
-      - name: cargo test
-        run: cargo test --manifest-path src-tauri/Cargo.toml
+      - name: rustfmt + Clippy + test
+        run: |
+          cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
+          cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
+          cargo test --manifest-path src-tauri/Cargo.toml

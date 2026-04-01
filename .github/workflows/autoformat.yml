@@ -37,20 +37,16 @@ jobs:
       - name: Install JS dependencies
         run: npm ci
 
-      - name: Prettier — fix in place
-        run: npm run format
-        # Don't fail the whole job if prettier errors on a malformed file
-        continue-on-error: true
-
-      # ── Rust ─────────────────────────────────────────────────────────────
       - name: Install Rust stable + rustfmt
         uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt
 
-      - name: rustfmt — fix in place
-        run: cargo fmt --manifest-path src-tauri/Cargo.toml
-        continue-on-error: true
+      # ── Prettier + rustfmt (combined step) ───────────────────────────────
+      - name: Format code
+        run: |
+          npm run format || true
+          cargo fmt --manifest-path src-tauri/Cargo.toml || true
 
       # ── Commit back if anything changed ──────────────────────────────────
       - name: Commit formatting changes (if any)
