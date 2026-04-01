@@ -1,8 +1,12 @@
 name: Auto-format
 
 # Runs on pushes to main/develop (not PRs — can't push back to fork PRs).
-# If Prettier or rustfmt find anything to fix, changes are committed back
+# If Prettier finds anything to fix, changes are committed back
 # automatically with the [autoformat] tag so CI doesn't re-trigger itself.
+#
+# NOTE: Rust formatting is skipped in autoformat - it requires heavy system
+# dependencies (GTK, webkit) not available on GitHub runners. Use CI workflow
+# for full rustfmt checks.
 on:
   push:
     branches: [main, develop]
@@ -18,7 +22,7 @@ permissions:
 
 jobs:
   autoformat:
-    name: Prettier + rustfmt
+    name: Prettier
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
@@ -37,16 +41,9 @@ jobs:
       - name: Install JS dependencies
         run: npm install
 
-      - name: Install Rust stable + rustfmt
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt
-
-      # ── Prettier + rustfmt (combined step) ───────────────────────────────
+      # ── Prettier only (no Rust - requires GTK deps not available) ────────
       - name: Format code
-        run: |
-          npm run format || true
-          cargo fmt --manifest-path src-tauri/Cargo.toml || true
+        run: npm run format || true
 
       # ── Commit back if anything changed ──────────────────────────────────
       - name: Commit formatting changes (if any)
