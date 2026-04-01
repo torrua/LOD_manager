@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOD — Torrua Dictionary Repair</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Georgia,serif;font-size:14px;line-height:1.6;background:#faf8f2;color:#1e1a0e}
+.wrap{display:flex;min-height:100vh}
+.sidebar{width:200px;background:#f0ebe0;border-right:1px solid #d8d0c0;
+  padding:1rem .75rem;flex-shrink:0;position:sticky;top:0;height:100vh;overflow-y:auto}
+.sidebar h2{font-size:.75rem;font-weight:700;color:#7a5418;letter-spacing:.05em;margin-bottom:.6rem}
+.alpha{display:flex;flex-wrap:wrap;gap:3px;margin-bottom:1rem}
+.alpha a{display:inline-block;padding:2px 5px;font-size:.72rem;color:#7a5418;
+  border:1px solid #d8d0c0;border-radius:3px;text-decoration:none;background:#faf8f2}
+.alpha a:hover{background:#c8a050;color:#fff;border-color:#c8a050}
+.search-box{width:100%;padding:.3rem .4rem;font-size:.75rem;border:1px solid #d8d0c0;
+  border-radius:4px;background:#fff;margin-bottom:.5rem;font-family:inherit}
+.search-box:focus{outline:none;border-color:#c8a050}
+.content{flex:1;padding:1.5rem 2rem;max-width:860px}
+.letter-section{margin-bottom:2rem}
+.letter-head{font-size:1.4rem;font-weight:700;color:#7a5418;
+  border-bottom:2px solid #d8d0c0;padding-bottom:.2rem;margin-bottom:1rem}
+.entry{margin-bottom:1.1rem;padding-bottom:1rem;border-bottom:1px solid #ece5d8}
+.entry:last-child{border-bottom:none}
+.entry-name{font-size:1rem;font-weight:700;color:#1e1a0e;margin-bottom:.1rem}
+.entry-meta{font-size:.72rem;color:#6a5c48;margin-bottom:.3rem;font-family:monospace}
+.origin{color:#5a8040;font-style:italic}
+.defs{margin:.2rem 0 .2rem 1rem}
+.def{margin-bottom:.25rem;font-size:.85rem}
+.grammar{color:#1a6860;font-size:.78rem}
+.usage{color:#7a5418;font-weight:600;font-size:.82rem}
+.tags{color:#8a8070;font-size:.75rem}
+em.kw{color:#1a6860;font-style:italic}
+.used-in{font-size:.72rem;color:#6a5c48;margin-top:.3rem}
+.used-in a{color:#7a5418;text-decoration:none}
+.used-in a:hover{text-decoration:underline}
+@media(max-width:600px){
+  .wrap{flex-direction:column}
+  .sidebar{width:100%;height:auto;position:static}
+  .content{padding:1rem}
+}
+</style></head>
+<body>
+<div class="wrap">
+<nav class="sidebar">
+<h2>LOD</h2>
+<input id="lod-search" class="search-box" type="text" placeholder="Search…">
+<div class="alpha">
+<a href="#LH">H</a>
+<a href="#LZ">Z</a>
+</div>
+</nav>
+<main class="content">
+<div class="letter-section" id="LH">
+<div class="letter-head">H</div>
+<div>
+<div class="entry" data-name="hei-">
+<div class="entry-name">hei-</div>
+<div class="entry-meta"><span class="origin">&lt;he(kr)i&gt;</span> · Afx · RH · 2019</div>
+<div class="defs">
+<div class="def"><span class="grammar">(af)</span> a combining form of {hekri}, <em class="kw">black</em>.</div>
+</div>
+</div>
+<div class="entry" data-name="heicli">
+<div class="entry-name">heicli</div>
+<div class="entry-meta"><span class="origin">&lt;he(kr)i+cli(ka) = dark like&gt;</span> · 2-Cpx · L4/RH · 2019 (original 1975) · 7.4</div>
+<div class="defs">
+<div class="def"><span class="grammar">(3a)</span> G is <em class="kw">darker</em>/less <em class="kw">brilliant</em> than J in light N. <span class="tags">[G-JN]</span></div>
+<div class="def"><span class="grammar">(a)</span> <em class="kw">dark</em>/<em class="kw">sombre</em>, in color, sombre, incomplete form.</div>
+<div class="def"><span class="usage">lopu heicli </span><span class="grammar">(n)</span> <em class="kw">sombreness</em>/<em class="kw">darkness</em>, the mass of such props.</div>
+<div class="def"><span class="usage">pu heicli </span><span class="grammar">(n)</span> a <em class="kw">sombreness</em>/<em class="kw">darkness</em>, a prop. of a spec. color.</div>
+</div>
+</div>
+<div class="entry" data-name="heircea">
+<div class="entry-name">heircea</div>
+<div class="entry-meta"><span class="origin">&lt;he(kr)i+r+ce(nj)a = black become&gt;</span> · 2-Cpx · APL/RH · 2019 (original 2000) · 7+</div>
+<div class="defs">
+<div class="def"><span class="grammar">(2v)</span> B <em class="kw">blacken</em>/<em class="kw">become black</em> by V. <span class="tags">[B-V]</span></div>
+</div>
+</div>
+<div class="entry" data-name="heirslicui">
+<div class="entry-name">heirslicui</div>
+<div class="entry-meta"><span class="origin">&lt;he(kr)i+r+sli(ti)+cu(tr)i = black sweet water&gt;</span> · 3-Cpx · JJ/RH · 2019 (original 1993) · 7+</div>
+<div class="defs">
+<div class="def"><span class="grammar">(1n)</span> B is some <em class="kw">molasses</em>/<em class="kw">treacle</em>. <span class="tags">[B-]</span></div>
+</div>
+</div>
+<div class="entry" data-name="hekri">
+<div class="entry-name">hekri <span style="font-size:.7rem;color:#5a8040;border:1px solid #5a8040;border-radius:2px;padding:0 3px">hei</span></div>
+<div class="entry-meta"><span class="origin">&lt;Borrowed from Lojban, xekri = black&gt;</span> · Bor. · RH · 2019 · 1.0</div>
+<div class="defs">
+<div class="def"><span class="grammar">(2a)</span> G is more <em class="kw">black</em>/<em class="kw">blacker</em> than J. <span class="tags">[G-J]</span></div>
+<div class="def"><span class="grammar">(a)</span> <em class="kw">black</em>, blacker than ....</div>
+<div class="def"><span class="grammar">(n)</span> a <em class="kw">black</em>, a black colored thing/object.</div>
+<div class="def"><span class="usage">lopu hekri </span><span class="grammar">(n)</span> <em class="kw">black</em>, the color, mass term.</div>
+<div class="def"><span class="usage">pu hekri </span><span class="grammar">(n)</span> a <em class="kw">blackness</em>, a spec. property.</div>
+</div>
+<div class="used-in">Used in: <a href="#" onclick="document.getElementById('lod-search').value='farnheiti';doSearch('farnheiti');return false">farnheiti</a>; <a href="#" onclick="document.getElementById('lod-search').value='hei';doSearch('hei');return false">hei</a>; <a href="#" onclick="document.getElementById('lod-search').value='hei-';doSearch('hei-');return false">hei-</a>; <a href="#" onclick="document.getElementById('lod-search').value='heicli';doSearch('heicli');return false">heicli</a>; <a href="#" onclick="document.getElementById('lod-search').value='heircea';doSearch('heircea');return false">heircea</a>; <a href="#" onclick="document.getElementById('lod-search').value='heirslicui';doSearch('heirslicui');return false">heirslicui</a>; <a href="#" onclick="document.getElementById('lod-search').value='heiu';doSearch('heiu');return false">heiu</a>; <a href="#" onclick="document.getElementById('lod-search').value='madheire';doSearch('madheire');return false">madheire</a></div>
+</div>
+</div></div>
+<div class="letter-section" id="LZ">
+<div class="letter-head">Z</div>
+<div>
+<div class="entry" data-name="zvovai">
+<div class="entry-name">zvovai</div>
+<div class="entry-meta"><span class="origin">&lt;zvo(to)+va(lt)i = out jump&gt;</span> · 2-Cpx · JCB · 1994</div>
+<div class="defs">
+<div class="def"><span class="grammar">(4v)</span> K <em class="kw">jump out</em>/<em class="kw">leap out</em>/<em class="kw">pop out</em> of/outside S to D via V. <span class="tags">[K-SDV]</span></div>
+<div class="def"><span class="usage">po zvovai </span><span class="grammar">(n)</span> an <em class="kw">jump out</em>, an act of -ing.</div>
+<div class="def"><span class="usage">po zvovai </span><span class="grammar">(n)</span> an instance of <em class="kw">jumping out</em>.</div>
+</div>
+</div>
+</div></div>
+</main>
+</div>
+<script>
+function doSearch(q){
+  q=q.toLowerCase().trim();
+  document.querySelectorAll('.entry').forEach(function(el){
+    el.style.display=(!q||el.dataset.name.startsWith(q))?'':'none';
+  });
+  document.querySelectorAll('.letter-section').forEach(function(sec){
+    var v=[...sec.querySelectorAll('.entry')].some(e=>e.style.display!=='none');
+    sec.style.display=v?'':'none';
+  });
+}
+document.getElementById('lod-search').addEventListener('input',function(){doSearch(this.value);});
+</script>
+</body>
+</html>

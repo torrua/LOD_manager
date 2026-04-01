@@ -170,6 +170,7 @@
   // For now both use same HTML structure; direction saved for future use
   let expEvent = $state('');
   let expDir = $state<'le' | 'el'>('le');
+  let expWildcard = $state(false);
   let expRunning = $state(false);
 
   function buildExportName(): string {
@@ -192,7 +193,7 @@
     if (!dest) return;
     expRunning = true;
     try {
-      await exportHtmlToFile(dest, expEvent || null);
+      await exportHtmlToFile(dest, expEvent || null, expWildcard);
       toast(`Exported → ${bn(dest)}`, 'ok');
       app.toolsOpen = false;
     } catch (e) {
@@ -462,6 +463,12 @@
             <option value={ev.name}>{ev.name}</option>
           {/each}
         </select>
+      </div>
+      <div class="fg" style="margin-bottom:.65rem">
+        <label class="ck-row">
+          <input type="checkbox" class="ck" bind:checked={expWildcard} />
+          Enable wildcard search (* matches any letters)
+        </label>
       </div>
       <button class="btn btn-au" onclick={runExport} disabled={expRunning || !app.dbOpen}>
         {expRunning ? 'Generating…' : '⬇ Export HTML…'}

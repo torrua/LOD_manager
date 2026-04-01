@@ -141,6 +141,7 @@ export async function openDb(path: string) {
       const dir = await appDataDir();
       actualPath = dir.endsWith('/') ? `${dir}${destName}` : `${dir}/${destName}`;
     } catch (e) {
+      // Intentionally throw without cause - Error message is self-explanatory
       throw new Error(
         `Cannot read Android file: ${String(e)}. Try using "New Database" and importing your data instead.`
       );
@@ -467,8 +468,12 @@ export async function importFiles(paths: string[], fileNames?: string[]) {
   loadDbStats().catch(() => {});
   return result;
 }
-export async function exportHtmlToFile(path: string, eventName: string | null): Promise<void> {
-  await invoke('export_html_to_file', { path, eventName });
+export async function exportHtmlToFile(
+  path: string,
+  eventName: string | null,
+  wildcard: boolean
+): Promise<void> {
+  await invoke('export_html_to_file', { path, eventName, wildcard });
 }
 
 // ─── E→L Search ──────────────────────────────────────────────────────────────

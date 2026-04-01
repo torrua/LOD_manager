@@ -1,0 +1,81 @@
+name: CI
+
+# Run after autoformat completes (to get the corrected code)
+# Or directly on PRs to check code before merge.
+on:
+  workflow_run:
+    workflows: [Auto-format]
+    branches: [main, develop]
+    types: [completed]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  # ─────────────────────────────────────────────────────────────
+  # Frontend: ESLint + Prettier check + svelte-check (TypeScript)
+  # ─────────────────────────────────────────────────────────────
+  frontend:
+    name: Frontend checks
+    runs-on: ubuntu-latest
+    # Run on PR or when triggered by completed autoformat workflow
+    if: github.event_name == 'pull_request' || github.event.workflow_run.conclusion != 'failure'
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Prettier — format check
+        run: npm run format:check
+
+      - name: ESLint
+        run: npm run lint
+
+      - name: TypeScript / svelte-check
+        run: npm run check
+
+  # ─────────────────────────────────────────────────────────────
+  # Rust: rustfmt check + Clippy + cargo test
+  # ─────────────────────────────────────────────────────────────
+  rust:
+    name: Rust checks
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' || github.event.workflow_run.conclusion != 'failure'
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Rust stable + components
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      # System libs required by Tauri on Linux
+      - name: Install Tauri system deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf
+
+      - name: rustfmt — format check
+        run: cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
+
+      - name: Clippy — lint (deny warnings)
+        run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
+
+      - name: cargo test
+        run: cargo test --manifest-path src-tauri/Cargo.toml

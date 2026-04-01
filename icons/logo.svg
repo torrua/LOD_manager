@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+  <!-- Внешний скругленный квадрат (как в вашем примере) -->
+  <rect x="2" y="2" width="20" height="20" rx="4.5" stroke-width="2" />
+  
+  <!-- Две толстые орбиты (Крест) -->
+  <g stroke-width="1.5">
+    <ellipse cx="12" cy="12" rx="9" ry="3.5" />
+    <ellipse cx="12" cy="12" rx="3.5" ry="9" />
+  </g>
+
+  <!-- Ядро -->
+  <circle cx="12" cy="12" r="2" fill="currentColor" stroke="none" />
+</svg>

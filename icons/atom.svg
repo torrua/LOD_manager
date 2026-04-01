@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+  <!-- Фон: квадрат со скругленными углами (толстый контур) -->
+  <rect x="2" y="2" width="20" height="20" rx="5" stroke-width="2" />
+
+  <!-- Орбиты электронов (тонкие линии) -->
+  <g stroke-width="1">
+    <ellipse cx="12" cy="12" rx="7.5" ry="2.5" transform="rotate(30 12 12)" />
+    <ellipse cx="12" cy="12" rx="7.5" ry="2.5" transform="rotate(90 12 12)" />
+    <ellipse cx="12" cy="12" rx="7.5" ry="2.5" transform="rotate(150 12 12)" />
+  </g>
+
+  <!-- Плотное ядро в центре -->
+  <circle cx="12" cy="12" r="2" fill="currentColor" stroke="none" />
+</svg>

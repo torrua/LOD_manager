@@ -1,0 +1,11 @@
+{
+  "workflow": "new-project",
+  "mode": "analyze",
+  "created": "2026-04-01",
+  "preferences": {
+    "changelog": true,
+    "husky": true,
+    "auto_research": false
+  },
+  "phases_completed": 0
+}

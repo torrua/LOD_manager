@@ -5,7 +5,7 @@
 //! per-word queries. With 10 000 words the old approach ran ~30 000 individual
 //! SQL statements; the new approach runs exactly 4.
 
-use rusqlite::{Connection, params};
+use rusqlite::{params, Connection};
 use std::collections::HashMap;
 use std::fmt::Write;
 
@@ -19,6 +19,7 @@ struct WordRow {
     match_: Option<String>,
     origin: Option<String>,
     origin_x: Option<String>,
+    notes: Option<String>,
 }
 
 // Moved out of function to appease clippy `items_after_statements`.
@@ -30,6 +31,39 @@ fn esc(s: &str) -> String {
         .replace('>', "&gt;")
         .replace('"', "&quot;")
 }
+
+fn esc_js(s: &str) -> String {
+    s.replace('\\', "\\\\")
+        .replace('"', "\\\"")
+        .replace('\'', "\\'")
+        .replace('\n', "\\n")
+        .replace('\r', "\\r")
+        .replace('\t', "\\t")
+}
+
+const SCRIPT_PREFIX: &str = r"<script>
+function doSearch(q){
+  q=q.toLowerCase().trim();
+";
+
+const SCRIPT_SUFFIX: &str = r"
+  document.querySelectorAll('.letter-section').forEach(function(sec){
+    var v=[...sec.querySelectorAll('.entry')].some(e=>e.style.display!=='none');
+    sec.style.display=v?'':'none';
+  });
+}
+document.getElementById('lod-search').addEventListener('input',function(){doSearch(this.value);});
+</script>";
+
+const SCRIPT_PREFIX_WILDCARD: &str = r"<script>
+function doSearch(q){
+  q=q.toLowerCase().trim();
+  if(!q){q='*';}
+  var re=new RegExp(q.replace(/\*/g,'.*'),'i');
+  document.querySelectorAll('.entry').forEach(function(el){
+    el.style.display=(!q||re.test(el.dataset.name))?'':'none';
+  });
+";
 
 fn fmt_body(s: &str) -> String {
     let s = esc(s).replace("--", "\u{2014}");
@@ -81,6 +115,7 @@ body{font-family:Georgia,serif;font-size:14px;line-height:1.6;background:#faf8f2
 .entry:last-child{border-bottom:none}
 .entry-name{font-size:1rem;font-weight:700;color:#1e1a0e;margin-bottom:.1rem}
 .entry-meta{font-size:.72rem;color:#6a5c48;margin-bottom:.3rem;font-family:monospace}
+.entry-notes{font-size:.7rem;color:#6a5c48;margin-bottom:.3rem;font-style:italic}
 .origin{color:#5a8040;font-style:italic}
 .defs{margin:.2rem 0 .2rem 1rem}
 .def{margin-bottom:.25rem;font-size:.85rem}
@@ -98,21 +133,23 @@ em.kw{color:#1a6860;font-style:italic}
 }
 </style>";
 
-const SCRIPT: &str = r"<script>
-function doSearch(q){
-  q=q.toLowerCase().trim();
-  document.querySelectorAll('.entry').forEach(function(el){
-    el.style.display=(!q||el.dataset.name.startsWith(q))?'':'none';
-  });
-  document.querySelectorAll('.letter-section').forEach(function(sec){
-    var v=[...sec.querySelectorAll('.entry')].some(e=>e.style.display!=='none');
-    sec.style.display=v?'':'none';
-  });
-}
-document.getElementById('lod-search').addEventListener('input',function(){doSearch(this.value);});
-</script>";
+pub fn generate_html(
+    conn: &Connection,
+    event_name: Option<&str>,
+    wildcard: bool,
+) -> rusqlite::Result<String> {
+    let script = if wildcard {
+        format!(
+            "{}{}document.querySelectorAll('.letter-section').forEach(function(sec){{var v=[...sec.querySelectorAll('.entry')].some(e=>e.style.display!=='none');sec.style.display=v?'':'none';}});document.getElementById('lod-search').addEventListener('input',function(){{doSearch(this.value);}});</script>",
+            SCRIPT_PREFIX_WILDCARD, SCRIPT_SUFFIX
+        )
+    } else {
+        format!(
+            "{}{}document.querySelectorAll('.letter-section').forEach(function(sec){{var v=[...sec.querySelectorAll('.entry')].some(e=>e.style.display!=='none');sec.style.display=v?'':'none';}});document.getElementById('lod-search').addEventListener('input',function(){{doSearch(this.value);}});</script>",
+            SCRIPT_PREFIX, SCRIPT_SUFFIX
+        )
+    };
 
-pub fn generate_html(conn: &Connection, event_name: Option<&str>) -> rusqlite::Result<String> {
     // ── 1. Load all words in ONE query ────────────────────────────────────────
     // Two variants because rusqlite can't bind Optional<&str> to conditional SQL branches
     // cleanly without a macro. Splitting here is explicit and avoids the ?1 IS NULL trick
@@ -120,14 +157,14 @@ pub fn generate_html(conn: &Connection, event_name: Option<&str>) -> rusqlite::R
     let rows: Vec<WordRow> = if let Some(ev) = event_name {
         let mut stmt = conn.prepare(
             "SELECT w.id, w.name, t.name, w.source, w.year, w.rank, w.match_,
-                    w.origin, w.origin_x
+                    w.origin, w.origin_x, w.notes
              FROM words w
              LEFT JOIN types t ON t.id = w.type_id
-             JOIN events es ON es.id = w.event_start_id
-             WHERE es.name = ?1
+             LEFT JOIN events es ON es.id = w.event_start_id
+             LEFT JOIN events ee ON ee.id = w.event_end_id
+             WHERE es.name = ?1 OR ee.name = ?1
              ORDER BY LOWER(w.name)",
         )?;
-        // `stmt` must outlive the iterator — collect into `rows` before stmt drops
         let rows: Vec<WordRow> = stmt
             .query_map(params![ev], map_word_row)?
             .filter_map(std::result::Result::ok)
@@ -136,7 +173,7 @@ pub fn generate_html(conn: &Connection, event_name: Option<&str>) -> rusqlite::R
     } else {
         let mut stmt = conn.prepare(
             "SELECT w.id, w.name, t.name, w.source, w.year, w.rank, w.match_,
-                    w.origin, w.origin_x
+                    w.origin, w.origin_x, w.notes
              FROM words w
              LEFT JOIN types t ON t.id = w.type_id
              ORDER BY LOWER(w.name)",
@@ -194,24 +231,33 @@ pub fn generate_html(conn: &Connection, event_name: Option<&str>) -> rusqlite::R
         }
     }
 
-    // ── 4. Bulk-load "used in" for all words that have affixes (1 query) ─────
-    // One JOIN across word_affixes × words — vastly faster than N correlated subqueries.
+    // ── 4. Build "used in" map by matching affixes against word names in Rust ────
+    // Avoids SQL LIKE issues with special characters in affixes.
     let mut used_map: HashMap<i64, Vec<String>> = HashMap::new();
     {
-        let mut stmt = conn.prepare(
-            "SELECT wa.word_id, w2.name
-             FROM word_affixes wa
-             JOIN words w2
-               ON LOWER(w2.name) LIKE '%' || LOWER(wa.affix) || '%'
-              AND w2.id != wa.word_id
-             GROUP BY wa.word_id, w2.name
-             ORDER BY wa.word_id, w2.name",
-        )?;
-        let iter = stmt.query_map([], |r| Ok((r.get::<_, i64>(0)?, r.get::<_, String>(1)?)))?;
-        for row in iter.filter_map(std::result::Result::ok) {
-            let v = used_map.entry(row.0).or_default();
-            if v.len() < 60 {
-                v.push(row.1);
+        let all_words: Vec<(i64, String)> = {
+            let mut stmt = conn.prepare("SELECT id, name FROM words")?;
+            stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?
+                .filter_map(std::result::Result::ok)
+                .collect()
+        };
+        for (word_id, affixes) in &afx_map {
+            let mut matches: Vec<String> = Vec::new();
+            for affix in affixes {
+                let affix_lower = affix.to_lowercase();
+                for (other_id, other_name) in &all_words {
+                    if *other_id != *word_id
+                        && other_name.to_lowercase().contains(&affix_lower)
+                        && matches.len() < 60
+                        && !matches.contains(other_name)
+                    {
+                        matches.push(other_name.clone());
+                    }
+                }
+            }
+            if !matches.is_empty() {
+                matches.sort();
+                used_map.insert(*word_id, matches);
             }
         }
     }
@@ -322,6 +368,11 @@ pub fn generate_html(conn: &Connection, event_name: Option<&str>) -> rusqlite::R
             let _ = writeln!(html, "<div class=\"entry-meta\">{}</div>", meta.join(" · "));
         }
 
+        // Notes
+        if let Some(ref notes) = w.notes {
+            let _ = writeln!(html, "<div class=\"entry-notes\">{}</div>", esc(notes));
+        }
+
         // Definitions
         if !defs.is_empty() {
             html.push_str("<div class=\"defs\">\n");
@@ -351,11 +402,12 @@ pub fn generate_html(conn: &Connection, event_name: Option<&str>) -> rusqlite::R
                     html.push_str("; ");
                 }
                 let eu = esc(u);
+                let je = esc_js(u);
                 let _ = write!(
                     html,
                     "<a href=\"#\" onclick=\"\
-                     document.getElementById('lod-search').value='{eu}';\
-                     doSearch('{eu}');return false\">{eu}</a>"
+                     document.getElementById('lod-search').value=\"{je}\";\
+                     doSearch('{je}');return false\">{eu}</a>"
                 );
             }
             html.push_str("</div>\n");
@@ -368,7 +420,7 @@ pub fn generate_html(conn: &Connection, event_name: Option<&str>) -> rusqlite::R
         html.push_str("</div></div>\n");
     }
     html.push_str("</main>\n</div>\n");
-    html.push_str(SCRIPT);
+    html.push_str(&script);
     html.push_str("\n</body>\n</html>\n");
     Ok(html)
 }
@@ -385,6 +437,7 @@ fn map_word_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<WordRow> {
         match_: r.get(6)?,
         origin: r.get(7)?,
         origin_x: r.get(8)?,
+        notes: r.get(9)?,
     })
 }
 
@@ -395,8 +448,9 @@ pub fn write_html_to_file(
     conn: &Connection,
     path: &str,
     event_name: Option<&str>,
+    wildcard: bool,
 ) -> rusqlite::Result<()> {
-    let html = generate_html(conn, event_name)?;
+    let html = generate_html(conn, event_name, wildcard)?;
     std::fs::write(path, html.as_bytes())
         .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))
 }

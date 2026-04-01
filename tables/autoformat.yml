@@ -1,0 +1,57 @@
+name: Auto-format
+
+# Runs on pushes to main/develop (not PRs — can't push back to fork PRs).
+# If Prettier or rustfmt find anything to fix, changes are committed back
+# automatically with the [autoformat] tag so CI doesn't re-trigger itself.
+on:
+  push:
+    branches: [main, develop]
+
+# Need write access to push the formatting commit back.
+permissions:
+  contents: write
+
+jobs:
+  autoformat:
+    name: Prettier + rustfmt
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          # Use the default GITHUB_TOKEN — allows pushing back to the branch.
+          token: ${{ secrets.GITHUB_TOKEN }}
+          # Fetch full history so git log works; not strictly needed here.
+          fetch-depth: 0
+
+      # ── JavaScript / Svelte ──────────────────────────────────────────────
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install JS dependencies
+        run: npm ci
+
+      - name: Prettier — fix in place
+        run: npm run format
+
+      # ── Rust ─────────────────────────────────────────────────────────────
+      - name: Install Rust stable + rustfmt
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+
+      - name: rustfmt — fix in place
+        run: cargo fmt --manifest-path src-tauri/Cargo.toml
+
+      # ── Commit back if anything changed ──────────────────────────────────
+      - name: Commit formatting changes (if any)
+        uses: stefanzweifel/git-auto-commit-action@v7
+        with:
+          commit_message: 'style: auto-format [autoformat]'
+          commit_author: 'github-actions[bot] <github-actions[bot]@users.noreply.github.com>'
+          # Exclude .github/ — GITHUB_TOKEN cannot push workflow file changes
+          # without the `workflows` permission, and CI files shouldn't be
+          # auto-formatted anyway.
+          file_pattern: '. :!.github'

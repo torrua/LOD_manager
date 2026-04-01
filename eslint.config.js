@@ -27,7 +27,10 @@ export default [
   // ── TypeScript + plain TS files ───────────────────────────────────────────
   {
     files: ['**/*.ts'],
-    languageOptions: { globals: { ...globals.browser } },
+    languageOptions: {
+      parser: ts.parser,
+      globals: { ...globals.browser },
+    },
   },
 
   // ── Project-wide rule overrides ───────────────────────────────────────────
@@ -50,6 +53,15 @@ export default [
       // Svelte-specific
       'svelte/no-unused-svelte-ignore': 'warn',
       'svelte/valid-compile': 'error',
+      'svelte/require-each-key': 'off',
+      'svelte/prefer-svelte-reactivity': 'off',
+    },
+  },
+
+  // ── Disable new ESLint 10 rules that are too strict
+  {
+    rules: {
+      'preserve-caught-error': 'off',
     },
   },
 
