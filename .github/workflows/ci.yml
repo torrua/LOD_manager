@@ -10,6 +10,11 @@ on:
   pull_request:
     branches: [main, develop]
 
+# Cancel outdated runs for the same branch
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   # ─────────────────────────────────────────────────────────────
   # Frontend: ESLint + Prettier check + svelte-check (TypeScript)
@@ -17,6 +22,7 @@ jobs:
   frontend:
     name: Frontend checks
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     # Run on PR or when triggered by completed autoformat workflow
     if: github.event_name == 'pull_request' || github.event.workflow_run.conclusion != 'failure'
 
@@ -46,6 +52,7 @@ jobs:
   rust:
     name: Rust checks
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     if: github.event_name == 'pull_request' || github.event.workflow_run.conclusion != 'failure'
 
     steps:

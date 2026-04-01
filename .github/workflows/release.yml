@@ -5,6 +5,11 @@ on:
     tags:
       - 'v[0-9]+.[0-9]+.[0-9]+'
 
+# Prevent parallel releases
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: write
 
@@ -12,6 +17,7 @@ jobs:
   windows:
     name: Windows Build
     runs-on: windows-latest
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
@@ -52,6 +58,7 @@ jobs:
   android:
     name: Android Build
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v6
 
@@ -106,6 +113,10 @@ jobs:
         run: npx tauri android init
         env:
           NDK_HOME: ${{ env.NDK_HOME }}
+
+      - name: Copy Android icons to generated project
+        run: |
+          cp -r src-tauri/icons/android/* src-tauri/gen/android/app/src/main/res/
 
       # ═══════════════════════════════════════════════════════════════════════
       # ПОДПИСЬ APK — выберите один из вариантов:

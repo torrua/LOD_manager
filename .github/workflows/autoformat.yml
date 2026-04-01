@@ -7,6 +7,11 @@ on:
   push:
     branches: [main, develop]
 
+# Prevent parallel runs
+concurrency:
+  group: autoformat-${{ github.ref }}
+  cancel-in-progress: true
+
 # Need write access to push the formatting commit back.
 permissions:
   contents: write
@@ -15,6 +20,7 @@ jobs:
   autoformat:
     name: Prettier + rustfmt
     runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     # Don't re-run on our own formatting commits (prevents infinite loops)
     if: "!contains(github.event.head_commit.message, '[autoformat]')"
