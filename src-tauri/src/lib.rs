@@ -527,13 +527,26 @@ mod tests {
         db::init_fts(&conn).unwrap();
 
         // Create type
-        conn.execute("INSERT INTO types (name) VALUES ('gismu')", []).unwrap();
+        conn.execute("INSERT INTO types (name) VALUES ('gismu')", [])
+            .unwrap();
         let type_id: i64 = conn.last_insert_rowid();
 
         // Create words
-        conn.execute("INSERT INTO words (name, type_id) VALUES ('abc', ?1)", [type_id]).unwrap();
-        conn.execute("INSERT INTO words (name, type_id) VALUES ('xyz', ?1)", [type_id]).unwrap();
-        conn.execute("INSERT INTO words (name, type_id) VALUES ('def', ?1)", [type_id]).unwrap();
+        conn.execute(
+            "INSERT INTO words (name, type_id) VALUES ('abc', ?1)",
+            [type_id],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO words (name, type_id) VALUES ('xyz', ?1)",
+            [type_id],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO words (name, type_id) VALUES ('def', ?1)",
+            [type_id],
+        )
+        .unwrap();
 
         // List all
         let words = db::list_words(&conn, "", "", None).unwrap();
@@ -565,9 +578,14 @@ mod tests {
         db::init_fts(&conn).unwrap();
 
         // Create word with definition
-        conn.execute("INSERT INTO types (name) VALUES ('gismu')", []).unwrap();
+        conn.execute("INSERT INTO types (name) VALUES ('gismu')", [])
+            .unwrap();
         let type_id: i64 = conn.last_insert_rowid();
-        conn.execute("INSERT INTO words (name, type_id) VALUES ('camgu', ?1)", [type_id]).unwrap();
+        conn.execute(
+            "INSERT INTO words (name, type_id) VALUES ('camgu', ?1)",
+            [type_id],
+        )
+        .unwrap();
         let word_id: i64 = conn.last_insert_rowid();
         conn.execute(
             "INSERT INTO definitions (word_id, position, body) VALUES (?1, 0, 'to want to desire to hope')",
@@ -580,5 +598,222 @@ mod tests {
         // Search
         let results = db::search_english_fts(&conn, "desire", 10).unwrap();
         assert!(!results.is_empty());
+    }
+
+    #[test]
+    fn test_word_crud_operations() {
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        db::init_schema(&conn).unwrap();
+
+        // Create type first
+        conn.execute("INSERT INTO types (name, group_) VALUES ('gismu', 'core')", []).unwrap();
+        let type_id: i64 = conn.last_insert_rowid();
+
+        // CREATE: Insert word directly
+        conn.execute(
+            "INSERT INTO words (name, type_id, source, year, rank, match_, origin, notes)
+             VALUES ('testword', ?1, 'test_source', '2024', 'A', 'exact', 'test_origin', 'test_notes')",
+            [type_id],
+        ).unwrap();
+        let word_id: i64 = conn.last_insert_rowid();
+        assert!(word_id > 0);
+
+        // READ: Get word
+        let word = db::get_word(&conn, word_id).unwrap();
+        assert_eq!(word.name, "testword");
+        assert_eq!(word.definitions.len(), 0);
+        assert_eq!(word.affixes.len(), 0);
+
+        // UPDATE: Add definitions
+        conn.execute(
+            "INSERT INTO definitions (word_id, position, grammar, usage, body, tags) VALUES (?1, 0, 'GU', 'test', 'first definition', 'tag1')",
+            [word_id],
+        ).unwrap();
+        conn.execute(
+            "INSERT INTO definitions (word_id, position, grammar, usage, body, tags) VALUES (?1, 1, 'N', 'test', 'second definition', 'tag2')",
+            [word_id],
+        ).unwrap();
+
+        // Verify updated word
+        let updated_word = db::get_word(&conn, word_id).unwrap();
+        assert_eq!(updated_word.definitions.len(), 2);
+
+        // DELETE: Delete word
+        db::delete_word(&conn, word_id).unwrap();
+        let result = db::get_word(&conn, word_id);
+        assert!(result.is_err(), "Word should be deleted");
+    }
+
+    #[test]
+    fn test_definition_crud_operations() {
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        db::init_schema(&conn).unwrap();
+
+        // Create word
+        conn.execute("INSERT INTO types (name) VALUES ('gismu')", []).unwrap();
+        let type_id: i64 = conn.last_insert_rowid();
+        conn.execute("INSERT INTO words (name, type_id) VALUES ('testword', ?1)", [type_id]).unwrap();
+        let word_id: i64 = conn.last_insert_rowid();
+
+        // CREATE: Add definition via save_definition (position is a parameter)
+        let def_data = models::SaveDefinition {
+            grammar: Some("GU".to_string()),
+            usage: Some("verb".to_string()),
+            body: "to want".to_string(),
+            tags: Some("main".to_string()),
+        };
+        db::save_definition(&conn, None, word_id, &def_data).unwrap();
+
+        // READ: Verify definition
+        let word = db::get_word(&conn, word_id).unwrap();
+        assert_eq!(word.definitions.len(), 1);
+        let def_id = word.definitions[0].id;
+
+        // UPDATE: Update definition (can't update body directly via save_definition, need to delete and recreate)
+        db::delete_definition(&conn, def_id).unwrap();
+        
+        let updated_def = models::SaveDefinition {
+            grammar: Some("GU".to_string()),
+            usage: Some("verb".to_string()),
+            body: "to strongly want".to_string(),
+            tags: Some("updated".to_string()),
+        };
+        db::save_definition(&conn, None, word_id, &updated_def).unwrap();
+
+        // Verify update
+        let updated_word = db::get_word(&conn, word_id).unwrap();
+        assert!(updated_word.definitions[0].body.contains("strongly"));
+
+        // DELETE: Delete definition
+        let new_def_id = updated_word.definitions[0].id;
+        db::delete_definition(&conn, new_def_id).unwrap();
+        let final_word = db::get_word(&conn, word_id).unwrap();
+        assert_eq!(final_word.definitions.len(), 0);
+    }
+
+    #[test]
+    fn test_type_crud_operations() {
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        db::init_schema(&conn).unwrap();
+
+        // CREATE: Insert type
+        conn.execute("INSERT INTO types (name, group_) VALUES ('lujvo', 'derived')", []).unwrap();
+        let type_id: i64 = conn.last_insert_rowid();
+        assert!(type_id > 0);
+
+        // READ: List types
+        let types = db::list_types(&conn).unwrap();
+        let found = types.iter().find(|t| t.name == "lujvo");
+        assert!(found.is_some());
+        assert_eq!(found.unwrap().group_.as_deref(), Some("derived"));
+
+        // UPDATE: Update type
+        conn.execute("UPDATE types SET group_ = 'modified' WHERE id = ?1", [type_id]).unwrap();
+
+        // Verify update
+        let types = db::list_types(&conn).unwrap();
+        let found = types.iter().find(|t| t.name == "lujvo");
+        assert_eq!(found.unwrap().group_.as_deref(), Some("modified"));
+
+        // DELETE: Try to delete (should fail - words depend on it)
+        // First create a word with this type
+        conn.execute("INSERT INTO words (name, type_id) VALUES ('testlujvo', ?1)", [type_id]).unwrap();
+        let result = conn.execute("DELETE FROM types WHERE id = ?1", [type_id]);
+        assert!(result.is_err(), "Cannot delete type with dependent words");
+    }
+
+    #[test]
+    fn test_event_crud_operations() {
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        db::init_schema(&conn).unwrap();
+
+        // CREATE: Insert event
+        conn.execute(
+            "INSERT INTO events (name, date, annotation, suffix, notes) VALUES ('NewEvent', '2024-06-15', 'test annotation', 'NE', 'test notes')",
+            [],
+        ).unwrap();
+        let event_id: i64 = conn.last_insert_rowid();
+        assert!(event_id > 0);
+
+        // READ: List events
+        let events = db::list_events(&conn).unwrap();
+        let found = events.iter().find(|e| e.name == "NewEvent");
+        assert!(found.is_some());
+        assert_eq!(found.unwrap().date.as_deref(), Some("2024-06-15"));
+
+        // UPDATE: Update event
+        conn.execute(
+            "UPDATE events SET date = '2024-07-01', annotation = 'updated' WHERE id = ?1",
+            [event_id],
+        ).unwrap();
+
+        // Verify update
+        let events = db::list_events(&conn).unwrap();
+        let found = events.iter().find(|e| e.name == "NewEvent");
+        assert_eq!(found.unwrap().date.as_deref(), Some("2024-07-01"));
+
+        // DELETE: Cannot delete events via API, just verify we can read them
+        let events = db::list_events(&conn).unwrap();
+        assert!(events.len() >= 2); // At least Start + NewEvent
+    }
+
+    #[test]
+    fn test_author_crud_operations() {
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        db::init_schema(&conn).unwrap();
+
+        // CREATE: Insert author
+        conn.execute("INSERT INTO authors (initials, full_name, notes) VALUES ('JD', 'John Doe', 'test author')", []).unwrap();
+        let author_id: i64 = conn.last_insert_rowid();
+        assert!(author_id > 0);
+
+        // READ: List authors
+        let authors = db::list_authors(&conn).unwrap();
+        let found = authors.iter().find(|a| a.initials == "JD");
+        assert!(found.is_some());
+        assert_eq!(found.unwrap().full_name.as_deref(), Some("John Doe"));
+
+        // UPDATE: Update author
+        conn.execute("UPDATE authors SET full_name = 'Jane Doe' WHERE id = ?1", [author_id]).unwrap();
+
+        // Verify update
+        let authors = db::list_authors(&conn).unwrap();
+        let found = authors.iter().find(|a| a.initials == "JD");
+        assert_eq!(found.unwrap().full_name.as_deref(), Some("Jane Doe"));
+
+        // DELETE: Delete author (no dependencies)
+        db::delete_author(&conn, author_id).unwrap();
+        let authors = db::list_authors(&conn).unwrap();
+        assert!(!authors.iter().any(|a| a.initials == "JD"));
+    }
+
+    #[test]
+    fn test_word_affixes_and_spellings() {
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        db::init_schema(&conn).unwrap();
+
+        // Create word
+        conn.execute("INSERT INTO types (name) VALUES ('gismu')", []).unwrap();
+        let type_id: i64 = conn.last_insert_rowid();
+        conn.execute("INSERT INTO words (name, type_id) VALUES ('testword', ?1)", [type_id]).unwrap();
+        let word_id: i64 = conn.last_insert_rowid();
+
+        // Add affixes
+        conn.execute("INSERT INTO word_affixes (word_id, affix) VALUES (?1, 'test'), (?1, 'affix')", [word_id]).unwrap();
+
+        // Add spellings
+        conn.execute("INSERT INTO word_spellings (word_id, spelling) VALUES (?1, 'testword2'), (?1, 'testword3')", [word_id]).unwrap();
+
+        // Verify via get_word
+        let word = db::get_word(&conn, word_id).unwrap();
+        assert_eq!(word.affixes.len(), 2);
+        assert_eq!(word.spellings.len(), 2);
+
+        // Delete affix
+        conn.execute("DELETE FROM word_affixes WHERE word_id = ?1 AND affix = 'test'", [word_id]).unwrap();
+
+        // Verify deletion
+        let word = db::get_word(&conn, word_id).unwrap();
+        assert_eq!(word.affixes.len(), 1);
     }
 }
