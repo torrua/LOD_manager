@@ -5,7 +5,7 @@
 //! per-word queries. With 10 000 words the old approach ran ~30 000 individual
 //! SQL statements; the new approach runs exactly 4.
 
-use rusqlite::{params, Connection};
+use rusqlite::{Connection, params};
 use std::collections::HashMap;
 use std::fmt::Write;
 

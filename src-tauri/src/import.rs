@@ -1,5 +1,5 @@
 use crate::models::ImportResult;
-use rusqlite::{params, Connection};
+use rusqlite::{Connection, params};
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
