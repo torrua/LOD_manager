@@ -5,7 +5,7 @@
 //! per-word queries. With 10 000 words the old approach ran ~30 000 individual
 //! SQL statements; the new approach runs exactly 4.
 
-use rusqlite::{params, Connection};
+use rusqlite::{Connection, params};
 use std::collections::HashMap;
 use std::fmt::Write;
 
@@ -139,15 +139,11 @@ pub fn generate_html(
     wildcard: bool,
 ) -> rusqlite::Result<String> {
     let script = if wildcard {
-        format!(
-            "{}{}document.querySelectorAll('.letter-section').forEach(function(sec){{var v=[...sec.querySelectorAll('.entry')].some(e=>e.style.display!=='none');sec.style.display=v?'':'none';}});document.getElementById('lod-search').addEventListener('input',function(){{doSearch(this.value);}});</script>",
-            SCRIPT_PREFIX_WILDCARD, SCRIPT_SUFFIX
-        )
+        let body = "document.querySelectorAll('.letter-section').forEach(function(sec){var v=[...sec.querySelectorAll('.entry')].some(e=>e.style.display!=='none');sec.style.display=v?'':'none';});document.getElementById('lod-search').addEventListener('input',function(){doSearch(this.value);});";
+        [SCRIPT_PREFIX_WILDCARD, SCRIPT_SUFFIX, body].join("")
     } else {
-        format!(
-            "{}{}document.querySelectorAll('.letter-section').forEach(function(sec){{var v=[...sec.querySelectorAll('.entry')].some(e=>e.style.display!=='none');sec.style.display=v?'':'none';}});document.getElementById('lod-search').addEventListener('input',function(){{doSearch(this.value);}});</script>",
-            SCRIPT_PREFIX, SCRIPT_SUFFIX
-        )
+        let body = "document.querySelectorAll('.letter-section').forEach(function(sec){var v=[...sec.querySelectorAll('.entry')].some(e=>e.style.display!=='none');sec.style.display=v?'':'none';});document.getElementById('lod-search').addEventListener('input',function(){doSearch(this.value);});";
+        [SCRIPT_PREFIX, SCRIPT_SUFFIX, body].join("")
     };
 
     // ── 1. Load all words in ONE query ────────────────────────────────────────
