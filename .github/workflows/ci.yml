@@ -72,9 +72,9 @@ jobs:
             librsvg2-dev \
             patchelf \
             libglib2.0-dev \
-            libgobject-2.0-dev \
-            libgio-2.0-dev \
             pkg-config
+          # Ensure pkg-config can find the .pc files in subsequent steps
+          echo "PKG_CONFIG_PATH=/usr/lib/x86_64-linux-gnu/pkgconfig:$PKG_CONFIG_PATH" >> $GITHUB_ENV
 
       - name: rustfmt + Clippy + test
         run: |
