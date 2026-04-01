@@ -606,7 +606,11 @@ mod tests {
         db::init_schema(&conn).unwrap();
 
         // Create type first
-        conn.execute("INSERT INTO types (name, group_) VALUES ('gismu', 'core')", []).unwrap();
+        conn.execute(
+            "INSERT INTO types (name, group_) VALUES ('gismu', 'core')",
+            [],
+        )
+        .unwrap();
         let type_id: i64 = conn.last_insert_rowid();
 
         // CREATE: Insert word directly
@@ -650,9 +654,14 @@ mod tests {
         db::init_schema(&conn).unwrap();
 
         // Create word
-        conn.execute("INSERT INTO types (name) VALUES ('gismu')", []).unwrap();
+        conn.execute("INSERT INTO types (name) VALUES ('gismu')", [])
+            .unwrap();
         let type_id: i64 = conn.last_insert_rowid();
-        conn.execute("INSERT INTO words (name, type_id) VALUES ('testword', ?1)", [type_id]).unwrap();
+        conn.execute(
+            "INSERT INTO words (name, type_id) VALUES ('testword', ?1)",
+            [type_id],
+        )
+        .unwrap();
         let word_id: i64 = conn.last_insert_rowid();
 
         // CREATE: Add definition via save_definition (position is a parameter)
@@ -671,7 +680,7 @@ mod tests {
 
         // UPDATE: Update definition (can't update body directly via save_definition, need to delete and recreate)
         db::delete_definition(&conn, def_id).unwrap();
-        
+
         let updated_def = models::SaveDefinition {
             grammar: Some("GU".to_string()),
             usage: Some("verb".to_string()),
@@ -697,7 +706,11 @@ mod tests {
         db::init_schema(&conn).unwrap();
 
         // CREATE: Insert type
-        conn.execute("INSERT INTO types (name, group_) VALUES ('lujvo', 'derived')", []).unwrap();
+        conn.execute(
+            "INSERT INTO types (name, group_) VALUES ('lujvo', 'derived')",
+            [],
+        )
+        .unwrap();
         let type_id: i64 = conn.last_insert_rowid();
         assert!(type_id > 0);
 
@@ -708,7 +721,11 @@ mod tests {
         assert_eq!(found.unwrap().group_.as_deref(), Some("derived"));
 
         // UPDATE: Update type
-        conn.execute("UPDATE types SET group_ = 'modified' WHERE id = ?1", [type_id]).unwrap();
+        conn.execute(
+            "UPDATE types SET group_ = 'modified' WHERE id = ?1",
+            [type_id],
+        )
+        .unwrap();
 
         // Verify update
         let types = db::list_types(&conn).unwrap();
@@ -717,7 +734,11 @@ mod tests {
 
         // DELETE: Try to delete (should fail - words depend on it)
         // First create a word with this type
-        conn.execute("INSERT INTO words (name, type_id) VALUES ('testlujvo', ?1)", [type_id]).unwrap();
+        conn.execute(
+            "INSERT INTO words (name, type_id) VALUES ('testlujvo', ?1)",
+            [type_id],
+        )
+        .unwrap();
         let result = conn.execute("DELETE FROM types WHERE id = ?1", [type_id]);
         assert!(result.is_err(), "Cannot delete type with dependent words");
     }
@@ -745,7 +766,8 @@ mod tests {
         conn.execute(
             "UPDATE events SET date = '2024-07-01', annotation = 'updated' WHERE id = ?1",
             [event_id],
-        ).unwrap();
+        )
+        .unwrap();
 
         // Verify update
         let events = db::list_events(&conn).unwrap();
@@ -774,7 +796,11 @@ mod tests {
         assert_eq!(found.unwrap().full_name.as_deref(), Some("John Doe"));
 
         // UPDATE: Update author
-        conn.execute("UPDATE authors SET full_name = 'Jane Doe' WHERE id = ?1", [author_id]).unwrap();
+        conn.execute(
+            "UPDATE authors SET full_name = 'Jane Doe' WHERE id = ?1",
+            [author_id],
+        )
+        .unwrap();
 
         // Verify update
         let authors = db::list_authors(&conn).unwrap();
@@ -793,13 +819,22 @@ mod tests {
         db::init_schema(&conn).unwrap();
 
         // Create word
-        conn.execute("INSERT INTO types (name) VALUES ('gismu')", []).unwrap();
+        conn.execute("INSERT INTO types (name) VALUES ('gismu')", [])
+            .unwrap();
         let type_id: i64 = conn.last_insert_rowid();
-        conn.execute("INSERT INTO words (name, type_id) VALUES ('testword', ?1)", [type_id]).unwrap();
+        conn.execute(
+            "INSERT INTO words (name, type_id) VALUES ('testword', ?1)",
+            [type_id],
+        )
+        .unwrap();
         let word_id: i64 = conn.last_insert_rowid();
 
         // Add affixes
-        conn.execute("INSERT INTO word_affixes (word_id, affix) VALUES (?1, 'test'), (?1, 'affix')", [word_id]).unwrap();
+        conn.execute(
+            "INSERT INTO word_affixes (word_id, affix) VALUES (?1, 'test'), (?1, 'affix')",
+            [word_id],
+        )
+        .unwrap();
 
         // Add spellings
         conn.execute("INSERT INTO word_spellings (word_id, spelling) VALUES (?1, 'testword2'), (?1, 'testword3')", [word_id]).unwrap();
@@ -810,7 +845,11 @@ mod tests {
         assert_eq!(word.spellings.len(), 2);
 
         // Delete affix
-        conn.execute("DELETE FROM word_affixes WHERE word_id = ?1 AND affix = 'test'", [word_id]).unwrap();
+        conn.execute(
+            "DELETE FROM word_affixes WHERE word_id = ?1 AND affix = 'test'",
+            [word_id],
+        )
+        .unwrap();
 
         // Verify deletion
         let word = db::get_word(&conn, word_id).unwrap();
