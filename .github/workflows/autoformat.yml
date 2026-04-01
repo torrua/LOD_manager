@@ -27,11 +27,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v6
-        with:
-          # Use the default GITHUB_TOKEN — allows pushing back to the branch.
-          token: ${{ secrets.GITHUB_TOKEN }}
-          # Fetch full history so git log works; not strictly needed here.
-          fetch-depth: 0
 
       # ── JavaScript / Svelte ──────────────────────────────────────────────
       - uses: actions/setup-node@v6
