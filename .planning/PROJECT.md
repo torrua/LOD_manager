@@ -4,13 +4,13 @@ A desktop + mobile editor for the Loglan Online Dictionary (LOD).
 
 ## Overview
 
-| Attribute      | Value                                     |
-| -------------- | ----------------------------------------- |
-| **Type**       | Cross-platform desktop/mobile application |
-| **Tech Stack** | Tauri v2, Svelte 5, Rust, SQLite (FTS5)   |
-| **Version**    | 1.6.1                                     |
-| **Repository** | Tauri + Svelte + Rust                     |
-| **Mode**       | Analysis                                  |
+| Attribute      | Value                                           |
+| -------------- | ----------------------------------------------- |
+| **Type**       | Cross-platform desktop/mobile application       |
+| **Tech Stack** | Tauri v2, Svelte 5, Vite 8, Rust, SQLite (FTS5) |
+| **Version**    | 1.6.5                                           |
+| **Repository** | Tauri + Svelte + Rust                           |
+| **Mode**       | Analysis                                        |
 
 ## Purpose
 
@@ -31,12 +31,25 @@ The Loglan Online Dictionary (LOD) is a comprehensive dictionary for Loglan, a c
 - Dark/light theme
 - Responsive layout (mobile/desktop)
 
+## Tech Stack
+
+| Component  | Version       |
+| ---------- | ------------- |
+| Tauri      | v2            |
+| Svelte     | 5.x           |
+| Vite       | 8.x           |
+| Rust       | stable        |
+| SQLite     | 3.x with FTS5 |
+| TypeScript | 6.x           |
+| ESLint     | 10.x          |
+
 ## Architecture
 
-- **Frontend**: Svelte 5 with runes, TypeScript, Vite
+- **Frontend**: Svelte 5 with runes, TypeScript, Vite 8
 - **Backend**: Rust with Tauri 2.0 commands
 - **Database**: SQLite with FTS5 for full-text search
 - **State**: Rust-side Mutex for database connection
+- **Build**: Vite for frontend, Cargo for Rust
 
 ## Files of Interest
 

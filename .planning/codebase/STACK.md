@@ -6,7 +6,7 @@
 
 **Primary:**
 
-- TypeScript 5.x - Frontend runtime
+- TypeScript 6.x - Frontend runtime
 - Rust - Backend/Desktop application
 - Svelte 5 - Frontend framework (runes-based reactivity)
 
@@ -30,8 +30,9 @@
 
 **Core:**
 
-- Svelte 5.0 - UI framework with runes (`$state`, `$derived`, `$effect`)
+- Svelte 5.x - UI framework with runes (`$state`, `$derived`, `$effect`)
 - Tauri 2.0 - Desktop application framework
+- Vite 8.x - Build tool and dev server
 - rusqlite 0.31 - SQLite database with bundled feature
 
 **Testing:**
@@ -41,17 +42,27 @@
 
 **Build/Dev:**
 
-- Vite 7.3.1 - Build tool and dev server
+- Vite 8.0.3 - Build tool and dev server
 - Tauri CLI 2.0 - Desktop build orchestration
 
 ## Key Dependencies
 
-**Tauri Plugins (Frontend):**
+**Frontend (npm):**
 
 - `@tauri-apps/api` ^2.0.0 - Tauri IPC and app APIs
 - `@tauri-apps/plugin-dialog` ^2.0.0 - Native file dialogs
 - `@tauri-apps/plugin-fs` ^2.0.0 - File system access
 - `@tauri-apps/plugin-os` ^2.3.2 - OS-level utilities
+
+**Dev Dependencies (npm):**
+
+- Vite 8.x
+- @sveltejs/vite-plugin-svelte 7.x
+- ESLint 10.x
+- eslint-plugin-svelte 3.x
+- svelte-check 4.x
+- TypeScript 6.x
+- prettier 3.x
 
 **Tauri Plugins (Rust):**
 

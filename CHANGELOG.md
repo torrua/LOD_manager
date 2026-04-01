@@ -2,6 +2,36 @@
 
 All notable changes to LOD Manager are documented here.
 
+## [1.6.5] — 2026-04-01
+
+### 🔧 Dependencies Updated
+
+- **Vite**: 7.x → 8.0.3
+- **@sveltejs/vite-plugin-svelte**: 6.x → 7.0.0
+- **TypeScript**: 5.x → 6.0.2
+- **ESLint**: 9.x → 10.x
+- **eslint-plugin-svelte**: 2.x → 3.x
+- **globals**: 15.x → 17.x
+- **svelte-eslint-parser**: 0.43 → 1.6.0
+
+### 🐛 Bug Fixes
+
+- **Clippy**: Fixed `uninlined_format_args` warnings in export.rs
+- **CI**: Fixed prettier ignore for tables/ directory
+- **Export**: Fixed collapsible if statement warning
+
+## [1.6.4] — 2026-04-01
+
+### 🚀 Performance Improvements
+
+- **FTS Updates**: Implemented incremental FTS index updates on definition save/delete
+- **Database Stats**: Optimized `get_db_stats` to use single query with subqueries
+- **Import**: Added FTS rebuild to `import_lod_contents` command
+
+### 🧪 Testing
+
+- Added `test_fts_update_incremental` test for FTS functionality
+
 ## [1.6.0] — 2026-03-12
 
 ### 🚀 Performance Improvements
