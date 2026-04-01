@@ -61,7 +61,7 @@ jobs:
         run: cargo install cargo-ndk --locked
 
       - name: Install npm dependencies
-        run: npm ci
+        run: npm install
 
       # Инициализация Android проекта (если ещё не сделано)
       - name: Init Android project

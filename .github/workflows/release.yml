@@ -30,7 +30,7 @@ jobs:
       - uses: swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
-      - run: npm ci
+      - run: npm install
       - name: Sync version from tag
         shell: bash
         run: |
@@ -96,7 +96,7 @@ jobs:
           echo "NDK_HOME=$ANDROID_HOME/ndk/$NDK_VER" >> $GITHUB_ENV
 
       - run: cargo install cargo-ndk --locked
-      - run: npm ci
+      - run: npm install
 
       - name: Sync version from tag
         run: |
