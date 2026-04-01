@@ -70,7 +70,11 @@ jobs:
             libwebkit2gtk-4.1-dev \
             libappindicator3-dev \
             librsvg2-dev \
-            patchelf
+            patchelf \
+            libglib2.0-dev \
+            libgobject-2.0-dev \
+            libgio-2.0-dev \
+            pkg-config
 
       - name: rustfmt + Clippy + test
         run: |

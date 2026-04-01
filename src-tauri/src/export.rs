@@ -5,7 +5,7 @@
 //! per-word queries. With 10 000 words the old approach ran ~30 000 individual
 //! SQL statements; the new approach runs exactly 4.
 
-use rusqlite::{Connection, params};
+use rusqlite::{params, Connection};
 use std::collections::HashMap;
 use std::fmt::Write;
 
@@ -233,9 +233,11 @@ pub fn generate_html(
     {
         let all_words: Vec<(i64, String)> = {
             let mut stmt = conn.prepare("SELECT id, name FROM words")?;
-            stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?
+            let result = stmt
+                .query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?
                 .filter_map(std::result::Result::ok)
-                .collect()
+                .collect();
+            result
         };
         for (word_id, affixes) in &afx_map {
             let mut matches: Vec<String> = Vec::new();

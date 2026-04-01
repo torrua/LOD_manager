@@ -1,5 +1,5 @@
 use crate::models::*;
-use rusqlite::{Connection, params};
+use rusqlite::{params, Connection};
 use std::convert::TryInto;
 
 pub fn init_schema(conn: &Connection) -> rusqlite::Result<()> {

@@ -87,7 +87,7 @@ Based on analysis, potential directions:
 
 | Attribute | Value                            |
 | --------- | -------------------------------- |
-| Version   | 1.6.1                            |
+| Version   | 1.6.5                            |
 | Tech      | Tauri v2, Svelte 5, Rust, SQLite |
 | Mode      | Analysis                         |
 | Phases    | 4 completed                      |

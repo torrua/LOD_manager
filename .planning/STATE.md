@@ -7,7 +7,7 @@
 | Attribute              | Value    |
 | ---------------------- | -------- |
 | **Mode**               | Analysis |
-| **Version**            | 1.6.1    |
+| **Version**            | 1.6.5    |
 | **Phases Completed**   | 4        |
 | **Codebase Documents** | 7        |
 | **Research Documents** | 1        |

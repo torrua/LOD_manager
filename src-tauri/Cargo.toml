@@ -1,6 +1,6 @@
 [package]
 name = "lod-manager"
-version = "1.6.1"
+version = "1.6.5"
 description = "Loglan Online Dictionary Manager"
 authors = ["You"]
 edition = "2024"
