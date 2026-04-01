@@ -519,4 +519,66 @@ mod tests {
         // The old term might still be in FTS cache, but that's acceptable for incremental updates
         // The key is that new content is searchable
     }
+
+    #[test]
+    fn test_list_words_basic() {
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        db::init_schema(&conn).unwrap();
+        db::init_fts(&conn).unwrap();
+
+        // Create type
+        conn.execute("INSERT INTO types (name) VALUES ('gismu')", []).unwrap();
+        let type_id: i64 = conn.last_insert_rowid();
+
+        // Create words
+        conn.execute("INSERT INTO words (name, type_id) VALUES ('abc', ?1)", [type_id]).unwrap();
+        conn.execute("INSERT INTO words (name, type_id) VALUES ('xyz', ?1)", [type_id]).unwrap();
+        conn.execute("INSERT INTO words (name, type_id) VALUES ('def', ?1)", [type_id]).unwrap();
+
+        // List all
+        let words = db::list_words(&conn, "", "", None).unwrap();
+        assert_eq!(words.len(), 3);
+
+        // Filter by prefix
+        let words = db::list_words(&conn, "a", "", None).unwrap();
+        assert_eq!(words.len(), 1);
+        assert_eq!(words[0].name, "abc");
+
+        // Wildcard search
+        let words = db::list_words(&conn, "x*", "", None).unwrap();
+        assert_eq!(words.len(), 1);
+        assert_eq!(words[0].name, "xyz");
+
+        // Filter by type
+        let words = db::list_words(&conn, "", "gismu", None).unwrap();
+        assert_eq!(words.len(), 3);
+
+        // Filter by event (no event = none should match)
+        let words = db::list_words(&conn, "", "", Some(999)).unwrap();
+        assert_eq!(words.len(), 0);
+    }
+
+    #[test]
+    fn test_fts_search_basic() {
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        db::init_schema(&conn).unwrap();
+        db::init_fts(&conn).unwrap();
+
+        // Create word with definition
+        conn.execute("INSERT INTO types (name) VALUES ('gismu')", []).unwrap();
+        let type_id: i64 = conn.last_insert_rowid();
+        conn.execute("INSERT INTO words (name, type_id) VALUES ('camgu', ?1)", [type_id]).unwrap();
+        let word_id: i64 = conn.last_insert_rowid();
+        conn.execute(
+            "INSERT INTO definitions (word_id, position, body) VALUES (?1, 0, 'to want to desire to hope')",
+            [word_id],
+        ).unwrap();
+
+        // Rebuild FTS
+        db::rebuild_fts(&conn).unwrap();
+
+        // Search
+        let results = db::search_english_fts(&conn, "desire", 10).unwrap();
+        assert!(!results.is_empty());
+    }
 }
