@@ -25,15 +25,14 @@ This document provides coding guidelines and commands for agents working on this
 
 ### TypeScript / Linting
 
-| Command                | Description                                                   |
-| ---------------------- | ------------------------------------------------------------- |
-| `npm run check`        | Run svelte-check (full TS type check)                         |
-| `npm run check:watch`  | svelte-check in watch mode                                    |
-| `npm run lint`         | Run ESLint                                                    |
-| `npm run lint:fix`     | ESLint auto-fix                                               |
-| `npm run format`       | Prettier format (writes)                                      |
-| `npm run format:check` | Prettier check only                                           |
-| `npm run ci:check`     | **All checks** (format + lint + check + rust:fmt + rust:lint) |
+| Command                | Description              |
+| ---------------------- | ------------------------ |
+| `npm run check`        | Run TypeScript check     |
+| `npm run lint`         | Run ESLint               |
+| `npm run lint:fix`     | ESLint auto-fix          |
+| `npm run format`       | Prettier format (writes) |
+| `npm run format:check` | Prettier check only      |
+| `npm run ci:check`     | **All frontend checks**  |
 
 ### Rust
 

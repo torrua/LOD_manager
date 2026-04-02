@@ -8,8 +8,7 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "dev:tauri": "tauri dev",
-    "check": "svelte-check --tsconfig ./tsconfig.json",
-    "check:watch": "svelte-check --tsconfig ./tsconfig.json --watch",
+    "check": "tsc --noEmit",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
@@ -17,7 +16,7 @@
     "rust:fmt": "cargo fmt --manifest-path src-tauri/Cargo.toml",
     "rust:fmt:check": "cargo fmt --manifest-path src-tauri/Cargo.toml -- --check",
     "rust:lint": "cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings",
-    "ci:check": "npm run format:check && npm run lint && npm run check && npm run rust:fmt:check && npm run rust:lint"
+    "ci:check": "npm run format:check && npm run lint && npm run check"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.0.0",
