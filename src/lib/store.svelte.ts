@@ -2,6 +2,8 @@ import { invoke } from '@tauri-apps/api/core';
 import { readFile, writeFile } from '@tauri-apps/plugin-fs';
 import { appDataDir, BaseDirectory } from '@tauri-apps/api/path';
 import { platform } from '@tauri-apps/plugin-os';
+import { check } from '@tauri-apps/plugin-updater';
+import { relaunch } from '@tauri-apps/plugin-process';
 // Test comment for pre-commit hook
 import type {
   WordListItem,
@@ -65,6 +67,10 @@ export const app = $state({
   dbStats: null as DbStats | null,
   currentPlatform: 'unknown' as string,
   suggestImport: false, // set true when DB opened/created empty
+  updateAvailable: false,
+  updateVersion: '',
+  updateDownloading: false,
+  updateProgress: 0,
   prefs: {
     showTypeTag: (loadPrefs().showTypeTag ?? true) as boolean,
     showDefCount: (loadPrefs().showDefCount ?? true) as boolean,
@@ -579,5 +585,56 @@ export async function initPlatform() {
     app.currentPlatform = await platform();
   } catch {
     app.currentPlatform = 'unknown';
+  }
+}
+
+export async function checkForUpdate() {
+  if (app.currentPlatform === 'android' || app.currentPlatform === 'ios') return;
+  try {
+    const update = await check();
+    if (update) {
+      app.updateAvailable = true;
+      app.updateVersion = update.version;
+      toast(`Update ${update.version} available`, 'info');
+    } else {
+      toast('Already up to date', 'info');
+    }
+  } catch (e) {
+    console.error('Update check failed:', e);
+  }
+}
+
+export async function installUpdate() {
+  try {
+    app.updateDownloading = true;
+    app.updateProgress = 0;
+    const update = await check();
+    if (!update) {
+      app.updateDownloading = false;
+      return;
+    }
+    let downloaded = 0;
+    let contentLength = 0;
+    await update.downloadAndInstall((event) => {
+      switch (event.event) {
+        case 'Started':
+          contentLength = event.data.contentLength ?? 0;
+          break;
+        case 'Progress':
+          downloaded += event.data.chunkLength;
+          if (contentLength) {
+            app.updateProgress = Math.round((downloaded / contentLength) * 100);
+          }
+          break;
+        case 'Finished':
+          app.updateProgress = 100;
+          break;
+      }
+    });
+    await relaunch();
+  } catch (e) {
+    console.error('Update install failed:', e);
+    toast('Update failed', 'err');
+    app.updateDownloading = false;
   }
 }

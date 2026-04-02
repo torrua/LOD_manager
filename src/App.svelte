@@ -18,6 +18,7 @@
     applyFilter,
     initPlatform,
     pushHistory,
+    checkForUpdate,
   } from './lib/store.svelte';
   import Icon from './lib/components/Icon.svelte';
   import type { Tab } from './types';
@@ -420,6 +421,15 @@
       <button class="btn btn-ic btn-ghost hide-compact" onclick={toggleTheme} title="Toggle theme"
         ><Icon name="theme" size={18} /></button
       >
+      {#if app.currentPlatform !== 'android' && app.currentPlatform !== 'ios'}
+        <button
+          class="btn btn-ic btn-ghost hide-compact"
+          onclick={() => checkForUpdate()}
+          title="Check for updates"
+        >
+          <Icon name="update" size={18} />
+        </button>
+      {/if}
       <button
         class="btn btn-ic btn-ghost hide-compact"
         class:btn-active={app.toolsOpen}
