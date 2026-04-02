@@ -15,6 +15,7 @@
     toggleMetaField,
     rebuildFts,
     loadWords,
+    checkForUpdate,
   } from '../store.svelte';
   import type { ImportResult } from '../../types';
 
@@ -664,6 +665,15 @@
       <!-- App version -->
       <div class="settings-group version-group">
         <span class="version-label">LOD Manager v{appVersion}</span>
+        {#if app.currentPlatform !== 'android' && app.currentPlatform !== 'ios'}
+          <button
+            class="btn btn-ic btn-ghost btn-sm"
+            onclick={() => checkForUpdate()}
+            title="Check for updates"
+          >
+            <Icon name="update" size={14} />
+          </button>
+        {/if}
       </div>
     {/if}
   </div>

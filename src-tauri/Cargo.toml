@@ -1,6 +1,6 @@
 [package]
 name = "lod-manager"
-version = "1.6.5"
+version = "1.6.6"
 description = "Loglan Online Dictionary Manager"
 authors = ["You"]
 edition = "2024"
@@ -14,7 +14,6 @@ crate-type = ["cdylib", "rlib"]
 
 [build-dependencies]
 tauri-build = { version = "2.0", features = [] }
-winres = "0.1"
 
 [dependencies]
 tauri             = { version = "2.0", features = [] }

@@ -601,6 +601,7 @@ export async function checkForUpdate() {
     }
   } catch (e) {
     console.error('Update check failed:', e);
+    toast('Failed to check for updates', 'err');
   }
 }
 

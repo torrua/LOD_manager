@@ -330,7 +330,8 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .setup(|app| {
             #[cfg(desktop)]
-            app.handle().plugin(tauri_plugin_updater::Builder::new().build())?;
+            app.handle()
+                .plugin(tauri_plugin_updater::Builder::new().build())?;
             Ok(())
         })
         .manage(AppState {

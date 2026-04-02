@@ -4,6 +4,15 @@ All notable changes to LOD Manager are documented here. See [conventional commit
 
 ---
 
+## [1.6.6](https://github.com/torrua/LOD_manager/releases/tag/v1.6.6) — 2026-04-02
+
+### Bug Fixes
+
+- Remove winres dependency to fix Windows linker duplicate VERSION resource error
+- Fix Rust formatting in app.handle() chain
+
+---
+
 ## [1.6.5](https://github.com/torrua/LOD_manager/releases/tag/v1.6.5) — 2026-04-02
 
 ### Features
