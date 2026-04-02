@@ -27,6 +27,7 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "createUpdaterArtifacts": true,
     "icon": [
       "icons/icon.ico",
       "icons/icon.png",
@@ -47,6 +48,13 @@
   "plugins": {
     "dialog": null,
     "fs": {},
-    "os": null
+    "os": null,
+    "updater": {
+      "pubkey": "RWTokZmjPABFWEwpRlcOKxI+IUThqQhDWDw6XpIizc7KYAGH0s33oUPe",
+      "endpoints": ["https://github.com/torrua/LOD_manager/releases/latest/download/latest.json"],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
   }
 }
