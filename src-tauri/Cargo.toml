@@ -6,10 +6,6 @@ authors = ["You"]
 edition = "2024"
 
 [lib]
-# Required for Android builds — Tauri needs a shared library (.so)
-# cdylib: Android .so  |  staticlib: iOS .a  |  rlib: desktop tests
-# staticlib removed: causes .pdb filename collision with the bin on Windows.
-# Tauri Android only needs cdylib (.so); iOS static builds are uncommon.
 crate-type = ["cdylib", "rlib"]
 
 [build-dependencies]
@@ -20,11 +16,13 @@ tauri             = { version = "2.0", features = [] }
 tauri-plugin-dialog = "2.0"
 tauri-plugin-fs   = "2.0"
 tauri-plugin-os   = "2.0"
-tauri-plugin-updater = "2.0"
-tauri-plugin-process = "2.0"
 serde             = { version = "1.0", features = ["derive"] }
 serde_json        = "1.0"
 rusqlite          = { version = "0.31", features = ["bundled"] }
+
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+tauri-plugin-updater = "2.0"
+tauri-plugin-process = "2.0"
 
 [features]
 custom-protocol = ["tauri/custom-protocol"]
