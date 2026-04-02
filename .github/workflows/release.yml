@@ -131,15 +131,17 @@ jobs:
           TAURI_ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           TAURI_ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
 
-      - name: Rename APK
+      - name: Find and rename APK
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
-          APK=$(find src-tauri/gen/android -name "*-release.apk" | head -1)
+          APK=$(find src-tauri/gen/android -name "*.apk" -not -name "*-unsigned*" | head -1)
           if [ -n "$APK" ]; then
             DEST="src-tauri/gen/android/LOD.Manager_${VERSION}_aarch64.apk"
             mv "$APK" "$DEST"
-            echo "Renamed to: $DEST"
+            echo "Renamed $APK to: $DEST"
           else
+            echo "Available files:"
+            find src-tauri/gen/android -name "*.apk" || echo "None found"
             echo "No signed APK found!"
             exit 1
           fi
