@@ -2,7 +2,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { readFile, writeFile } from '@tauri-apps/plugin-fs';
 import { appDataDir, BaseDirectory } from '@tauri-apps/api/path';
 import { platform } from '@tauri-apps/plugin-os';
-import { check } from '@tauri-apps/plugin-updater';
+import { check, type DownloadEvent } from '@tauri-apps/plugin-updater';
 import { relaunch } from '@tauri-apps/plugin-process';
 // Test comment for pre-commit hook
 import type {
@@ -616,13 +616,13 @@ export async function installUpdate() {
     }
     let downloaded = 0;
     let contentLength = 0;
-    await update.downloadAndInstall((event) => {
+    await update.downloadAndInstall((event: DownloadEvent) => {
       switch (event.event) {
         case 'Started':
           contentLength = event.data.contentLength ?? 0;
           break;
         case 'Progress':
-          downloaded += event.data.chunkLength;
+          downloaded += event.data.chunkLength ?? 0;
           if (contentLength) {
             app.updateProgress = Math.round((downloaded / contentLength) * 100);
           }
