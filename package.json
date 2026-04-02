@@ -1,6 +1,6 @@
 {
   "name": "lod-manager",
-  "version": "1.6.6",
+  "version": "1.6.5",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -17,24 +17,19 @@
     "rust:fmt": "cargo fmt --manifest-path src-tauri/Cargo.toml",
     "rust:fmt:check": "cargo fmt --manifest-path src-tauri/Cargo.toml -- --check",
     "rust:lint": "cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings",
-    "ci:check": "npm run format:check && npm run lint && npm run check",
-    "ci:rust": "npm run rust:fmt:check && npm run rust:lint"
+    "ci:check": "npm run format:check && npm run lint && npm run check && npm run rust:fmt:check && npm run rust:lint"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.0.0",
     "@tauri-apps/plugin-dialog": "^2.0.0",
     "@tauri-apps/plugin-fs": "^2.0.0",
-    "@tauri-apps/plugin-os": "^2.3.2",
-    "@tauri-apps/plugin-process": "^2.0.0",
-    "@tauri-apps/plugin-updater": "^2.0.0"
+    "@tauri-apps/plugin-os": "^2.3.2"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@sveltejs/vite-plugin-svelte": "^7.0.0",
     "@tauri-apps/cli": "^2.0.0",
     "@typescript-eslint/types": "^8.58.0",
-    "conventional-changelog-cli": "^5.0.0",
-    "esbuild": "^0.27.5",
     "eslint": "^10.1.0",
     "eslint-plugin-svelte": "^3.16.0",
     "globals": "^17.4.0",

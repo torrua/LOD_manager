@@ -44,6 +44,10 @@ fn esc_js(s: &str) -> String {
 const SCRIPT_PREFIX: &str = r"<script>
 function doSearch(q){
   q=q.toLowerCase().trim();
+  document.querySelectorAll('.entry').forEach(function(el){
+    var name=el.dataset.name||'';
+    el.style.display=name.includes(q)?'':'none';
+  });
 ";
 
 const SCRIPT_SUFFIX: &str = r"
@@ -139,11 +143,9 @@ pub fn generate_html(
     wildcard: bool,
 ) -> rusqlite::Result<String> {
     let script = if wildcard {
-        let body = "document.querySelectorAll('.letter-section').forEach(function(sec){var v=[...sec.querySelectorAll('.entry')].some(e=>e.style.display!=='none');sec.style.display=v?'':'none';});document.getElementById('lod-search').addEventListener('input',function(){doSearch(this.value);});";
-        [SCRIPT_PREFIX_WILDCARD, SCRIPT_SUFFIX, body].join("")
+        [SCRIPT_PREFIX_WILDCARD, SCRIPT_SUFFIX].join("")
     } else {
-        let body = "document.querySelectorAll('.letter-section').forEach(function(sec){var v=[...sec.querySelectorAll('.entry')].some(e=>e.style.display!=='none');sec.style.display=v?'':'none';});document.getElementById('lod-search').addEventListener('input',function(){doSearch(this.value);});";
-        [SCRIPT_PREFIX, SCRIPT_SUFFIX, body].join("")
+        [SCRIPT_PREFIX, SCRIPT_SUFFIX].join("")
     };
 
     // ── 1. Load all words in ONE query ────────────────────────────────────────
