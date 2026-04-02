@@ -118,58 +118,30 @@ jobs:
         run: |
           cp -r src-tauri/icons/android/* src-tauri/gen/android/app/src/main/res/
 
-      # ═══════════════════════════════════════════════════════════════════════
-      # ПОДПИСЬ APK — выберите один из вариантов:
-      #
-      # ВАРИАНТ A (активен): debug-подпись — работает сразу, без секретов.
-      #   Устанавливается через "Неизвестные источники". Для личного/тестового
-      #   использования этого достаточно.
-      #
-      # ВАРИАНТ B: release-подпись через keystore — для публикации.
-      #   Инструкция по переходу на вариант B — см. комментарий ниже.
-      # ═══════════════════════════════════════════════════════════════════════
+      - name: Decode keystore
+        run: |
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > $HOME/release.jks
 
-      # ── ВАРИАНТ A: debug APK (активен) ────────────────────────────────────
-      - name: Build Android APK
-        run: npx tauri android build --target aarch64 --debug
+      - name: Build signed Android APK
+        run: npx tauri android build --target aarch64
         env:
           NDK_HOME: ${{ env.NDK_HOME }}
+          TAURI_ANDROID_KEYSTORE: $HOME/release.jks
+          TAURI_ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          TAURI_ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          TAURI_ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
 
-      # ── ВАРИАНТ B: release APK с keystore (раскомментировать) ─────────────
-      # Шаги для активации:
-      # 1. Создайте keystore локально:
-      #      keytool -genkeypair -v -keystore release.jks -alias lod \
-      #        -keyalg RSA -keysize 2048 -validity 10000
-      # 2. Добавьте 4 секрета в GitHub → Settings → Secrets → Actions:
-      #      ANDROID_KEYSTORE   = $(base64 -w0 release.jks)
-      #      ANDROID_KEY_ALIAS  = lod
-      #      ANDROID_KEY_PASS   = <пароль ключа>
-      #      ANDROID_STORE_PASS = <пароль хранилища>
-      # 3. Замените шаг "Build Android APK" выше на эти два шага:
-      #
-      # - name: Decode keystore
-      #   run: |
-      #     echo "${{ secrets.ANDROID_KEYSTORE }}" | base64 -d \
-      #       > src-tauri/gen/android/release.jks
-      #
-      # - name: Build Android APK (release-signed)
-      #   run: npx tauri android build --target aarch64
-      #   env:
-      #     NDK_HOME:               ${{ env.NDK_HOME }}
-      #     ANDROID_KEY_ALIAS:      ${{ secrets.ANDROID_KEY_ALIAS }}
-      #     ANDROID_KEY_PASSWORD:   ${{ secrets.ANDROID_KEY_PASS }}
-      #     ANDROID_STORE_FILE:     release.jks
-      #     ANDROID_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASS }}
-
-      - name: Rename APK to match release naming convention
+      - name: Rename APK
         run: |
-          VERSION="${{ github.ref_name }}"
-          VERSION="${VERSION#v}"
-          APK=$(find src-tauri/gen/android -name "*.apk" | head -1)
+          VERSION="${GITHUB_REF_NAME#v}"
+          APK=$(find src-tauri/gen/android -name "*-release.apk" | head -1)
           if [ -n "$APK" ]; then
             DEST="src-tauri/gen/android/LOD.Manager_${VERSION}_aarch64.apk"
             mv "$APK" "$DEST"
             echo "Renamed to: $DEST"
+          else
+            echo "No signed APK found!"
+            exit 1
           fi
 
       - uses: softprops/action-gh-release@v2
