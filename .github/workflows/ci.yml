@@ -41,12 +41,50 @@ jobs:
         run: npm run ci:check
 
   # ─────────────────────────────────────────────────────────────
-  # Rust checks: Skip in CI due to GTK/webkit dependencies
-  # Use local checks: cargo fmt + cargo clippy + cargo test
+  # Rust: rustfmt check + Clippy + cargo test
   # ─────────────────────────────────────────────────────────────
-  # NOTE: Rust checks are disabled in CI because Tauri requires
-  # heavy system dependencies (GTK, webkit2gtk) not available
-  # on GitHub runners. Run these locally before pushing:
-  #   npm run rust:fmt
-  #   npm run rust:lint
-  #   cargo test --manifest-path src-tauri/Cargo.toml
+  rust:
+    name: Rust checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    if: github.event_name == 'pull_request' || github.event.workflow_run.conclusion != 'failure'
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Rust stable + components
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      # System libs required by Tauri on Linux
+      - name: Install Tauri system deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            build-essential \
+            curl \
+            wget \
+            libssl-dev \
+            libgtk-3-dev \
+            libxdo-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            pkg-config \
+            libglib2.0-dev \
+            libgobject-2.0-dev \
+            libgio-2.0-dev
+          # Explicitly set pkg-config path for GitHub runners
+          echo "PKG_CONFIG_PATH=/usr/lib/x86_64-linux-gnu/pkgconfig:$PKG_CONFIG_PATH" >> $GITHUB_ENV
+
+      - name: rustfmt + Clippy + test
+        run: |
+          cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
+          cargo clippy --manifest-path src-tauri/Cargo.toml --lib -- -D warnings
+          cargo test --manifest-path src-tauri/Cargo.toml --lib
