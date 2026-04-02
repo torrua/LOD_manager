@@ -1,24 +1,34 @@
 # Changelog
 
-All notable changes to LOD Manager are documented here.
+All notable changes to LOD Manager are documented here. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
-## [1.6.5] — 2026-04-01
+---
 
-### 🔧 Dependencies Updated
+## [1.6.5](https://github.com/torrua/LOD_manager/releases/tag/v1.6.5) — 2026-04-02
 
-- **Vite**: 7.x → 8.0.3
-- **@sveltejs/vite-plugin-svelte**: 6.x → 7.0.0
-- **TypeScript**: 5.x → 6.0.2
-- **ESLint**: 9.x → 10.x
-- **eslint-plugin-svelte**: 2.x → 3.x
-- **globals**: 15.x → 17.x
-- **svelte-eslint-parser**: 0.43 → 1.6.0
+### Features
 
-### 🐛 Bug Fixes
+- Add Tauri auto-updater with GitHub releases integration
+- Embed Windows version info and metadata into exe
+- Enable signed Android APK builds in release workflow
 
-- **Clippy**: Fixed `uninlined_format_args` warnings in export.rs
-- **CI**: Fixed prettier ignore for tables/ directory
-- **Export**: Fixed collapsible if statement warning
+### Bug Fixes
+
+- Add missing esbuild dependency required by vite 8
+- Broaden APK find pattern and add debug output
+- Patch build.gradle.kts to enable Android release signing
+
+### Documentation
+
+- Add MIT license
+- Add SECURITY.md, PRIVACY.md, and NOTICES.md
+
+### Dependencies
+
+- Add `@tauri-apps/plugin-updater` and `@tauri-apps/plugin-process`
+- Add `tauri-plugin-updater` and `tauri-plugin-process` (Rust)
+- Add `winres` for Windows version resources
+- Add `esbuild` for Vite 8 compatibility
 
 ## [1.6.4] — 2026-04-01
 
