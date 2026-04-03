@@ -48,6 +48,13 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+
+      - name: Rename files to use dots instead of spaces
+        run: |
+          find src-tauri/target/release/bundle -name "*.exe" -not -name "*.sig" -exec sh -c 'mv "$1" "${1// /.}"' _ {} \;
+          find src-tauri/target/release/bundle -name "*.msi" -exec sh -c 'mv "$1" "${1// /.}"' _ {} \;
+          find src-tauri/target/release/bundle -name "*.sig" -exec sh -c 'mv "$1" "${1// /.}"' _ {} \;
+
       - uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
