@@ -86,12 +86,12 @@ jobs:
           PLATFORMS="{"
 
           if [ -n "$NSIS_EXE" ]; then
-            NSIS_BASENAME=$(basename "$NSIS_EXE")
+            NSIS_BASENAME=$(basename "$NSIS_EXE" | tr ' ' '.')
             PLATFORMS="$PLATFORMS\"windows-x86_64\":{\"signature\":\"$NSIS_SIG_CONTENT\",\"url\":\"$RELEASE_URL/download/$TAG/$NSIS_BASENAME\"},"
           fi
 
           if [ -n "$MSI_FILE" ]; then
-            MSI_BASENAME=$(basename "$MSI_FILE")
+            MSI_BASENAME=$(basename "$MSI_FILE" | tr ' ' '.')
             PLATFORMS="${PLATFORMS}windows-x86_64-msi\":{\"signature\":\"$MSI_SIG_CONTENT\",\"url\":\"$RELEASE_URL/download/$TAG/$MSI_BASENAME\"},"
           fi
 
