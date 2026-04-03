@@ -328,10 +328,12 @@ pub fn run() {
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
-        .setup(|app| {
+        .setup(|_app| {
             #[cfg(desktop)]
-            app.handle()
-                .plugin(tauri_plugin_updater::Builder::new().build())?;
+            {
+                _app.handle()
+                    .plugin(tauri_plugin_updater::Builder::new().build())?;
+            }
             Ok(())
         })
         .manage(AppState {
