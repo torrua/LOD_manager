@@ -1,6 +1,6 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
-  "identifier": "default-capability",
+  "identifier": "desktop-capability",
   "description": "Capability for desktop platforms",
   "windows": ["main"],
   "permissions": [
