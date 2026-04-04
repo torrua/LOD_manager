@@ -34,13 +34,13 @@
   }
   .toast.ok {
     color: var(--green);
-    border-color: var(--green-d);
-    background: var(--green-g);
+    border-color: var(--green);
+    background: var(--surf);
   }
   .toast.err {
     color: var(--red);
-    border-color: var(--red-d);
-    background: var(--red-g);
+    border-color: var(--red);
+    background: var(--surf);
   }
   @keyframes toast-in {
     from {
