@@ -1,0 +1,6 @@
+{
+  "version": "1.6.7",
+  "notes": "See https://github.com/torrua/LOD_manager/releases/tag/v1.6.7",
+  "pub_date": "2026-04-04T07:41:06Z",
+  "platforms": {"windows-x86_64":{"signature":"dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTaFNZeVp2aEs3TzAxaEtDb1lheXFoa3BKeldUSEhNaVVOMHNRSmVjZUdNK2swU240RUpYWlNTVEwrUG1XOEhTbEk2NndpSWxWU3hsbjlDeEw2ejkyNHNjbUtyU09tU2dvPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc1Mjg4NDYzCWZpbGU6TE9EIE1hbmFnZXJfMS42LjdfeDY0LXNldHVwLmV4ZQpuYXBIK2tWRWlubkNTY2laOWcycVRwQ0tGdG9keHp1ZkhlbzdVczV2SEFCZjcwN2NaNThBcnlBcEdsUGR6b0hoUzZjVXp4VWpzcnVDbS9reUJaMU5DQT09Cg==","url":"https://github.com/torrua/LOD_manager/releases/download/v1.6.7/LOD.Manager_1.6.7_x64-setup.exe"},windows-x86_64-msi":{"signature":"dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTaFNZeVp2aEs3TzFQdnFQVWFVZVV2WEJnbzRVSDluc0lsS2NNVzN6U0JnblYzbjJ3QlNzd3FQcFNCZGh6WXlRM09vbDBDTUVyQm95NzIzUzc4bzlBS2cwV1ZPNzN5cUF3PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc1Mjg4NDYzCWZpbGU6TE9EIE1hbmFnZXJfMS42LjdfeDY0X2VuLVVTLm1zaQovM1g1elAyM3FRUDR6ZVlOSG5OTkEzSFBHdVp3TUVGK0J5ZHBDaHdseFVFQTRES0lTOWt1Nk44N0FGVE90c3YyVWd5RDN3S095WE0yazAvMllsN0tDdz09Cg==","url":"https://github.com/torrua/LOD_manager/releases/download/v1.6.7/LOD.Manager_1.6.7_x64_en-US.msi"}}
+}
