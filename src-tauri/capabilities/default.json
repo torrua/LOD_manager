@@ -13,7 +13,6 @@
     "fs:allow-appdata-write",
     "fs:scope-appdata-recursive",
     "os:allow-platform",
-    "os:allow-os-type",
-    "updater:default"
+    "os:allow-os-type"
   ]
 }
