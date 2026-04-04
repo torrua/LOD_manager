@@ -830,6 +830,12 @@ pub fn rebuild_fts(conn: &Connection) -> rusqlite::Result<()> {
     Ok(())
 }
 
+/// Compact the database by running VACUUM.
+/// Reclaims freed space from deleted rows and defragments the database file.
+pub fn vacuum_db(conn: &Connection) -> rusqlite::Result<()> {
+    conn.execute_batch("VACUUM")
+}
+
 /// Update FTS when a single definition is saved.
 #[allow(dead_code)]
 pub fn fts_update(conn: &Connection, def_id: i64, body: &str) -> rusqlite::Result<()> {

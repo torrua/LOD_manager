@@ -14,6 +14,7 @@
     setPref,
     toggleMetaField,
     rebuildFts,
+    compactDb,
     loadWords,
     checkForUpdate,
     installUpdate,
@@ -174,7 +175,6 @@
   // For now both use same HTML structure; direction saved for future use
   let expEvent = $state('');
   let expDir = $state<'le' | 'el'>('le');
-  let expWildcard = $state(false);
   let expRunning = $state(false);
 
   function buildExportName(): string {
@@ -197,7 +197,7 @@
     if (!dest) return;
     expRunning = true;
     try {
-      await exportHtmlToFile(dest, expEvent || null, expWildcard);
+      await exportHtmlToFile(dest, expEvent || null);
       toast(`Exported → ${bn(dest)}`, 'ok');
       app.toolsOpen = false;
     } catch (e) {
@@ -345,6 +345,18 @@
             ><Icon name="close" size={16} /> Close</button
           >
         </div>
+        <div class="db-maintenance" style="margin-top:1rem">
+          <div class="sg-title" style="font-size:var(--fs-sm);margin-bottom:.4rem">
+            Database Maintenance
+          </div>
+          <div style="display:flex;flex-wrap:wrap;gap:.5rem">
+            <button class="btn btn-sm" onclick={() => rebuildFts()}>Rebuild FTS Index</button>
+            <button class="btn btn-sm" onclick={() => compactDb()}>Compact DB</button>
+          </div>
+          <p class="td-hint" style="margin-top:.35rem">
+            Rebuild FTS repairs the search index. Compact DB reclaims space from deleted entries.
+          </p>
+        </div>
       {:else}
         <p class="td-hint">No database open.</p>
         <div class="td-acts">
@@ -467,12 +479,6 @@
             <option value={ev.name}>{ev.name}</option>
           {/each}
         </select>
-      </div>
-      <div class="fg" style="margin-bottom:.65rem">
-        <label class="ck-row">
-          <input type="checkbox" class="ck" bind:checked={expWildcard} />
-          Enable wildcard search (* matches any letters)
-        </label>
       </div>
       <button class="btn btn-au" onclick={runExport} disabled={expRunning || !app.dbOpen}>
         {expRunning ? 'Generating…' : '⬇ Export HTML…'}
@@ -624,44 +630,6 @@
             />
             Match count badge
           </label>
-        </div>
-      </div>
-
-      <!-- E→L search engine -->
-      <div class="settings-group">
-        <div class="sg-title">E→L Search Engine</div>
-        <label class="ck-row">
-          <input
-            type="checkbox"
-            class="ck"
-            checked={app.prefs.elUseKeywords}
-            onchange={(e) => setPref('elUseKeywords', (e.target as HTMLInputElement).checked)}
-          />
-          Keywords only (search «…» terms)
-        </label>
-        <p class="td-hint" style="margin:.1rem 0 .35rem">
-          Match only the highlighted English keywords in definitions, not the full text. Faster and
-          more precise for exact English words.
-        </p>
-        <label class="ck-row">
-          <input
-            type="checkbox"
-            class="ck"
-            checked={app.prefs.elUseLike}
-            onchange={(e) => setPref('elUseLike', (e.target as HTMLInputElement).checked)}
-          />
-          Use LIKE instead of FTS5
-        </label>
-        <p class="td-hint" style="margin:.2rem 0">
-          FTS5 is faster and supports prefix / phrase matching.
-        </p>
-        <div style="display:flex;align-items:center;gap:.5rem;margin-top:.4rem">
-          <button class="btn btn-sm" onclick={() => rebuildFts()}>Rebuild FTS Index</button>
-          {#if app.elFtsReady}
-            <span style="font-size:.6rem;color:var(--green,#5a8)">✓ ready</span>
-          {:else}
-            <span style="font-size:.6rem;color:var(--red,#c44)">⚠ not built</span>
-          {/if}
         </div>
       </div>
 
@@ -1138,5 +1106,8 @@
     font-size: 0.58rem;
     color: var(--text3);
     letter-spacing: 0.04em;
+    text-align: center;
+    display: block;
+    width: 100%;
   }
 </style>

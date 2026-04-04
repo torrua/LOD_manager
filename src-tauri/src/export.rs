@@ -53,23 +53,6 @@ const SCRIPT_SUFFIX: &str = r"
 document.getElementById('lod-search').addEventListener('input',function(){doSearch(this.value);});
 </script>";
 
-const SCRIPT_PREFIX_WILDCARD: &str = r"<script>
-function doSearch(q){
-  q=q.toLowerCase().trim();
-  var first=null;
-  document.querySelectorAll('.entry').forEach(function(el){
-    var name=el.dataset.name||'';
-    if(!q||name.startsWith(q)){
-      if(!first)first=el;
-    }
-  });
-  if(first){
-    var behavior=q.length<4?'auto':'smooth';
-    first.scrollIntoView({behavior:behavior,block:'start'});
-  }
-}
-";
-
 fn fmt_body(s: &str) -> String {
     let s = esc(s).replace("--", "\u{2014}");
     let s = s.replace(" % ", " \u{2014} ").replace("% ", "\u{2014} ");
@@ -127,6 +110,7 @@ body{font-family:Georgia,serif;font-size:14px;line-height:1.6;background:#faf8f2
 .sidebar{width:200px;background:#f0ebe0;border-right:1px solid #d8d0c0;
   padding:1rem .75rem;flex-shrink:0;position:sticky;top:0;height:100vh;overflow-y:auto}
 .sidebar h2{font-size:.75rem;font-weight:700;color:#7a5418;letter-spacing:.05em;margin-bottom:.6rem}
+.sidebar .event-filter{font-size:.65rem;color:#6a5c48;background:#e8e0d0;padding:.2rem .5rem;border-radius:3px;margin-bottom:.5rem;text-align:center}
 .alpha{display:flex;flex-wrap:wrap;gap:3px;margin-bottom:1rem;justify-content:center}
 .alpha a{display:inline-flex;align-items:center;justify-content:center;width:24px;height:20px;font-size:.72rem;color:#7a5418;
   border:1px solid #d8d0c0;border-radius:3px;text-decoration:none;background:#faf8f2}
@@ -161,16 +145,9 @@ span.br{color:#800000;font-weight:700}
 }
 </style>";
 
-pub fn generate_html(
-    conn: &Connection,
-    event_name: Option<&str>,
-    wildcard: bool,
-) -> rusqlite::Result<String> {
-    let script = if wildcard {
-        [SCRIPT_PREFIX_WILDCARD, SCRIPT_SUFFIX].join("")
-    } else {
-        [SCRIPT_PREFIX, SCRIPT_SUFFIX].join("")
-    };
+pub fn generate_html(conn: &Connection, event_name: Option<&str>) -> rusqlite::Result<String> {
+    let script = [SCRIPT_PREFIX, SCRIPT_SUFFIX].join("");
+    let event_filter_label = event_name.map(|ev| format!("Event: {ev}"));
 
     // ── 1. Load all words in ONE query ────────────────────────────────────────
     // Two variants because rusqlite can't bind Optional<&str> to conditional SQL branches
@@ -182,9 +159,8 @@ pub fn generate_html(
                     w.origin, w.origin_x, w.notes
              FROM words w
              LEFT JOIN types t ON t.id = w.type_id
-             LEFT JOIN events es ON es.id = w.event_start_id
-             LEFT JOIN events ee ON ee.id = w.event_end_id
-             WHERE es.name = ?1 OR ee.name = ?1
+             WHERE (w.event_start_id IS NULL OR w.event_start_id <= (SELECT id FROM events WHERE name = ?1))
+               AND (w.event_end_id IS NULL OR w.event_end_id > (SELECT id FROM events WHERE name = ?1))
              ORDER BY LOWER(w.name)",
         )?;
         let rows: Vec<WordRow> = stmt
@@ -305,6 +281,9 @@ pub fn generate_html(
     html.push_str(STYLE);
     html.push_str("</head>\n<body>\n<div class=\"wrap\">\n<nav class=\"sidebar\">\n");
     html.push_str("<h2>LOD</h2>\n");
+    if let Some(ref label) = event_filter_label {
+        let _ = writeln!(html, "<div class=\"event-filter\">{}</div>", esc(label));
+    }
     html.push_str(
         "<input id=\"lod-search\" class=\"search-box\" type=\"text\" placeholder=\"Search…\">\n",
     );
@@ -471,9 +450,8 @@ pub fn write_html_to_file(
     conn: &Connection,
     path: &str,
     event_name: Option<&str>,
-    wildcard: bool,
 ) -> rusqlite::Result<()> {
-    let html = generate_html(conn, event_name, wildcard)?;
+    let html = generate_html(conn, event_name)?;
     std::fs::write(path, html.as_bytes())
         .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))
 }

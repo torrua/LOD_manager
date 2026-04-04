@@ -478,12 +478,8 @@ export async function importFiles(paths: string[], fileNames?: string[]) {
   loadDbStats().catch(() => {});
   return result;
 }
-export async function exportHtmlToFile(
-  path: string,
-  eventName: string | null,
-  wildcard: boolean
-): Promise<void> {
-  await invoke('export_html_to_file', { path, eventName, wildcard });
+export async function exportHtmlToFile(path: string, eventName: string | null): Promise<void> {
+  await invoke('export_html_to_file', { path, eventName });
 }
 
 // ─── E→L Search ──────────────────────────────────────────────────────────────
@@ -509,6 +505,17 @@ export async function rebuildFts() {
     const count: number = await invoke('rebuild_fts');
     app.elFtsReady = true;
     toast(`FTS ready — ${count.toLocaleString()} entries`, 'ok');
+  } catch (e) {
+    toast(String(e), 'err');
+  }
+}
+
+export async function compactDb() {
+  if (!app.dbOpen) return;
+  toast('Compacting database…', 'info');
+  try {
+    const size: string = await invoke('compact_db');
+    toast(`Database compacted — ${size}`, 'ok');
   } catch (e) {
     toast(String(e), 'err');
   }

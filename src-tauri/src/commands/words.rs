@@ -29,7 +29,11 @@ pub fn save_word(state: Db, id: Option<i64>, data: SaveWord) -> Res<WordDetail> 
 
 #[tauri::command]
 pub fn delete_word(state: Db, id: i64) -> Res<()> {
-    with_db(&state, |conn| db::delete_word(conn, id))
+    with_db(&state, |conn| {
+        db::delete_word(conn, id)?;
+        db::rebuild_fts(conn)?;
+        Ok(())
+    })
 }
 
 #[tauri::command]

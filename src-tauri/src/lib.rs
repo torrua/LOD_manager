@@ -72,6 +72,7 @@ pub fn run() {
             commands::import::import_lod_files,
             commands::search::search_english,
             commands::search::rebuild_fts,
+            commands::search::compact_db,
             commands::search::fts_is_ready,
             commands::export::export_html,
             commands::export::export_html_to_file,
@@ -616,7 +617,7 @@ mod tests {
         let conn = rusqlite::Connection::open_in_memory().unwrap();
         db::init_schema(&conn).unwrap();
 
-        let html = crate::export::generate_html(&conn, None, false).unwrap();
+        let html = crate::export::generate_html(&conn, None).unwrap();
         assert!(html.contains("No words found"));
     }
 
@@ -640,7 +641,7 @@ mod tests {
         )
         .unwrap();
 
-        let html = crate::export::generate_html(&conn, None, false).unwrap();
+        let html = crate::export::generate_html(&conn, None).unwrap();
         assert!(html.contains("camgu"));
         assert!(html.contains("to want to desire"));
         assert!(html.contains("gismu"));

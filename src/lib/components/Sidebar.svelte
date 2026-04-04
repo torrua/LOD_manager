@@ -464,6 +464,12 @@
     border-color: var(--red-d);
     background: var(--red-g);
   }
+  @media (max-width: 640px) {
+    .clr-btn {
+      width: 36px;
+      height: 36px;
+    }
+  }
 
   /* Search row: input + mode toggle */
   .search-row {
