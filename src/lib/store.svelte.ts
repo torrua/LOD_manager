@@ -601,7 +601,8 @@ export async function checkForUpdate() {
     }
   } catch (e) {
     console.error('Update check failed:', e);
-    toast('Failed to check for updates', 'err');
+    const errMsg = e instanceof Error ? e.message : String(e);
+    toast(`Update failed: ${errMsg}`, 'err');
   }
 }
 
