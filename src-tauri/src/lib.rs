@@ -313,6 +313,7 @@ fn export_html_to_file(
 }
 
 /// Returns the canonical default database path in the app's data directory.
+#[cfg(desktop)]
 #[tauri::command]
 fn debug_update_check(app: tauri::AppHandle) -> Res<String> {
     use tauri_plugin_updater::UpdaterExt;
@@ -403,6 +404,7 @@ pub fn run() {
             export_html,
             export_html_to_file,
             get_default_db_path,
+            #[cfg(desktop)]
             debug_update_check
         ])
         .run(tauri::generate_context!())
