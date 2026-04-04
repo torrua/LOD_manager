@@ -103,8 +103,5 @@
     <path d="M6 13H2" />
     <path d="m8 2 1.88 1.88" />
     <path d="M9 7.13V6a3 3 0 1 1 6 0v1.13" />
-  {:else if name === 'update'}
-    <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-    <polyline points="21 3 21 9 15 9" />
   {/if}
 </svg>
