@@ -158,7 +158,9 @@
               }
               return p.split(/[/\\]/).pop() || `file_${impPaths.indexOf(p)}.txt`;
             });
-      impResult = (await importFiles(impPaths, finalNames)) as ImportResult;
+      const result = (await importFiles(impPaths, finalNames)) as ImportResult;
+      impResult = result;
+      app.impResult = result;
       toast(`Import: ${impResult.words} words`, impResult.errors ? 'err' : 'ok');
     } catch (e) {
       toast(String(e), 'err');

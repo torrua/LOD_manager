@@ -16,6 +16,7 @@ import type {
   ELResult,
   SearchMode,
   Tab,
+  ImportResult,
 } from '../types';
 
 // ─── Preferences ─────────────────────────────────────────────────────────────
@@ -73,6 +74,7 @@ export const app = $state({
   updateProgress: 0,
   debugLog: [] as string[],
   debugVisible: false,
+  impResult: null as ImportResult | null,
   prefs: {
     showTypeTag: (loadPrefs().showTypeTag ?? true) as boolean,
     showDefCount: (loadPrefs().showDefCount ?? true) as boolean,

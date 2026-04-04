@@ -4,6 +4,44 @@ All notable changes to LOD Manager are documented here. See [conventional commit
 
 ---
 
+## [1.6.8](https://github.com/torrua/LOD_manager/releases/tag/v1.6.8) — 2026-04-04
+
+### Features
+
+- Add skipped rows tracking and reporting in import results
+- Display import results in debug panel with detailed breakdown
+- Enable WAL mode by default for better concurrent access
+- Add file size validation (100MB limit) for Android imports
+
+### Refactoring
+
+- Split lib.rs (1304 lines) into 8 command submodules by domain
+  - commands/database.rs — open, create, stats, default path
+  - commands/words.rs — word/definition CRUD
+  - commands/events.rs — event CRUD + get_event_words
+  - commands/types.rs — type CRUD
+  - commands/authors.rs — author CRUD
+  - commands/import.rs — import commands
+  - commands/search.rs — search, rebuild_fts, fts_is_ready
+  - commands/export.rs — export commands
+
+### Bug Fixes
+
+- Replace `.unwrap()` in import transaction with proper error handling
+- Fix potential panic during database import on locked/corrupt DB
+
+### Testing
+
+- Add 10 new tests: migrations, import/export, FTS rebuild, skipped rows
+- Total test count: 11 → 24
+
+### Documentation
+
+- Add module-level documentation to db.rs, import.rs, lib.rs
+- Document complex SQL strategy in get_word function
+
+---
+
 ## [1.6.6](https://github.com/torrua/LOD_manager/releases/tag/v1.6.6) — 2026-04-02
 
 ### Bug Fixes

@@ -1,116 +1,60 @@
 # Maintainability Scorecard
 
-**Assessment Date:** 2026-04-04
-
----
-
 ## Dimension Scores
 
-| Dimension         | Score (1-10) | Justification                                                                                                                                                            |
-| ----------------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Organization**  | **8**        | Clear module separation (lib.rs, db.rs, models.rs, import.rs, export.rs). Each has single responsibility. lib.rs is large (~903 lines) but justified as command gateway. |
-| **Coupling**      | **8**        | Loose coupling between frontend and backend. db.rs is the only backend module called by commands. AppState is accessed through helpers (`with_db`, `with_db_mut`).       |
-| **Documentation** | **6**        | Module-level docs present. Inline comments for complex logic. AGENTS.md exists. Missing: function-level docs for complex operations.                                     |
-| **Extensibility** | **7**        | Adding new word fields requires changes to models.rs, db.rs, and UI. Import/export have clear entry points. Reasonable for app size.                                     |
-| **Overall**       | **7.25**     | Simple architecture, proportionate to app size                                                                                                                           |
+| Dimension     | Score (1-10) | Justification                                                                                                                              |
+| ------------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| Organization  | 8            | Clean module separation (lib/db/models/import/export). lib.rs at 903 lines is manageable but approaching limit                             |
+| Coupling      | 7            | Commands depend directly on db.rs functions. `with_db`/`with_db_mut` helpers reduce coupling. No abstraction layer between commands and DB |
+| Documentation | 5            | Only `export.rs` has module-level `//!` docs. No `///` comments on complex functions like `get_word` or migrations                         |
+| Extensibility | 7            | Adding new word fields requires changes in models.rs, db.rs, and frontend types. Adding new entity requires new module                     |
 
----
+**Overall Score: 6.8/10**
 
 ## Improvement Areas
 
 ### High Priority
 
-1. **Error type system**
-   - Location: `lib.rs:28-30`
-   - Issue: Generic `String` errors make debugging harder
-   - Recommendation: Add error enum for common cases
-   - Effort: Medium
+1. **Add module-level documentation** (`src-tauri/src/db.rs`, `src-tauri/src/import.rs`, `src-tauri/src/lib.rs`)
+   - Explain the purpose of each module
+   - Document the `with_db`/`with_db_mut` helper pattern
+   - File: `src-tauri/src/db.rs:1` — add `//! Database operations module...`
 
-2. **Test coverage**
-   - Location: `lib.rs` under `#[cfg(test)]`
-   - Issue: Only 2 tests, no coverage for import/export/migrations
-   - Recommendation: Add integration tests for key flows
-   - Effort: Medium
+2. **Document complex SQL queries** (`src-tauri/src/db.rs:271-373`)
+   - `get_word` uses 4 queries with GROUP_CONCAT and json_group_array
+   - Add `///` explaining the 3-query strategy and why it's optimal
+
+3. **Replace `.unwrap()` calls with proper error handling** (`src-tauri/src/import.rs:113`)
+   - Transaction creation should return `Result` not panic
+   - File: `import.rs:113` — `let tx = conn.transaction().map_err(...)?;`
 
 ### Medium Priority
 
-3. **Module documentation**
-   - Location: `db.rs`, `models.rs`, `import.rs`, `export.rs`
-   - Issue: Complex functions lack `///` docs
-   - Recommendation: Add docs to public APIs
-   - Effort: Low
+4. **Split lib.rs if command count grows** (`src-tauri/src/lib.rs`)
+   - Currently 903 lines with 28 commands — acceptable
+   - If >35 commands, split into `commands/` submodules
+   - Pattern: `commands/words.rs`, `commands/events.rs`, `commands/search.rs`
 
-4. **Command organization**
-   - Location: `lib.rs` (~903 lines)
-   - Issue: Large file could be split by domain
-   - Recommendation: Consider `commands/*.rs` modules if file grows
-   - Effort: Low (not urgent)
+5. **Create error type enum** (`src-tauri/src/lib.rs`)
+   - Replace `Result<T, String>` with `Result<T, AppError>`
+   - Variants: `NotOpen`, `Query(String)`, `IO(String)`, `Migration(String)`, `Import(String)`
+   - File: `lib.rs:26` — current `type Res<T> = Result<T, String>`
 
-### Low Priority
+6. **Add inline comments to migration logic** (`src-tauri/src/db.rs:112-191`, `src-tauri/src/db.rs:196-219`)
+   - Explain why table rebuild is needed for `migrate_words_unique_if_needed`
+   - Document the `ev_col_migrated` swap logic
 
-5. **Magic number extraction**
-   - Location: Various (search limit: 300 in store.svelte.ts:534)
-   - Issue: Constants scattered
-   - Recommendation: Centralize constants
-   - Effort: Low
-
----
+7. **Consolidate duplicate code in import** (`src-tauri/src/import.rs`)
+   - Types, authors, events import follow same pattern — could be DRY'd with a helper
+   - File: `import.rs:116-186` — three similar import loops
 
 ## Strengths
 
-### Architecture
-
-- **Clean separation of concerns:** Commands (lib.rs) delegate to data layer (db.rs), keeping lib.rs thin
-- **Consistent patterns:** All commands follow same structure: validate → delegate → transform → return
-- **Proper error handling:** `Result<T, String>` pattern used consistently
-
-### Code Quality
-
-- **Type safety:** Strong TypeScript types in frontend, Rust structs in backend
-- **No obvious code smells:** No god objects, tight coupling, or primitive obsession
-- **Proper use of Rust features:** Uses `?` operator, proper error propagation, thread-safe state
-
-### Developer Experience
-
-- **AGENTS.md exists:** Clear project guidelines
-- **Codebase docs available:** ARCHITECTURE.md, CONVENTIONS.md, CONCERNS.md
-- **Consistent conventions:** Follows defined style guides (lint, format)
-
----
-
-## Module Breakdown
-
-| Module    | Lines | Responsibility      | Assessment                        |
-| --------- | ----- | ------------------- | --------------------------------- |
-| lib.rs    | ~903  | Tauri commands      | Well-organized, commands are thin |
-| db.rs     | ~900  | Database operations | Complex but readable              |
-| models.rs | ~200  | Data structures     | Clean, well-typed                 |
-| import.rs | ~300  | LOD file import     | Focus on parsing, reasonable      |
-| export.rs | ~200  | HTML export         | Simple, focused                   |
-
----
-
-## Recommendations Summary
-
-### Should Do Now
-
-1. **Add error categorization** — Current generic errors make debugging harder
-2. **Add integration tests** — Critical paths: import, export, FTS rebuild
-
-### Should Do Soon
-
-3. **Document complex functions** — Add `///` docs to db.rs public functions
-4. **Extract constants** — Centralize magic numbers like search limits
-
-### Can Defer
-
-5. **Split lib.rs** — Not urgent, would add complexity without clear benefit
-6. **Refactor builder functions** — FTS query builders work, can simplify later
-
----
-
-## Final Assessment
-
-**Overall Score: 7.25/10**
-
-This is a well-maintained codebase for its size. The architecture is appropriate for a dictionary manager - not over-engineered, not under-engineered. Main areas for improvement are around error handling (make it more debuggable) and test coverage (add critical path tests). The codebase is extensible and follows consistent patterns.
+1. **Consistent patterns** — All CRUD operations follow the same structure (list/save/delete)
+2. **Helper functions** — `with_db`/`with_db_mut` abstract mutex access cleanly
+3. **Type aliases** — `Db<'a>` and `Res<T>` improve readability
+4. **Optimized queries** — `get_word` uses 3 queries instead of N+1; export uses 4 bulk queries
+5. **Clean module boundaries** — Each module has a single responsibility
+6. **Good test coverage for core operations** — 10 test functions covering CRUD, FTS, and performance
+7. **Proportionate complexity** — No over-engineering; patterns match app size
+8. **CI pipeline** — All checks (prettier, eslint, svelte-check, rustfmt, clippy, tests) automated

@@ -1,3 +1,13 @@
+//! Database operations for the Loglan Online Dictionary.
+//!
+//! This module provides all data access functions: schema management,
+//! CRUD operations for words/definitions/events/types/authors, FTS5 search,
+//! and migrations.
+//!
+//! # Key patterns
+//! - All functions take `&Connection` — callers manage the connection lifecycle
+//! - Migrations are idempotent (safe to call repeatedly)
+//! - FTS5 uses dual virtual tables: `def_fts` (full body) and `def_kw_fts` (keywords)
 use crate::models::*;
 use rusqlite::{Connection, params};
 use std::convert::TryInto;
@@ -268,6 +278,13 @@ pub fn list_words(
         .collect()
 }
 
+/// Fetch a word with all its related data (affixes, spellings, definitions, used-in).
+///
+/// Uses an optimized 4-query strategy to avoid N+1:
+/// 1. Main word row with type/event joins
+/// 2. Affixes + spellings via `GROUP_CONCAT` (single round-trip)
+/// 3. Definitions via `json_group_array` (safe — no separator collision)
+/// 4. Used-in: words whose name contains this word's affixes (EXISTS with index)
 pub fn get_word(conn: &Connection, id: i64) -> rusqlite::Result<WordDetail> {
     // ── 1. Main word row ──────────────────────────────────────────────────────
     let mut word: WordDetail = conn.query_row(

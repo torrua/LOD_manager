@@ -1,170 +1,121 @@
 # Phase 5: Architectural Assessment - Executive Summary
 
-**Assessment Date:** 2026-04-04  
-**Phase:** 05 - Architectural Assessment  
-**Requirements:** ARCH-01, ARCH-02, ARCH-03, ARCH-04, ARCH-05
-
----
-
 ## Overview
 
-This architectural assessment evaluated the LOD Manager codebase across five dimensions: best practices compliance, design patterns, stability risks, maintainability, and test coverage. The codebase is a Tauri v2 + Svelte 5 + Rust + SQLite dictionary manager with approximately 28 Tauri commands.
+The LOD Manager codebase demonstrates solid architectural foundations appropriate for its size and domain. The Tauri v2 + Svelte 5 + Rust + SQLite stack is used idiomatically, with clean module separation and consistent patterns across the 28 Tauri commands. The codebase scores **6.8/10** on maintainability, with the primary gaps being documentation coverage and error categorization rather than structural issues.
 
-**Overall Health:** The codebase is well-architected and follows appropriate patterns for its domain. No critical issues were found. Main areas for improvement are error categorization, test coverage (integration tests), and large-dataset handling.
+Key strengths include optimized database queries (3-query `get_word`, 4-query bulk export), proper FTS5 configuration with dual virtual tables, and a clean command-to-repository delegation pattern. The codebase avoids over-engineering — patterns are proportionate to a dictionary manager, not enterprise software.
 
----
+Key concerns center on two high-severity stability risks: a `.unwrap()` panic in the import transaction and potential partial state on database open failure. Additionally, the complete absence of tests for import, export, and migration functions represents a significant confidence gap, as these are core features handling user data.
 
 ## Assessment Results
 
 ### Compliance Summary
 
-| Category  | Pass   | Warn  | Fail  | Overall  |
-| --------- | ------ | ----- | ----- | -------- |
-| Tauri v2  | 5      | 0     | 0     | ✓ Pass   |
-| Svelte 5  | 4      | 0     | 0     | ✓ Pass   |
-| Rust      | 8      | 1     | 0     | ✓ Pass   |
-| SQLite    | 7      | 0     | 0     | ✓ Pass   |
-| **Total** | **24** | **1** | **0** | **Pass** |
+| Category | Pass | Warn | Fail | Overall   |
+| -------- | ---- | ---- | ---- | --------- |
+| Tauri v2 | 6    | 1    | 0    | Good      |
+| Svelte 5 | 5    | 0    | 0    | Excellent |
+| Rust     | 4    | 2    | 0    | Good      |
+| SQLite   | 4    | 2    | 0    | Good      |
 
-**Key compliance findings:**
-
-- All 28 commands use `#[tauri::command]` correctly
-- Svelte 5 runes (`$state`, `$derived`, `$props`) properly used
-- Consistent `Result<T, String>` error handling pattern
-- SQLite migrations are idempotent with proper indexing
-
----
+**Total: 19 Pass, 5 Warn, 0 Fail** — No failures detected. Warnings are all actionable but non-critical.
 
 ### Stability Summary
 
-| Severity | Count | Top Issues                                                        |
-| -------- | ----- | ----------------------------------------------------------------- |
-| Critical | 0     | None                                                              |
-| High     | 1     | FTS rebuild loads all definitions to memory                       |
-| Medium   | 3     | File size validation, error categorization, no migration rollback |
-| Low      | 3     | Stack traces, unused FTS update, no fallback path                 |
+| Severity | Count | Top Issues                                            |
+| -------- | ----- | ----------------------------------------------------- |
+| Critical | 0     | None                                                  |
+| High     | 2     | Transaction panic in import, partial state on failure |
+| Medium   | 4     | FTS memory, migration rollback, Android files, errors |
+| Low      | 4     | Concurrent FTS, empty DB, malformed input, Unicode    |
 
-**Key stability concerns:**
-
-1. **FTS rebuild memory** — `db.rs:753-799` loads all definitions into Vec. Risk only materializes with 100k+ definitions.
-2. **Import file size** — No validation in frontend or backend. Large files could freeze UI.
-3. **Generic errors** — `err()` helper produces same-format strings, harder to debug.
-
----
+**Total: 10 risks identified, 0 critical, 2 high.** The absence of critical risks is a strong indicator of codebase health.
 
 ### Maintainability Summary
 
-| Dimension     | Score       | Top Areas                                                                |
-| ------------- | ----------- | ------------------------------------------------------------------------ |
-| Organization  | 8/10        | Clear module separation (lib.rs, db.rs, models.rs, import.rs, export.rs) |
-| Coupling      | 8/10        | Loose coupling between frontend/backend                                  |
-| Documentation | 6/10        | Module docs present, complex functions need `///` docs                   |
-| Extensibility | 7/10        | Adding new fields requires changes in 3+ places                          |
-| **Overall**   | **7.25/10** | Proportionate to app size                                                |
+**Overall Score: 6.8/10**
 
-**Strengths:**
-
-- Clean separation of concerns
-- Consistent patterns throughout
-- AGENTS.md and codebase docs available
-
-**Areas for improvement:**
-
-- Error enum for categorization (not generic strings)
-- Add integration tests (not just unit tests)
-- Extract magic numbers into constants
-
----
+| Dimension     | Score | Top Area for Improvement                  |
+| ------------- | ----- | ----------------------------------------- |
+| Organization  | 8/10  | Split lib.rs if >35 commands              |
+| Coupling      | 7/10  | Add error type enum                       |
+| Documentation | 5/10  | Add module-level and inline docs          |
+| Extensibility | 7/10  | Reasonable — new entities need new module |
 
 ### Test Coverage Summary
 
-| Category          | Current | Assessment                   |
-| ----------------- | ------- | ---------------------------- |
-| Unit tests        | 10      | Good                         |
-| Integration tests | 0       | **Critical gap**             |
-| Frontend tests    | 0       | Not recommended for app size |
+**Current: 11 tests** (all Rust unit/integration tests in `lib.rs`)
 
-**Critical gaps:**
+| Area              | Status      | Gap Count    |
+| ----------------- | ----------- | ------------ |
+| Database init     | Covered     | 0            |
+| Word CRUD         | Covered     | 0            |
+| Definition CRUD   | Covered     | 0            |
+| Type/Event/Author | Covered     | 0            |
+| FTS search        | Partially   | 2            |
+| Migrations        | Not covered | 2 (Critical) |
+| Import            | Not covered | 4 (Critical) |
+| Export            | Not covered | 2 (Critical) |
+| FTS rebuild       | Partially   | 2 (High)     |
+| Frontend          | None        | N/A          |
 
-1. Database migrations — no test for schema evolution
-2. Import functions — no test for LOD parsing
-3. Export functions — no test for HTML generation
-4. FTS rebuild — no performance test with large data
-
----
+**Gaps: 4 critical, 6 high, 5 medium.** Recommendation: add 10-14 tests focusing on migrations, import, export, and FTS rebuild.
 
 ## Key Findings
 
-### Critical (0)
+### Critical
 
-None.
+- No critical findings — the codebase has no showstopper issues
 
-### High Priority (1)
+### High Priority
 
-1. **FTS rebuild memory concern** (STABILITY.md)
-   - Loads all definitions into memory for 100k+ definitions
-   - Could cause crash or unresponsiveness
-   - Recommendation: Implement chunked/streaming rebuild
+1. **Import transaction uses `.unwrap()`** (`import.rs:113`) — will panic if database is locked or corrupt
+2. **Partial state on open failure** (`lib.rs:48-60`) — if migration fails mid-execution, database is migrated but `AppState` is not updated
+3. **No tests for import/export/migrations** — core features handling user data have zero test coverage
+4. **Error categorization missing** — all errors are generic strings, frontend cannot distinguish error types
 
-### Medium Priority (4)
+### Medium Priority
 
-2. **Import file size not validated** (STABILITY.md)
-   - Large files could freeze UI
-   - Recommendation: Add frontend size limit (50MB)
+1. **Module documentation missing** — only `export.rs` has `//!` module-level docs
+2. **Complex SQL undocumented** — `get_word` 4-query strategy needs explanation
+3. **FTS rebuild loads all definitions** — memory concern at 100k+ definitions
+4. **No migration rollback** — acceptable for this app size but worth noting
+5. **Android file size not validated** — large files could cause OOM
+6. **Multiple mutex locks per command** — performance concern, not correctness
 
-3. **Generic error messages** (STABILITY.md, MAINTAINABILITY.md)
-   - All errors return `String` without categorization
-   - Recommendation: Add error enum for common cases
+### Low Priority
 
-4. **No migration rollback** (STABILITY.md)
-   - Failed migrations leave DB in inconsistent state
-   - Current mitigation: Idempotent with flags
-   - Recommendation: Consider transaction wrapping
-
-5. **Integration test coverage** (TESTING.md)
-   - No tests for migrations, import, export, FTS rebuild
-   - Recommendation: Add 5-8 integration tests
-
-### Low Priority (3)
-
-6. **lib.rs file size** — ~903 lines but acceptable as command gateway
-7. **Module documentation** — Add `///` docs to complex functions
-8. **Magic numbers** — Extract constants like search limits
-
----
+1. **`lib.rs` approaching 1000 lines** — acceptable now, consider splitting at 35+ commands
+2. **Primitive obsession** — raw strings where typed wrappers could help
+3. **Magic SQL strings** — standard for rusqlite but makes refactoring harder
+4. **Import silently skips malformed rows** — no error reporting to user
 
 ## Strengths
 
-1. **Well-organized modules** — Clear separation: lib.rs (commands), db.rs (data), models.rs (types), import.rs, export.rs
-2. **Consistent patterns** — All commands follow same structure
-3. **Proper Svelte 5 adoption** — Fully migrated to runes, no legacy patterns
-4. **Idempotent migrations** — Safe schema evolution without rollback needs
-5. **Sophisticated FTS** — Dual-table strategy (body + keywords)
-6. **Developer docs** — AGENTS.md, ARCHITECTURE.md, CONVENTIONS.md available
-
----
+1. **Idiomatic Tauri v2 usage** — commands, state management, plugins all follow best practices
+2. **Optimized database access** — 3-query `get_word`, 4-query bulk export, covering indexes
+3. **Clean module boundaries** — each module has a single responsibility
+4. **Good FTS5 configuration** — dual virtual tables with content linking and automatic fallback
+5. **Consistent error handling pattern** — `?` operator + `map_err(err)` throughout
+6. **Proportionate complexity** — no over-engineering, patterns match app size
+7. **Svelte 5 runes used correctly** — modern reactive patterns throughout frontend
+8. **11 existing tests** covering core CRUD operations and performance
 
 ## Recommendations for Phase 6
 
 Phase 6 (Recommendations & Action Plan) should prioritize:
 
-### Immediate (do first)
+1. **Fix high-severity stability risks** — Replace `.unwrap()` in import, handle partial state on open failure
+2. **Add critical test coverage** — Migrations, import, export, FTS rebuild (estimated: 10-14 tests)
+3. **Improve documentation** — Add module-level `//!` docs and inline `///` comments for complex SQL
+4. **Create error type enum** — Replace `Result<T, String>` with typed errors for better frontend handling
+5. **Add file size validation** — For Android imports (suggested 100MB limit)
 
-1. **Add import file size validation** — Low effort, high impact
-2. **Add integration tests** for critical paths — migrations, import, export
-
-### Soon (do in Phase 6)
-
-3. **Error categorization** — Add enum for debugging improvement
-4. **FTS streaming** — Chunked rebuild for large DBs (if needed)
-
-### Later (defer to future phases)
-
-5. **Module documentation** — Add `///` docs to complex functions
-6. **lib.rs refactor** — Split by domain if file grows significantly
+All recommendations are proportionate to a dictionary manager application. No major refactoring is needed — the codebase is fundamentally sound.
 
 ---
 
----
-
-_This executive summary synthesizes all five Phase 5 assessments. It provides the input for Phase 6 planning, focusing on actionable improvements proportionate to the app's size._
+_Assessment Date: 2026-04-04_
+_Phase: 05 - Architectural Assessment_
+_Requirements: ARCH-01, ARCH-02, ARCH-03, ARCH-04, ARCH-05_

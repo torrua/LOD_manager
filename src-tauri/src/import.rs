@@ -1,3 +1,13 @@
+//! LOD (Loglan Online Dictionary) file import.
+//!
+//! Parses `@`-delimited LOD text files and imports them into the `SQLite` database.
+//! File types are matched by filename: types, authors, events, words, spellings,
+//! definitions, and settings.
+//!
+//! # Import pipeline
+//! 1. Types → 2. Authors → 3. Events → 4. Words → 5. Definitions → 6. Settings
+//!
+//! All imports run in a single transaction for atomicity.
 use crate::models::ImportResult;
 use rusqlite::{Connection, params};
 use std::collections::HashMap;
@@ -36,7 +46,10 @@ fn opt(s: &str) -> Option<String> {
 
 /// Import from (filename, `text_content`) pairs.
 /// Used on Android where paths are `content://` URIs that `std::fs` cannot read.
-pub fn import_contents(conn: &mut Connection, files: &[(String, String)]) -> ImportResult {
+pub fn import_contents(
+    conn: &mut Connection,
+    files: &[(String, String)],
+) -> Result<ImportResult, String> {
     let mut result = ImportResult {
         words: 0,
         definitions: 0,
@@ -45,6 +58,7 @@ pub fn import_contents(conn: &mut Connection, files: &[(String, String)]) -> Imp
         authors: 0,
         settings: 0,
         errors: 0,
+        skipped_rows: 0,
         messages: vec![],
     };
 
@@ -56,7 +70,7 @@ pub fn import_contents(conn: &mut Connection, files: &[(String, String)]) -> Imp
         result
             .messages
             .push("Could not create temp dir for import".into());
-        return result;
+        return Ok(result);
     }
     let mut tmp_paths: Vec<String> = Vec::new();
     for (name, content) in files {
@@ -70,7 +84,7 @@ pub fn import_contents(conn: &mut Connection, files: &[(String, String)]) -> Imp
     r
 }
 
-pub fn import_files(conn: &mut Connection, paths: &[String]) -> ImportResult {
+pub fn import_files(conn: &mut Connection, paths: &[String]) -> Result<ImportResult, String> {
     let mut result = ImportResult {
         words: 0,
         definitions: 0,
@@ -79,6 +93,7 @@ pub fn import_files(conn: &mut Connection, paths: &[String]) -> ImportResult {
         authors: 0,
         settings: 0,
         errors: 0,
+        skipped_rows: 0,
         messages: vec![],
     };
 
@@ -110,7 +125,9 @@ pub fn import_files(conn: &mut Connection, paths: &[String]) -> ImportResult {
         }
     }
 
-    let tx = conn.transaction().unwrap();
+    let tx = conn
+        .transaction()
+        .map_err(|e| format!("Failed to start import transaction: {e}"))?;
 
     // 1. Types
     if let Some(p) = type_file
@@ -130,7 +147,14 @@ pub fn import_files(conn: &mut Connection, paths: &[String]) -> ImportResult {
                 {
                     result.types += 1;
                 }
+            } else {
+                result.skipped_rows += 1;
             }
+        }
+        if result.skipped_rows > 0 {
+            result
+                .messages
+                .push(format!("Skipped rows: {}", result.skipped_rows));
         }
         result.messages.push(format!("Types: {}", result.types));
     }
@@ -152,6 +176,8 @@ pub fn import_files(conn: &mut Connection, paths: &[String]) -> ImportResult {
                 {
                     result.authors += 1;
                 }
+            } else {
+                result.skipped_rows += 1;
             }
         }
         result.messages.push(format!("Authors: {}", result.authors));
@@ -164,11 +190,13 @@ pub fn import_files(conn: &mut Connection, paths: &[String]) -> ImportResult {
     {
         for r in rows(&content) {
             if r.len() < 2 {
+                result.skipped_rows += 1;
                 continue;
             }
             let old_id = &r[0];
             let name = &r[1];
             if name.is_empty() {
+                result.skipped_rows += 1;
                 continue;
             }
             let date = r.get(2).and_then(|s| opt(s));
@@ -194,6 +222,7 @@ pub fn import_files(conn: &mut Connection, paths: &[String]) -> ImportResult {
     {
         for r in rows(&content) {
             if r.len() < 2 {
+                result.skipped_rows += 1;
                 continue;
             }
             let old_id = r[0].clone();
@@ -227,11 +256,13 @@ pub fn import_files(conn: &mut Connection, paths: &[String]) -> ImportResult {
                 .unwrap_or(1);
             for r in rows(&content) {
                 if r.len() < 2 {
+                    result.skipped_rows += 1;
                     continue;
                 }
                 let old_id = &r[0];
                 let name = &r[1];
                 if name.is_empty() {
+                    result.skipped_rows += 1;
                     continue;
                 }
 
@@ -280,6 +311,7 @@ pub fn import_files(conn: &mut Connection, paths: &[String]) -> ImportResult {
         let mut def_count = 0usize;
         for r in rows(&content) {
             if r.len() < 5 {
+                result.skipped_rows += 1;
                 continue;
             }
             let old_word_id = &r[0];
@@ -288,6 +320,7 @@ pub fn import_files(conn: &mut Connection, paths: &[String]) -> ImportResult {
             let grammar = r.get(3).and_then(|s| opt(s));
             let body = r.get(4).map_or("", String::as_str);
             if body.is_empty() {
+                result.skipped_rows += 1;
                 continue;
             }
             let tags = r.get(6).and_then(|s| opt(s));
@@ -318,7 +351,7 @@ pub fn import_files(conn: &mut Connection, paths: &[String]) -> ImportResult {
     }
 
     let _ = tx.commit();
-    result
+    Ok(result)
 }
 
 fn import_settings(conn: &Connection, path: &str) -> Result<usize, Box<dyn std::error::Error>> {

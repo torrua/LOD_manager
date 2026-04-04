@@ -8,7 +8,7 @@ A desktop + mobile editor for the Loglan Online Dictionary (LOD).
 | -------------- | ----------------------------------------------- |
 | **Type**       | Cross-platform desktop/mobile application       |
 | **Tech Stack** | Tauri v2, Svelte 5, Vite 8, Rust, SQLite (FTS5) |
-| **Version**    | 1.6.5                                           |
+| **Version**    | 1.6.8                                           |
 | **Repository** | Tauri + Svelte + Rust                           |
 | **Mode**       | Analysis                                        |
 

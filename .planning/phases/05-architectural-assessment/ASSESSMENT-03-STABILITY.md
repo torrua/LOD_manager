@@ -1,157 +1,92 @@
 # Stability Assessment
 
-**Assessment Date:** 2026-04-04
-
----
-
 ## Risk Register
 
-| Area               | Risk                                                                       | Severity   | Evidence                                                   | Mitigation Status                                  |
-| ------------------ | -------------------------------------------------------------------------- | ---------- | ---------------------------------------------------------- | -------------------------------------------------- |
-| **Error Handling** | Generic error messages - all errors return `String` without categorization | **Medium** | lib.rs:28-30 `err()` helper converts any Display to String | Not mitigated - may make debugging harder          |
-| **Error Handling** | No stack traces on errors                                                  | **Low**    | Errors converted to strings, no backtrace                  | Not mitigated - acceptable for user-facing app     |
-| **Database**       | No rollback for migrations                                                 | **Medium** | CONCERNS.md: "No rollback mechanism" db.rs:112-191         | Mitigated: idempotent, uses flags                  |
-| **Database**       | FTS rebuild loads all definitions to memory                                | **High**   | CONCERNS.md: db.rs:753-799 loads Vec<(i64, String)>        | Partially mitigated: WAL mode, separate connection |
-| **Database**       | Large file import without size validation                                  | **Medium** | CONCERNS.md: lib.rs:192-196, no size check                 | Not mitigated - could freeze UI                    |
-| **Database**       | Race condition in FTS update                                               | **Low**    | db.rs:802-829 fts_update marked #[allow(dead_code)]        | Unused - not an issue                              |
-| **Concurrency**    | Mutex blocks thread during DB operations                                   | **Low**    | AppState uses std::sync::Mutex (not async)                 | Acceptable for desktop app                         |
-| **State**          | No fallback if app_data_dir() fails                                        | **Low**    | lib.rs:297-301                                             | Error bubbles up to user                           |
-
----
+| Area                   | Risk                                               | Severity | Evidence                                             | Mitigation Status                                                  |
+| ---------------------- | -------------------------------------------------- | -------- | ---------------------------------------------------- | ------------------------------------------------------------------ |
+| Database connection    | `open_database` can leave partial state on failure | High     | `lib.rs:48-60` — state set after migrations          | None — if migration fails after schema init, state is inconsistent |
+| Transaction unwrap     | `import_files` uses `.unwrap()` on transaction     | High     | `import.rs:113`                                      | None — panics on failure                                           |
+| FTS rebuild memory     | `rebuild_fts` loads all definitions into memory    | Medium   | `db.rs:800-813` — `Vec<(i64, String)>`               | Uses separate connection with WAL mode                             |
+| Migration rollback     | No rollback if migration fails mid-execution       | Medium   | `db.rs:150-183` — table rebuild                      | `PRAGMA foreign_keys=OFF` during rebuild                           |
+| Android file size      | No validation of file size before import           | Medium   | `import.rs:39-71`                                    | None                                                               |
+| Error categorization   | All errors returned as generic `String`            | Medium   | All commands use `Res<T>` = `Result<T, String>`      | Frontend cannot distinguish error types                            |
+| Concurrent FTS rebuild | `rebuild_fts` opens separate connection            | Low      | `lib.rs:264-284`                                     | WAL mode reduces contention                                        |
+| Empty database         | Commands handle empty DB gracefully                | Low      | `lib.rs:34` — `ok_or("No database open.")`           | Proper error returned                                              |
+| Malformed LOD input    | Import silently skips malformed rows               | Low      | `import.rs:196-197` — `if r.len() < 2 { continue; }` | No error reported to user                                          |
+| Unicode handling       | FTS5 uses `unicode61 remove_diacritics 1`          | Low      | `db.rs:724-725`                                      | Good — handles non-ASCII                                           |
 
 ## Edge Case Analysis
 
 ### Empty Database
 
-| Scenario                  | Current Behavior                  | Assessment          |
-| ------------------------- | --------------------------------- | ------------------- |
-| `get_words` with empty DB | Returns empty `Vec<WordListItem>` | ✓ Works correctly   |
-| `get_word` with ID 0      | Returns "Word not found" error    | ✓ Graceful          |
-| Search with empty query   | Returns all words                 | ✓ Expected behavior |
-| Export HTML with empty DB | Generates empty HTML file         | ✓ No crash          |
+- `get_words("")` returns empty vec — handled correctly
+- `get_word(999999)` returns error — handled correctly (`lib.rs:92-94`)
+- `search_english("")` returns empty vec — handled correctly (`lib.rs:229-231`)
 
 ### Large Datasets
 
-| Scenario                         | Current Behavior                           | Assessment                                  |
-| -------------------------------- | ------------------------------------------ | ------------------------------------------- |
-| 10k+ words in list               | Loads all via `get_words`, paginated in UI | ⚠️ Could be slow - but UI handles rendering |
-| 100k+ definitions in FTS rebuild | Loads ALL to memory (db.rs:753-799)        | ⚠️ **High severity** - memory concern       |
-| Search with 1000+ results        | Returns up to 300 (code line 534)          | ✓ Limited to prevent overload               |
+- `get_word` uses 3-query approach — optimal for large DBs (`db.rs:271-373`)
+- `list_words` uses single query with covering index — efficient (`db.rs:237-269`)
+- `export_html` uses 4 bulk queries instead of N+1 — handles 10k+ words well (`export.rs:4-6`)
+- `rebuild_fts` loads ALL definitions into memory — concern at 100k+ definitions (`db.rs:800-801`)
 
 ### Malformed Input
 
-| Scenario                           | Current Behavior                                | Assessment                             |
-| ---------------------------------- | ----------------------------------------------- | -------------------------------------- |
-| Import invalid LOD format          | `import::parse_lod_file` returns error          | ✓ Errors handled                       |
-| Save word with null required field | SQLite NOT NULL constraint may fail             | ⚠️ Not tested - needs validation layer |
-| Search with invalid regex          | Falls back to LIKE search (store.svelte.ts:540) | ✓ Graceful fallback                    |
-| Unicode in definitions             | SQLite stores UTF-8 natively                    | ✓ Works                                |
+- Import: rows with insufficient columns are silently skipped (`import.rs:196`, `import.rs:282-283`)
+- Import: empty body definitions are skipped (`import.rs:290-292`)
+- Import: no validation of file encoding — assumes UTF-8 (`import.rs:117`, `import.rs:193`)
+- Search: special characters handled via FTS5 sanitization (`db.rs:1051-1058`)
 
-### Special Characters
+### Unicode Handling
 
-| Scenario                           | Current Behavior                            | Assessment  |
-| ---------------------------------- | ------------------------------------------- | ----------- |
-| Search with `'` (apostrophe)       | Escaped by regex in store.svelte.ts:256-261 | ✓ Handled   |
-| Search with `*` or `?` (wildcards) | Converted to regex (`.*`, `.`)              | ✓ Supported |
-| Non-ASCII Loglan characters        | Stored as UTF-8                             | ✓ Works     |
-
----
+- FTS5 configured with `unicode61 remove_diacritics 1` — good for Loglan
+- LIKE fallback uses `LOWER()` — works for ASCII but may not handle all Unicode case folding
+- Keyword extraction uses char indices — correct for Unicode (`db.rs:744-765`)
 
 ## Cross-Platform Notes
 
 ### Windows
 
-| Concern       | Status                                              |
-| ------------- | --------------------------------------------------- |
-| Path handling | ✓ Uses `app.path().app_data_dir()` - cross-platform |
-| File dialogs  | ✓ Uses tauri dialog plugin                          |
-| Line endings  | ✓ SQLite handles internally                         |
+- Path handling: raw strings passed to `Connection::open()` — works on Windows with proper path separators
+- File dialogs: `tauri_plugin_dialog` used — native Windows dialogs
 
 ### Android
 
-| Concern                     | Status                                        |
-| --------------------------- | --------------------------------------------- |
-| Content URIs (`content://`) | ✓ Handled in store.svelte.ts:144-157          |
-| File size limits            | ⚠️ **Not validated** - CONCERNS.md notes this |
-| No file system access       | ✓ Content passed as string to backend         |
-| App data directory          | ✓ Works correctly                             |
+- Content URIs: `import_lod_contents` receives file content directly (frontend reads via plugin-fs) — correct approach
+- Temp directory: `import_contents` writes to temp dir (`import.rs:53-69`) — may fail on restricted Android storage
+- No file size validation — large files could cause OOM
 
-### iOS
+### Desktop (macOS/Linux)
 
-| Concern      | Status                          |
-| ------------ | ------------------------------- |
-| File access  | Similar to Android (not tested) |
-| Notarization | N/A - development build         |
-
----
+- `import_lod_files` uses `std::fs::read_to_string` — works on all POSIX systems
+- `get_default_db_path` uses `app.path().app_data_dir()` — cross-platform correct
 
 ## Critical Risks
 
-### High Priority
+### 1. Transaction Panic in Import (High)
 
-1. **FTS Rebuild Memory Issue** (CONCERNS.md)
-   - Severity: **High**
-   - Evidence: `db.rs:753-799` loads all definitions into `Vec`
-   - Impact: App could crash or become unresponsive with large DBs (100k+ definitions)
-   - Current mitigation: Separate connection with WAL mode
-   - Recommendation: Implement streaming/chunked rebuild
+**Location:** `import.rs:113`
+**Impact:** Complete import failure with panic if database is locked or corrupt
+**Current Handling:** None — `.unwrap()` will panic
 
-2. **Import File Size Not Validated**
-   - Severity: **Medium**
-   - Evidence: No size check in `import_lod_contents` (lib.rs:192-196)
-   - Impact: Large files could freeze UI or exhaust memory
-   - Current mitigation: None
-   - Recommendation: Add frontend size limit (e.g., 50MB)
+### 2. Partial State on Open Failure (High)
 
-### Medium Priority
+**Location:** `lib.rs:48-60`
+**Impact:** If `migrate_words_unique_if_needed` succeeds but `migrate_event_columns_if_needed` fails, `AppState` is not updated but database is partially migrated
+**Current Handling:** Error returned to caller, but DB is in migrated state
 
-3. **Generic Error Messages**
-   - Severity: **Medium**
-   - Evidence: `err()` helper (lib.rs:28-30) converts all errors to strings
-   - Impact: Harder to debug specific issues
-   - Current mitigation: None
-   - Recommendation: Use error enum for common cases
+### 3. No Error Categorization (Medium)
 
-4. **No Migration Rollback**
-   - Severity: **Medium**
-   - Evidence: CONCERNS.md documents no rollback
-   - Impact: Failed migration leaves DB in inconsistent state
-   - Current mitigation: Idempotent, uses settings flags
-   - Recommendation: Consider transaction wrapping
-
----
+**Location:** All commands
+**Impact:** Frontend cannot distinguish between "no database open", "query failed", and "file not found"
+**Current Handling:** All errors are generic strings — frontend must parse string content
 
 ## Recommendations
 
-### Immediate (High Priority)
+### Priority Stability Improvements
 
-1. **Add file size validation for imports**
-   - File: Frontend or `import_lod_contents`
-   - Action: Reject files > 50MB with clear error message
-
-2. **Implement FTS streaming (if DB > 50k definitions)**
-   - File: `db.rs::rebuild_fts`
-   - Action: Use SQLite transaction + batch inserts instead of loading all to memory
-
-### Soon (Medium Priority)
-
-3. **Categorize errors** — Add enum for common error types instead of generic strings
-4. **Add migration transaction** — Wrap migrations in transaction for atomicity
-
-### Later (Low Priority)
-
-5. **Add connection timeout** — Prevent hung queries from blocking indefinitely
-6. **Add query logging for debugging** — Conditional debug logging for troubleshooting
-
----
-
-## Summary
-
-| Severity     | Count | Top Issues                                              |
-| ------------ | ----- | ------------------------------------------------------- |
-| **Critical** | 0     | None                                                    |
-| **High**     | 1     | FTS rebuild memory (large DBs)                          |
-| **Medium**   | 3     | File size validation, error categorization, no rollback |
-| **Low**      | 3     | Stack traces, FTS unused, no fallback path              |
-
-**Overall Assessment:** The codebase is reasonably stable for a dictionary manager. The main risks are around large dataset handling (FTS rebuild) and input validation (file size). These are manageable for the app's use case.
+1. **Replace `.unwrap()` in import.rs:113** with proper error handling
+2. **Add file size validation** for Android imports (suggest 100MB limit)
+3. **Create error type enum** with variants: `NotOpen`, `Query`, `IO`, `Migration`, `Import`
+4. **Add import row error counting** — report how many rows were skipped and why
+5. **Consider WAL mode by default** — `PRAGMA journal_mode=WAL` in `open_database` for better concurrent access

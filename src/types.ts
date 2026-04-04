@@ -61,6 +61,7 @@ export interface ImportResult {
   authors: number;
   settings: number;
   errors: number;
+  skipped_rows: number;
   messages: string[];
 }
 export interface SettingItem {

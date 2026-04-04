@@ -599,6 +599,25 @@
         {#each app.debugLog as line}
           <div class="debug-line">{line}</div>
         {/each}
+        {#if app.impResult}
+          <div class="debug-section">
+            <div class="debug-line debug-section-title">Import Result</div>
+            <div class="debug-line">Words: {app.impResult.words}</div>
+            <div class="debug-line">Definitions: {app.impResult.definitions}</div>
+            <div class="debug-line">Events: {app.impResult.events}</div>
+            <div class="debug-line">Types: {app.impResult.types}</div>
+            <div class="debug-line">Authors: {app.impResult.authors}</div>
+            <div class="debug-line">Settings: {app.impResult.settings}</div>
+            <div class="debug-line">Errors: {app.impResult.errors}</div>
+            <div class="debug-line">Skipped rows: {app.impResult.skipped_rows}</div>
+            {#if app.impResult.messages.length > 0}
+              <div class="debug-line debug-section-title">Messages:</div>
+              {#each app.impResult.messages as msg}
+                <div class="debug-line">{msg}</div>
+              {/each}
+            {/if}
+          </div>
+        {/if}
       </div>
     </div>
   {/if}

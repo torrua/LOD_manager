@@ -1,6 +1,6 @@
 {
   "name": "lod-manager",
-  "version": "1.6.5",
+  "version": "1.6.8",
   "type": "module",
   "scripts": {
     "dev": "vite",

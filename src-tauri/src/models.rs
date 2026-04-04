@@ -124,6 +124,7 @@ pub struct ImportResult {
     pub authors: usize,
     pub settings: usize,
     pub errors: usize,
+    pub skipped_rows: usize,
     pub messages: Vec<String>,
 }
 

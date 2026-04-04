@@ -32,47 +32,70 @@ fn esc(s: &str) -> String {
         .replace('"', "&quot;")
 }
 
-fn esc_js(s: &str) -> String {
-    s.replace('\\', "\\\\")
-        .replace('"', "\\\"")
-        .replace('\'', "\\'")
-        .replace('\n', "\\n")
-        .replace('\r', "\\r")
-        .replace('\t', "\\t")
-}
-
 const SCRIPT_PREFIX: &str = r"<script>
 function doSearch(q){
   q=q.toLowerCase().trim();
+  var first=null;
   document.querySelectorAll('.entry').forEach(function(el){
     var name=el.dataset.name||'';
-    el.style.display=name.includes(q)?'':'none';
+    if(!q||name.startsWith(q)){
+      if(!first)first=el;
+    }
   });
+  if(first){
+    var behavior=q.length<4?'auto':'smooth';
+    first.scrollIntoView({behavior:behavior,block:'start'});
+  }
+}
 ";
 
 const SCRIPT_SUFFIX: &str = r"
-  document.querySelectorAll('.letter-section').forEach(function(sec){
-    var v=[...sec.querySelectorAll('.entry')].some(e=>e.style.display!=='none');
-    sec.style.display=v?'':'none';
-  });
-}
 document.getElementById('lod-search').addEventListener('input',function(){doSearch(this.value);});
 </script>";
 
 const SCRIPT_PREFIX_WILDCARD: &str = r"<script>
 function doSearch(q){
   q=q.toLowerCase().trim();
-  if(!q){q='*';}
-  var re=new RegExp(q.replace(/\*/g,'.*'),'i');
+  var first=null;
   document.querySelectorAll('.entry').forEach(function(el){
-    el.style.display=(!q||re.test(el.dataset.name))?'':'none';
+    var name=el.dataset.name||'';
+    if(!q||name.startsWith(q)){
+      if(!first)first=el;
+    }
   });
+  if(first){
+    var behavior=q.length<4?'auto':'smooth';
+    first.scrollIntoView({behavior:behavior,block:'start'});
+  }
+}
 ";
 
 fn fmt_body(s: &str) -> String {
     let s = esc(s).replace("--", "\u{2014}");
     let s = s.replace(" % ", " \u{2014} ").replace("% ", "\u{2014} ");
+    let s = render_brace_spans(&s);
     render_kw_spans(&s)
+}
+
+/// Replace {text} markers with `<span class="br">` spans (bold, бордовый).
+fn render_brace_spans(s: &str) -> String {
+    let mut out = String::with_capacity(s.len() + 32);
+    let mut chars = s.char_indices().peekable();
+    while let Some((_i, c)) = chars.next() {
+        if c == '{' {
+            out.push_str("<span class=\"br\">");
+            for (_, c2) in chars.by_ref() {
+                if c2 == '}' {
+                    break;
+                }
+                out.push(c2);
+            }
+            out.push_str("</span>");
+        } else {
+            out.push(c);
+        }
+    }
+    out
 }
 
 /// Replace «keyword» markers with `<em class="kw">` spans.
@@ -104,8 +127,8 @@ body{font-family:Georgia,serif;font-size:14px;line-height:1.6;background:#faf8f2
 .sidebar{width:200px;background:#f0ebe0;border-right:1px solid #d8d0c0;
   padding:1rem .75rem;flex-shrink:0;position:sticky;top:0;height:100vh;overflow-y:auto}
 .sidebar h2{font-size:.75rem;font-weight:700;color:#7a5418;letter-spacing:.05em;margin-bottom:.6rem}
-.alpha{display:flex;flex-wrap:wrap;gap:3px;margin-bottom:1rem}
-.alpha a{display:inline-block;padding:2px 5px;font-size:.72rem;color:#7a5418;
+.alpha{display:flex;flex-wrap:wrap;gap:3px;margin-bottom:1rem;justify-content:center}
+.alpha a{display:inline-flex;align-items:center;justify-content:center;width:24px;height:20px;font-size:.72rem;color:#7a5418;
   border:1px solid #d8d0c0;border-radius:3px;text-decoration:none;background:#faf8f2}
 .alpha a:hover{background:#c8a050;color:#fff;border-color:#c8a050}
 .search-box{width:100%;padding:.3rem .4rem;font-size:.75rem;border:1px solid #d8d0c0;
@@ -127,6 +150,7 @@ body{font-family:Georgia,serif;font-size:14px;line-height:1.6;background:#faf8f2
 .usage{color:#7a5418;font-weight:600;font-size:.82rem}
 .tags{color:#8a8070;font-size:.75rem}
 em.kw{color:#1a6860;font-style:italic}
+span.br{color:#800000;font-weight:700}
 .used-in{font-size:.72rem;color:#6a5c48;margin-top:.3rem}
 .used-in a{color:#7a5418;text-decoration:none}
 .used-in a:hover{text-decoration:underline}
@@ -400,11 +424,12 @@ pub fn generate_html(
                     html.push_str("; ");
                 }
                 let eu = esc(u);
-                let je = esc_js(u);
+                let je = esc(&u.to_lowercase());
                 let _ = write!(
                     html,
                     "<a href=\"#\" onclick=\"\
-                     document.getElementById('lod-search').value=\"{je}\";\
+                     var s=document.getElementById('lod-search');\
+                     s['value']='{je}';\
                      doSearch('{je}');return false\">{eu}</a>"
                 );
             }

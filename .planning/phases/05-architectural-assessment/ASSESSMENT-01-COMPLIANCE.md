@@ -1,110 +1,61 @@
-# Compliance Assessment: Best Practices
-
-**Assessment Date:** 2026-04-04
-
----
+# Compliance Assessment: Best Practices Matrix
 
 ## 1. Tauri v2 Best Practices
 
-| Area                  | Rating   | Finding                                                                                                            |
-| --------------------- | -------- | ------------------------------------------------------------------------------------------------------------------ |
-| Command pattern       | **Pass** | All commands use `#[tauri::command]` attribute in lib.rs. Convention followed correctly.                           |
-| State management      | **Pass** | `AppState` struct properly structured with `Mutex<Option<Connection>>`. Thread-safe access via `with_db()` helper. |
-| Security - IPC        | **Pass** | Tauri v2's `invoke` system provides isolation. No custom IPC exposed.                                              |
-| Security - File paths | **Pass** | Database path comes from Tauri app data directory (line 297-301), not user-controlled.                             |
-| Error handling        | **Pass** | All 28 commands return `Result<T, String>` with consistent `err` helper pattern.                                   |
-
-### Tauri v2 Specific Findings
-
-- **Commands:** 28 commands covering CRUD, import/export, search, stats
-- **State:** Uses `tauri::State` with custom `AppState` wrapper
-- **Window management:** Not present (single window app)
-- **Plugin usage:** Uses `tauri_plugin_fs` for file access on frontend
-
----
+| Area              | Rating | Finding                                                                                  |
+| ----------------- | ------ | ---------------------------------------------------------------------------------------- |
+| Command patterns  | Pass   | All 28 commands use `#[tauri::command]` correctly; registered via `generate_handler![]`  |
+| State management  | Pass   | `AppState` with `Mutex<Option<Connection>>` and `Mutex<String>` for db_path is idiomatic |
+| Security          | Warn   | File paths accepted as raw strings in `open_database`, `create_database` — no validation |
+| Error handling    | Pass   | All commands return `Result<T, String>` consistently                                     |
+| Plugin usage      | Pass   | Plugins (dialog, fs, os, updater) initialized correctly in `setup()`                     |
+| Conditional build | Pass   | `#[cfg(desktop)]` and `#[cfg_attr(mobile, tauri::mobile_entry_point)]` used properly     |
+| IPC safety        | Pass   | Commands use `State<'a, AppState>` — no direct handle access except `AppHandle` commands |
 
 ## 2. Svelte 5 Runes Usage
 
-| Area               | Rating   | Finding                                                                            |
-| ------------------ | -------- | ---------------------------------------------------------------------------------- |
-| `$state` usage     | **Pass** | Used in `src/lib/store.svelte.ts` for reactive variables (wordList, loading, etc.) |
-| `$derived` usage   | **Pass** | Used for computed values where appropriate                                         |
-| `$effect` usage    | **Pass** | Present for side effects (e.g., initialization)                                    |
-| `$props()`         | **Pass** | Components use Svelte 5 `$props()` syntax (e.g., line 56 of components)            |
-| Component mounting | **Pass** | Uses `import { mount } from 'svelte'` pattern                                      |
-
-### Svelte 5 Findings
-
-- **Store pattern:** Svelte 5 runes-based store in `src/lib/store.svelte.ts`
-- **TypeScript integration:** Uses `$state<Type>(initial)` pattern
-- **Component structure:** Clean separation between props, state, and derived values
-- **No legacy Svelte 4 patterns detected** - fully migrated to Svelte 5
-
----
+| Area          | Rating | Finding                                                                     |
+| ------------- | ------ | --------------------------------------------------------------------------- |
+| `$state`      | Pass   | Reactive variables properly declared in Svelte components                   |
+| `$derived`    | Pass   | Computed values use `$derived` where applicable                             |
+| `$effect`     | Pass   | Side effects managed with `$effect` for subscriptions and DOM interactions  |
+| `$props()`    | Pass   | Components use Svelte 5 `$props()` syntax                                   |
+| Store pattern | Pass   | `src/lib/store.svelte.ts` uses Svelte 5 store pattern with reactive exports |
+| Mount API     | Pass   | Uses `import { mount } from 'svelte'` — correct Svelte 5 API                |
 
 ## 3. Rust Conventions
 
-| Area                          | Rating   | Finding                                                                           |
-| ----------------------------- | -------- | --------------------------------------------------------------------------------- |
-| Error handling (`?` operator) | **Pass** | Consistent use of `?` operator throughout lib.rs, db.rs                           |
-| Error conversion (`map_err`)  | **Pass** | Custom `err()` helper (line 28-30) used consistently                              |
-| Ownership - clones            | **Pass** | Minimal unnecessary clones. Connection passed by reference.                       |
-| Module structure              | **Pass** | 5 modules: lib.rs, db.rs, models.rs, import.rs, export.rs                         |
-| Clippy compliance             | **Warn** | 6 `#![allow(...)]` attributes in lib.rs (lines 102-107). Some could be addressed. |
-| Documentation (`///`)         | **Pass** | Module-level docs present. Command docs minimal but present in some places.       |
-| Result type pattern           | **Pass** | `type Res<T> = Result<T, String>` defined (line 26) and used consistently         |
-
-### Rust Findings
-
-- **Lint attributes:** 6 allow rules are project-configured, not code issues
-- **File size:** lib.rs is ~903 lines - acceptable for a command gateway
-- **Module organization:** Clear separation of concerns by feature (db, import, export, models)
-
----
+| Area              | Rating | Finding                                                                                       |
+| ----------------- | ------ | --------------------------------------------------------------------------------------------- |
+| Error handling    | Pass   | `?` operator used consistently; `map_err(err)` helper for conversion                          |
+| Ownership         | Warn   | `with_db` and `with_db_mut` lock mutex per call — multiple calls in same command = re-lock    |
+| Module structure  | Pass   | Clean separation: `lib.rs` (commands), `db.rs` (queries), `models.rs` (types), import/export  |
+| Clippy compliance | Pass   | 7 `#![allow(...)]` attributes configured; no warnings in CI                                   |
+| Type aliases      | Pass   | `type Db<'a> = State<'a, AppState>` and `type Res<T> = Result<T, String>` improve readability |
+| Documentation     | Warn   | No `//!` module-level docs in `db.rs`, `import.rs`, `export.rs`; only `export.rs` has `//!`   |
 
 ## 4. SQLite Patterns
 
-| Area                | Rating   | Finding                                                                                                             |
-| ------------------- | -------- | ------------------------------------------------------------------------------------------------------------------- |
-| Indexing            | **Pass** | 9 indexes present: `idx_words_name`, `idx_words_name_lower`, `idx_words_type_id`, etc.                              |
-| FTS5 configuration  | **Pass** | Two virtual tables: `def_fts` (content-linked) and `def_kw_fts` (keyword-only)                                      |
-| Foreign keys        | **Pass** | `PRAGMA foreign_keys=ON` executed on database open (lib.rs:50)                                                      |
-| Migrations          | **Pass** | Idempotent migrations via settings table flags: `migrate_words_unique_if_needed`, `migrate_event_columns_if_needed` |
-| WAL mode            | **Pass** | WAL mode used in FTS rebuild (db.rs line ~760)                                                                      |
-| Connection handling | **Pass** | Single connection per app with Mutex guard                                                                          |
-| Transaction safety  | **Pass** | Uses SQLite transactions for multi-step operations                                                                  |
-
-### SQLite Findings
-
-- **Schema:** 8 tables with proper foreign key relationships
-- **FTS:** Full-text search with dual-table strategy (body + keywords)
-- **Migrations:** Non-blocking, idempotent design
-- **Performance:** Indexes on query columns (name, type_id, event columns)
-
----
+| Area               | Rating | Finding                                                                                      |
+| ------------------ | ------ | -------------------------------------------------------------------------------------------- |
+| Indexing           | Pass   | 10 indexes present (`idx_*`); `add_missing_indexes()` handles legacy DBs                     |
+| FTS5               | Pass   | Dual virtual tables (`def_fts`, `def_kw_fts`) with content table linking; rebuild on import  |
+| Foreign keys       | Pass   | `PRAGMA foreign_keys=ON` set on every open; `ON DELETE CASCADE` on child tables              |
+| Migrations         | Warn   | Two migrations (`words_unique`, `ev_col_migrated`) — safe but no rollback mechanism          |
+| WAL mode           | Pass   | `rebuild_fts` uses separate connection with WAL mode to avoid blocking                       |
+| Transactions       | Warn   | `import_files` uses `tx.commit()` but `tx` created with `.unwrap()` — could panic on failure |
+| Query optimization | Pass   | `get_word` uses 3 queries (main + GROUP_CONCAT + json_group_array) — optimal for SQLite      |
 
 ## Summary
 
-| Category  | Pass   | Warn  | Fail  |
-| --------- | ------ | ----- | ----- |
-| Tauri v2  | 5      | 0     | 0     |
-| Svelte 5  | 4      | 0     | 0     |
-| Rust      | 8      | 1     | 0     |
-| SQLite    | 7      | 0     | 0     |
-| **Total** | **24** | **1** | **0** |
+**Overall: Good compliance with minor warnings.**
 
-### Key Strengths
+The codebase follows Tauri v2, Svelte 5, Rust, and SQLite best practices well. The primary concerns are:
 
-1. **Consistent error handling** - Both frontend and backend use consistent Result patterns
-2. **Proper state management** - Mutex-protected database access in Rust, runes in Svelte
-3. **Idempotent migrations** - Safe schema evolution without rollback needs
-4. **Full-text search** - Sophisticated dual-FTS implementation for dictionary search
+- File path validation on open/create (security)
+- Multiple mutex locks per command (performance, not correctness)
+- Missing module-level documentation
+- No rollback for migrations (acceptable for this app size)
+- Transaction creation with `.unwrap()` in import (potential panic)
 
-### Areas Noted (Not Failures)
-
-1. **Clippy allows** - 6 project-wide clippy config choices, not code quality issues
-2. **Module documentation** - Could benefit from more `///` docs on complex functions
-
-### Overall Rating: **Pass**
-
-The codebase follows best practices appropriate for a desktop dictionary manager. No critical issues found.
+All warnings are proportionate to a dictionary manager application — none are critical.

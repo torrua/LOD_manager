@@ -1,137 +1,128 @@
 # Test Coverage Assessment
 
-**Assessment Date:** 2026-04-04
-
----
-
 ## Current Coverage
 
 ### Rust Tests
 
-| Test                                | Location       | Coverage                                          | Quality                                            |
-| ----------------------------------- | -------------- | ------------------------------------------------- | -------------------------------------------------- |
-| `test_in_memory_db_init`            | lib.rs:418-429 | Schema initialization                             | Good - verifies default events are created         |
-| `test_get_word_performance_optimal` | lib.rs:431-568 | Query performance, data retrieval, word structure | Good - comprehensive with type, affixes, spellings |
-| `test_save_and_get_word`            | lib.rs:516-567 | CRUD operations                                   | Good - tests round-trip word save                  |
-| `test_definition_crud`              | lib.rs:569-620 | Definition create/read/update/delete              | Good                                               |
-| `test_event_crud`                   | lib.rs:622-649 | Event CRUD                                        | Good                                               |
-| `test_type_crud`                    | lib.rs:651-697 | Type CRUD                                         | Good                                               |
-| `test_affix_and_spelling_crud`      | lib.rs:699-750 | Affix and spelling operations                     | Good                                               |
-| `test_search_english_like`          | lib.rs:752-791 | English-to-Loglan search (LIKE fallback)          | Good                                               |
-| `test_words_unique_constraint`      | lib.rs:827-862 | Unique constraint on words                        | Good                                               |
-| `test_word_affix_deletion`          | lib.rs:861-903 | Affix deletion via SQL                            | Good                                               |
+| Test                                | Location    | Coverage                           | Quality     |
+| ----------------------------------- | ----------- | ---------------------------------- | ----------- |
+| `test_in_memory_db_init`            | lib.rs:L419 | Schema + FTS initialization        | Unit        |
+| `test_get_word_performance_optimal` | lib.rs:L432 | get_word performance (100 calls)   | Performance |
+| `test_fts_update_incremental`       | lib.rs:L518 | FTS update after definition change | Integration |
+| `test_list_words_basic`             | lib.rs:L569 | Word listing with filters          | Unit        |
+| `test_fts_search_basic`             | lib.rs:L619 | FTS search functionality           | Integration |
+| `test_word_crud_operations`         | lib.rs:L649 | Word create/read/update/delete     | Unit        |
+| `test_definition_crud_operations`   | lib.rs:L697 | Definition CRUD                    | Unit        |
+| `test_type_crud_operations`         | lib.rs:L749 | Type CRUD with FK constraint       | Unit        |
+| `test_event_crud_operations`        | lib.rs:L792 | Event CRUD                         | Unit        |
+| `test_author_crud_operations`       | lib.rs:L828 | Author CRUD                        | Unit        |
+| `test_word_affixes_and_spellings`   | lib.rs:L862 | Affix/spelling management          | Unit        |
 
-**Summary:** 10 unit tests in lib.rs under `#[cfg(test)]` module.
+**Total: 11 tests** — all in `lib.rs` under `#[cfg(test)]`
 
 ### Frontend Tests
 
-**Status:** None configured
+**Status: None configured**
 
-- No test framework in package.json
-- No test scripts defined
-- No `*.test.ts` or `*.spec.ts` files in `src/`
-
----
+No test framework exists in `package.json`. No Vitest, Playwright, or similar dependencies. This is consistent with the TESTING.md assessment.
 
 ## Coverage Gaps
 
 ### Critical Priority
 
-| Gap                     | Location                                                                                            | Impact                                          | Recommendation                                                       |
-| ----------------------- | --------------------------------------------------------------------------------------------------- | ----------------------------------------------- | -------------------------------------------------------------------- |
-| **Database migrations** | `db.rs:112-191` (migrate_words_unique_if_needed), `db.rs:200-240` (migrate_event_columns_if_needed) | Migration failures could corrupt database       | Integration test: create old-schema DB, run migration, verify result |
-| **Import functions**    | `lib.rs:182-196` (import_lod_contents), `import.rs` (parse_lod_file)                                | Import failures silently drop data              | Integration test: import sample LOD file, verify all words imported  |
-| **Export functions**    | `lib.rs:275-285` (export_html_to_file), `export.rs`                                                 | Export may produce malformed HTML               | Integration test: export populated DB, validate HTML output          |
-| **FTS rebuild**         | `lib.rs:247-267` (rebuild_fts), `db.rs:753-799`                                                     | Memory issues with large DBs (see STABILITY.md) | Performance test with 100k+ definitions                              |
+| Gap                 | Location            | Impact                                                                   | Recommendation                                                                                                          |
+| ------------------- | ------------------- | ------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------- |
+| Database migrations | `db.rs:112-219`     | Migrations are complex table rebuilds — if they fail, data loss possible | Unit tests for `migrate_words_unique_if_needed` and `migrate_event_columns_if_needed` with pre/post schema verification |
+| Import functions    | `import.rs:39-322`  | Core data ingestion — no tests at all                                    | Integration tests with sample LOD files (valid, malformed, empty)                                                       |
+| Export functions    | `export.rs:164-479` | HTML generation — no tests                                               | Unit tests for `generate_html` with known data, verify HTML structure                                                   |
+| FTS rebuild         | `db.rs:768-814`     | Complex dual-table rebuild — only partially tested                       | Integration test: insert definitions → rebuild → verify search works                                                    |
 
 ### High Priority
 
-| Gap                                       | Location                                                                    | Impact                                               | Recommendation                                          |
-| ----------------------------------------- | --------------------------------------------------------------------------- | ---------------------------------------------------- | ------------------------------------------------------- |
-| **CRUD operations (Tauri command layer)** | lib.rs commands: save_word, save_definition, delete_word, delete_definition | Commands may behave differently than db.rs functions | Integration test: call via invoke, verify state changes |
-| **Search edge cases**                     | `store.svelte.ts:515-554` (searchEnglishNow)                                | Empty query, special characters, large results       | Unit tests                                              |
-| **State management**                      | `store.svelte.ts:35-104` (app state)                                        | Concurrent access issues                             | Manual testing currently                                |
-| **Event filter behavior**                 | `store.svelte.ts:240-281` (applyFilter)                                     | Filtering may behave incorrectly with null events    | Unit tests                                              |
+| Gap                                 | Location         | Impact                                             | Recommendation                                                              |
+| ----------------------------------- | ---------------- | -------------------------------------------------- | --------------------------------------------------------------------------- |
+| `search_english` command            | `lib.rs:228-261` | 4-way strategy selection with fallback             | Unit tests for each strategy combination (FTS/LIKE × keywords/full)         |
+| `save_definition` with FTS update   | `lib.rs:108-128` | FTS update after save is `.ok()` — errors silently | Test that FTS is updated after save                                         |
+| `delete_definition` with FTS update | `lib.rs:131-138` | FTS update on delete                               | Test that deleted definition is removed from FTS                            |
+| `rebuild_fts` command               | `lib.rs:264-284` | Separate connection logic                          | Test that rebuild works while main connection is in use                     |
+| `fts_is_ready`                      | `lib.rs:287-294` | Returns bool based on FTS state                    | Test before/after rebuild, after corrupt FTS                                |
+| `export_html_to_file`               | `lib.rs:304-313` | File I/O path                                      | Integration test: export to temp file, verify file exists and is valid HTML |
 
 ### Medium Priority
 
-| Gap                           | Impact                             | Recommendation                    |
-| ----------------------------- | ---------------------------------- | --------------------------------- |
-| **UI component tests**        | Form validation, user interactions | Manual testing sufficient for now |
-| **Full workflow integration** | Import → search → export cycle     | Could be tested, lower priority   |
+| Gap                         | Location          | Impact                           | Recommendation                                  |
+| --------------------------- | ----------------- | -------------------------------- | ----------------------------------------------- |
+| `get_db_stats`              | `lib.rs:70-77`    | Stats accuracy                   | Unit test: insert data, verify counts           |
+| `get_event_words`           | `lib.rs:223-225`  | Event word filtering             | Unit test with event-scoped words               |
+| `create_database`           | `lib.rs:64-67`    | Deletes existing file then opens | Test idempotency                                |
+| Import error handling       | `import.rs:54-59` | Temp dir creation failure        | Test graceful failure when temp dir unavailable |
+| `import_contents` (Android) | `import.rs:39-71` | Content-based import path        | Test with sample content tuples                 |
 
----
+### Low Priority
+
+| Gap                   | Location         | Impact                 | Recommendation                                        |
+| --------------------- | ---------------- | ---------------------- | ----------------------------------------------------- |
+| `get_default_db_path` | `lib.rs:353-357` | Platform-specific path | Manual testing sufficient                             |
+| `debug_update_check`  | `lib.rs:318-347` | Debug-only command     | Manual testing sufficient                             |
+| Frontend components   | `src/`           | UI interactions        | Consider lightweight component tests if ROI justified |
 
 ## Recommendations
 
 ### Immediate Actions
 
-1. **Add migration integration test**
-   - Test: Create database with old schema version, run migrations, verify new schema
-   - Location: `lib.rs` tests module
-   - Effort: Medium
+1. **Add migration tests** — Create test functions that:
+   - Create a DB with old schema (unique on name only)
+   - Run `migrate_words_unique_if_needed`
+   - Verify new schema has `UNIQUE(name, type_id)`
+   - Same for `migrate_event_columns_if_needed`
 
-2. **Add import integration test**
-   - Test: Import known LOD file, verify word count and content
-   - Location: `lib.rs` tests module
-   - Effort: Medium
+2. **Add import integration tests** — Create sample LOD content strings and test:
+   - Valid import with all file types
+   - Import with missing files
+   - Import with malformed data
+   - Import with empty files
 
-3. **Add export integration test**
-   - Test: Export HTML, validate against known structure
-   - Location: `lib.rs` tests module
-   - Effort: Low
+3. **Add export tests** — Test `generate_html` with:
+   - Empty database
+   - Single word with definition
+   - Multiple words with affixes and cross-references
+
+4. **Add FTS rebuild test** — Test the full cycle:
+   - Insert words with definitions
+   - Call `rebuild_fts`
+   - Verify `fts_is_ready` returns true
+   - Verify search finds inserted content
 
 ### Future Considerations
 
-4. **FTS rebuild performance test**
-   - Test: Create 100k+ definitions, run rebuild_fts, measure memory/time
-   - Notes: Documented in STABILITY.md as high-risk
+1. **Frontend component tests** — For a desktop app, the ROI is moderate. If added, recommend:
+   - Vitest for unit testing Svelte components
+   - Focus on form validation and search behavior
+   - Skip E2E unless user-reported bugs justify it
 
-5. **Frontend test framework (optional)**
-   - Could add Vitest for component testing
-   - ROI: Lower for desktop app - manual testing acceptable
-   - Recommendation: Skip for now
+2. **Property-based tests** — For FTS5 query sanitization (`build_fts_query`), property tests could verify:
+   - All queries are valid FTS5 syntax
+   - Special characters are properly escaped
 
----
+3. **Performance regression tests** — `test_get_word_performance_optimal` exists. Consider adding:
+   - `list_words` performance with 10k+ words
+   - `search_english` performance with 100k+ definitions
 
 ## Test Strategy
 
-### Recommended Approach
+**Recommended approach for this app size:**
 
-For a dictionary manager of this size (~28 commands, ~10k LOC), prioritize:
+Focus on **integration tests** that test full workflows rather than isolated unit tests. The existing 11 unit tests are good for core operations. Priority should be:
 
-1. **Integration tests for data flows** (import, export, migrations) — highest value
-2. **Unit tests for complex logic** (search, filtering, FTS query building)
-3. **Skip UI testing** — manual testing sufficient for desktop app
+1. **Migrations** (critical — data integrity)
+2. **Import/Export** (critical — core features untested)
+3. **FTS operations** (high — search is a primary user feature)
+4. **Edge cases** (medium — empty data, malformed input)
 
-### Testing Pyramid
+Target: **20-25 total tests** (adding ~10-14 to current 11). This provides good confidence without over-testing for a dictionary manager.
 
-```
-       /\
-      /  \     E2E: Full import→export flow (1-2 tests)
-     /----\
-    /      \   Integration: Migrations, import, export (3-5 tests)
-   /        \
-  /__________\ Unit: db.rs functions, search logic (existing 10 tests)
-```
+**Do NOT add:**
 
-### Current State
-
-- Unit tests: 10 ✓ Good
-- Integration tests: 0 ✗ Gap
-- E2E tests: 0 ✗ Gap
-
-**Target:** Add 5-8 integration tests covering critical paths.
-
----
-
-## Summary
-
-| Category          | Current | Gap                    |
-| ----------------- | ------- | ---------------------- |
-| Unit tests        | 10      | Good                   |
-| Integration tests | 0       | Critical gap           |
-| Frontend tests    | 0       | Not recommended        |
-| **Total**         | 10      | Need integration tests |
-
-**Recommendation:** Add integration tests for migrations, import, and export. These are the highest-value additions for stability confidence.
+- E2E tests (overkill for this app)
+- Mock-heavy unit tests (the in-memory DB is fast enough for integration tests)
+- Frontend test framework (unless specific bugs justify the maintenance cost)

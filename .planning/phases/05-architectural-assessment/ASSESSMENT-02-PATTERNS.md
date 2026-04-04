@@ -1,175 +1,83 @@
 # Design Patterns Assessment
 
-**Assessment Date:** 2026-04-04
-
----
-
 ## Patterns Identified
 
 ### Command Pattern
 
-- **Location:** `src-tauri/src/lib.rs` — all 28 `#[tauri::command]` functions (lines 47-903)
-- **Usage:** Frontend invokes Rust commands via `invoke('command_name', {args})`. Commands act as API endpoints.
-- **Appropriateness:** ✓ **Highly appropriate.** Separates frontend (UI) from backend (data/logic). Standard pattern for Tauri apps. Commands are thin wrappers that delegate to `db.rs`.
+- **Location:** `src-tauri/src/lib.rs` — all 28 `#[tauri::command]` functions
+- **Usage:** Tauri's IPC mechanism exposes Rust functions as commands callable from the frontend via `invoke()`. Commands like `open_database`, `get_words`, `save_word`, etc.
+- **Appropriateness:** Excellent fit for a desktop app. Tauri's command pattern is the idiomatic way to bridge frontend and backend. Commands are thin wrappers delegating to `db.rs` functions.
 - **Verdict:** Keep
-
-**Examples:**
-
-- `open_database` → delegates to `db::init_schema`, `db::init_fts`, migrations
-- `get_words` → delegates to `db::list_words`
-- `import_lod_contents` → delegates to `import::import_lod_files`
-
----
 
 ### Repository Pattern
 
-- **Location:** `src-tauri/src/db.rs` — functions like `list_words`, `get_word`, `save_word`, `search_english`
-- **Usage:** Database operations wrapped in functions, not direct SQL in commands.
-- **Appropriateness:** ✓ **Appropriate.** Clean separation between command layer (lib.rs) and data access layer (db.rs). Commands don't contain raw SQL.
+- **Location:** `src-tauri/src/db.rs` — functions like `list_words`, `get_word`, `save_word`, `rebuild_fts`
+- **Usage:** Database operations are encapsulated in module-level functions that take `&Connection`. No ORM — raw SQL with `rusqlite`.
+- **Assessment:** Clear separation between data access (`db.rs`) and command layer (`lib.rs`). Commands act as a service layer, calling repository functions. The `with_db`/`with_db_mut` helpers in `lib.rs` provide a clean abstraction over mutex access.
 - **Verdict:** Keep
 
-**Evidence:**
+### State Pattern (Global AppState)
 
-```rust
-// lib.rs (command layer)
-fn get_words(state: Db, q: String, ...) -> Res<Vec<WordListItem>> {
-    with_db(&state, |conn| db::list_words(conn, &q, &type_filter, event_id))
-}
-
-// db.rs (data access layer)
-pub fn list_words(conn: &Connection, q: &str, ...) -> rusqlite::Result<Vec<WordListItem>> {
-    // Actual SQL query here
-}
-```
-
----
-
-### State Pattern (AppState)
-
-- **Location:** `src-tauri/src/lib.rs` lines 20-23 — `AppState` struct
-- **Usage:** `AppState` holds `Mutex<Option<Connection>>` and `Mutex<String>` for current database path.
-- **Appropriateness:** ⚠️ **Acceptable but has trade-offs.** Global state via Mutex is simple but:
-  - Only one database at a time
-  - No connection pooling
-  - Thread-safety via Mutex (not async-safe without async Mutex)
-- **Verdict:** Keep (for app size) — would reconsider for multi-database or web-scale
-
-**Alternative considered:** Could use `tauri::State` with async connection pool, but adds complexity not needed for single-user desktop app.
-
----
+- **Location:** `src-tauri/src/lib.rs` — `AppState` struct with `Mutex<Option<Connection>>` and `Mutex<String>` for `db_path`
+- **Usage:** Single shared state managed via Tauri's `.manage()` and accessed through `State<'a, AppState>` in commands.
+- **Assessment:** Appropriate for a single-user desktop app. The `Option<Connection>` allows the app to start without a database open. The separate `db_path` mutex is necessary for `rebuild_fts` which opens its own connection.
+- **Verdict:** Keep
 
 ### Observer Pattern (Svelte Reactivity)
 
-- **Location:** `src/lib/store.svelte.ts` — global `app` state object using `$state`
-- **Usage:** Frontend components react to `app` state changes via runes. No explicit event emitters.
-- **Appropriateness:** ✓ **Appropriate.** Svelte 5 runes provide reactive updates. Clear and simple.
+- **Location:** Frontend stores in `src/lib/store.svelte.ts` and component runes
+- **Usage:** Svelte 5 runes (`$state`, `$derived`, `$effect`) provide reactive state management. Components automatically update when store values change.
+- **Assessment:** Svelte's built-in reactivity is the correct observer pattern for this framework. No external state management library needed.
 - **Verdict:** Keep
 
-**Evidence:**
+### Strategy Pattern (FTS Search)
 
-```typescript
-// Store definition (lines 35-104)
-export const app = $state({ ... });
-
-// Component usage
-let { word } = $props();
-let count = $state(0);
-let doubled = $derived(count * 2);
-```
-
----
-
-### Singleton Pattern
-
-- **Location:** `src/lib/store.svelte.ts` — single `app` export
-- **Usage:** One global application state object
-- **Appropriateness:** ✓ **Appropriate.** Single global store is standard for Svelte apps. No issues observed.
+- **Location:** `src-tauri/src/db.rs` — `search_english_fts`, `search_english_keywords_fts`, `search_english_like`, `search_english_keywords_like`
+- **Usage:** The `search_english` command in `lib.rs` selects between FTS and LIKE strategies based on `use_keywords_only` and `use_like` flags, with automatic fallback from FTS to LIKE.
+- **Assessment:** Clean strategy selection with graceful degradation. The FTS→LIKE fallback ensures search works even if FTS indexes are corrupt or not yet built.
 - **Verdict:** Keep
 
----
+### Template Method Pattern (Import)
 
-### Builder Pattern
-
-- **Location:** `src-tauri/src/db.rs` — FTS query building functions
-- **Usage:** `build_fts_query`, `build_keywords_query` construct SQL dynamically
-- **Appropriateness:** ⚠️ **Could be simplified.** Current implementation is readable but creates complex query strings. Not an anti-pattern, just complex.
-- **Verdict:** Refactor if needed — acceptable for now
-
----
+- **Location:** `src-tauri/src/import.rs` — `import_files` follows a fixed pipeline: types → authors → events → words → definitions → settings
+- **Usage:** Import always processes files in dependency order. The `rows()` helper and file-type detection are reused across import types.
+- **Assessment:** Appropriate for a fixed-format import. The pipeline is clear and maintainable.
+- **Verdict:** Keep
 
 ## Anti-Patterns Found
 
-| Anti-Pattern           | Severity | Location            | Evidence                                        |
-| ---------------------- | -------- | ------------------- | ----------------------------------------------- |
-| God Object (lib.rs)    | **Low**  | lib.rs (~903 lines) | Commands gateway — acceptable for this app size |
-| Generic Error Messages | **Low**  | lib.rs:28-30        | `err()` helper produces same-format errors      |
-| Magic Strings          | **None** | —                   | No hardcoded strings for business logic found   |
+### God Object (Mild)
 
-### lib.rs File Size Note
+- **Location:** `src-tauri/src/lib.rs` (~903 lines)
+- **Severity:** Low
+- **Description:** All 28 Tauri commands live in one file. For a ~28-command app this is acceptable, but the file is approaching the upper limit of readability. The `with_db`/`with_db_mut` helpers mitigate this by keeping command bodies short.
 
-At ~903 lines, lib.rs is large but not a god object. It:
+### Tight Coupling in Import
 
-- Contains only command definitions (thin wrappers)
-- Delegates all logic to `db.rs`, `import.rs`, `export.rs`, `models.rs`
-- Each module has clear single responsibility
+- **Location:** `src-tauri/src/import.rs:113`
+- **Severity:** Medium
+- **Description:** `let tx = conn.transaction().unwrap()` — uses `.unwrap()` which could panic if the transaction fails to start. All import logic is tightly coupled to this single transaction.
 
-**Verdict:** Not an anti-pattern for this architecture.
+### Primitive Obsession (Minor)
 
----
+- **Location:** `src-tauri/src/lib.rs` — commands accept `String` for paths, queries, filters
+- **Severity:** Low
+- **Description:** Raw strings used where typed wrappers (e.g., `DbPath`, `SearchQuery`) could provide validation at the type level. Acceptable for this app size.
 
-## Pattern Appropriateness for Domain
+### Magic Strings
 
-**Context:** This is a dictionary manager (~28 commands), not enterprise software.
-
-| Assessment                 | Finding                                                         |
-| -------------------------- | --------------------------------------------------------------- |
-| **Pattern overhead**       | Low — no over-engineering detected                              |
-| **Separation of concerns** | Clear — 5 modules, each with single responsibility              |
-| **Complexity**             | Proportionate — matches app domain                              |
-| **Missing patterns**       | None critical — could benefit from more tests (see CONCERNS.md) |
-
----
+- **Location:** `src-tauri/src/db.rs` — SQL queries as inline strings
+- **Severity:** Low
+- **Description:** SQL is embedded directly in Rust code rather than using a query builder or migration tool. This is standard for rusqlite but makes refactoring harder.
 
 ## Recommendations
 
-### Keep (No Action)
+### Pattern Improvements (Proportionate to App Size)
 
-1. **Command Pattern** — Standard, works well
-2. **Repository Pattern** — Clean separation
-3. **Svelte State** — Proper use of runes
+1. **Add `.expect()` messages to unwrap calls** — Replace `.unwrap()` in `import.rs:113` and test code with `.expect("descriptive message")` for better panic messages.
 
-### Refactor (Low Priority)
+2. **Consider splitting lib.rs** — If command count grows beyond 35, split into `commands/` submodules (e.g., `commands/words.rs`, `commands/events.rs`).
 
-1. **Error categorization** — Instead of generic strings, could use error enum:
+3. **Add a `DbError` type** — Instead of `Result<T, String>`, use `Result<T, DbError>` with variants like `ConnectionError`, `QueryError`, `MigrationError`. This would improve error categorization (noted in CONCERNS.md).
 
-   ```rust
-   enum AppError {
-       DatabaseNotFound,
-       CorruptedDatabase(String),
-       PermissionDenied,
-       // ...
-   }
-   ```
-
-2. **FTS query builders** — Could be simplified or made more testable
-
-### Not Recommended
-
-- Connection pooling (not needed for single-user app)
-- Event sourcing (overkill for dictionary manager)
-- CQRS (no complex read/write separation needed)
-
----
-
-## Summary
-
-| Pattern                  | Verdict    | Rationale                     |
-| ------------------------ | ---------- | ----------------------------- |
-| Command Pattern          | Keep       | Standard Tauri pattern        |
-| Repository Pattern       | Keep       | Clean data access separation  |
-| State Pattern (AppState) | Keep       | Simple, adequate for app size |
-| Observer (Svelte)        | Keep       | Proper runes usage            |
-| Singleton                | Keep       | Standard global state         |
-| Builder (FTS)            | Acceptable | Could simplify later          |
-
-**Overall:** Architecture is appropriate for a dictionary manager. No major anti-patterns. Code is clean and well-organized.
+4. **Document complex SQL** — The `get_word` function (db.rs:271-373) uses 4 queries with GROUP_CONCAT and json_group_array. A brief `///` comment explaining the strategy would help future maintainers.
