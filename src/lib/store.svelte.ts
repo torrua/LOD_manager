@@ -71,6 +71,8 @@ export const app = $state({
   updateVersion: '',
   updateDownloading: false,
   updateProgress: 0,
+  debugLog: [] as string[],
+  debugVisible: false,
   prefs: {
     showTypeTag: (loadPrefs().showTypeTag ?? true) as boolean,
     showDefCount: (loadPrefs().showDefCount ?? true) as boolean,
@@ -590,17 +592,47 @@ export async function initPlatform() {
 
 export async function checkForUpdate() {
   if (app.currentPlatform === 'android' || app.currentPlatform === 'ios') return;
+
+  const log = (msg: string) => {
+    const timestamp = new Date().toLocaleTimeString();
+    app.debugLog = [...app.debugLog.slice(-29), `[${timestamp}] ${msg}`];
+  };
+
+  log('Starting update check...');
+  log(`Platform: ${app.currentPlatform}`);
+
+  // Call Rust debug endpoint for more verbose logging
+  try {
+    const rustResult: string = await invoke('debug_update_check');
+    log(`Rust check: ${rustResult}`);
+  } catch (e) {
+    log(`Rust check error: ${e}`);
+  }
+
   try {
     const update = await check();
     if (update) {
       app.updateAvailable = true;
       app.updateVersion = update.version;
+      log(`Update available: ${update.version}`);
       toast(`Update ${update.version} available`, 'info');
     } else {
+      log('Already up to date');
       toast('Already up to date', 'info');
     }
   } catch (e) {
     console.error('Update check failed:', e);
+    log(`ERROR: ${e}`);
+    if (e instanceof Error) {
+      log(`Error name: ${e.name}`);
+      log(`Error message: ${e.message}`);
+      const errAny = e as unknown as Record<string, unknown>;
+      if (errAny.cause) log(`Error cause: ${String(errAny.cause)}`);
+      if (e.stack) {
+        const stackLines = e.stack.split('\n').slice(0, 5).join('\n');
+        log(`Stack: ${stackLines}`);
+      }
+    }
     const errMsg = e instanceof Error ? e.message : String(e);
     toast(`Update failed: ${errMsg}`, 'err');
   }

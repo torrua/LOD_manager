@@ -587,6 +587,22 @@
     </div>
   {/if}
 
+  <!-- Debug Panel - placed before ToolsDrawer so it appears below it -->
+  {#if app.debugVisible}
+    <div class="debug-panel">
+      <div class="debug-header">
+        <span class="debug-title">Debug Log</span>
+        <button class="debug-btn" onclick={() => (app.debugLog = [])}>Clear</button>
+        <button class="debug-btn" onclick={() => (app.debugVisible = false)}>Hide</button>
+      </div>
+      <div class="debug-content">
+        {#each app.debugLog as line}
+          <div class="debug-line">{line}</div>
+        {/each}
+      </div>
+    </div>
+  {/if}
+
   {#if app.toolsOpen}<ToolsDrawer />{/if}
   <Toast />
 </div>
@@ -1584,5 +1600,61 @@
   .sheet-item-label {
     font-size: 0.78rem;
     font-weight: 500;
+  }
+
+  /* Debug Panel - pushes content up instead of overlay */
+  .debug-panel {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 180px;
+    background: var(--surf);
+    border-top: 1px solid var(--gold-d);
+    z-index: 50;
+    display: flex;
+    flex-direction: column;
+  }
+  .debug-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.35rem 0.75rem;
+    border-bottom: 1px solid var(--border);
+    background: var(--surf2);
+  }
+  .debug-title {
+    font-size: 0.62rem;
+    font-weight: 700;
+    color: var(--gold);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+  .debug-btn {
+    font-size: 0.58rem;
+    padding: 0.15rem 0.4rem;
+    border-radius: var(--r-sm);
+    border: 1px solid var(--border);
+    background: var(--surf);
+    color: var(--text2);
+    cursor: pointer;
+    margin-left: auto;
+  }
+  .debug-btn:hover {
+    background: var(--surf3);
+    color: var(--text);
+  }
+  .debug-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0.35rem 0.75rem;
+    font-family: 'JetBrains Mono', 'Cascadia Code', 'Consolas', monospace;
+    font-size: 0.55rem;
+    line-height: 1.4;
+  }
+  .debug-line {
+    color: var(--text2);
+    white-space: pre-wrap;
+    word-break: break-all;
   }
 </style>

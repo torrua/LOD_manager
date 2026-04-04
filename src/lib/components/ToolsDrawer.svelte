@@ -16,6 +16,7 @@
     rebuildFts,
     loadWords,
     checkForUpdate,
+    installUpdate,
   } from '../store.svelte';
   import type { ImportResult } from '../../types';
 
@@ -666,6 +667,16 @@
       <div class="settings-group version-group">
         <span class="version-label">LOD Manager v{appVersion}</span>
         {#if app.currentPlatform !== 'android' && app.currentPlatform !== 'ios'}
+          {#if app.updateAvailable}
+            <button
+              class="btn btn-sm"
+              style="background: var(--green-g); border-color: var(--green-d); color: var(--green)"
+              onclick={() => installUpdate()}
+              title="Install update"
+            >
+              Install {app.updateVersion}
+            </button>
+          {/if}
           <button
             class="btn btn-ic btn-ghost btn-sm"
             onclick={() => checkForUpdate()}
@@ -674,6 +685,13 @@
             <Icon name="update" size={14} />
           </button>
         {/if}
+        <button
+          class="btn btn-ic btn-ghost btn-sm"
+          onclick={() => (app.debugVisible = !app.debugVisible)}
+          title="Toggle debug log"
+        >
+          <Icon name="bug" size={14} />
+        </button>
       </div>
     {/if}
   </div>

@@ -313,6 +313,39 @@ fn export_html_to_file(
 }
 
 /// Returns the canonical default database path in the app's data directory.
+#[tauri::command]
+fn debug_update_check(app: tauri::AppHandle) -> Res<String> {
+    use tauri_plugin_updater::UpdaterExt;
+    use tauri::async_runtime::block_on;
+    eprintln!("[Updater] debug_update_check called");
+    
+    match app.updater() {
+        Ok(updater) => {
+            eprintln!("[Updater] Updater obtained, calling check()");
+            let result = block_on(updater.check());
+            match result {
+                Ok(Some(update)) => {
+                    eprintln!("[Updater] Update found: {}", update.version);
+                    Ok(format!("Update available: {}", update.version))
+                }
+                Ok(None) => {
+                    eprintln!("[Updater] No update available");
+                    Ok("No update available".to_string())
+                }
+                Err(e) => {
+                    eprintln!("[Updater] Check error: {:?}", e);
+                    Err(format!("Check failed: {:?}", e))
+                }
+            }
+        }
+        Err(e) => {
+            eprintln!("[Updater] Failed to get updater: {:?}", e);
+            Err(format!("Updater error: {:?}", e))
+        }
+    }
+}
+
+/// Returns the canonical default database path in the app's data directory.
 /// This is the reliable cross-platform (especially Android) way to get
 /// a writable, persistent path that survives app restarts.
 #[tauri::command]
@@ -331,8 +364,10 @@ pub fn run() {
         .setup(|_app| {
             #[cfg(desktop)]
             {
-                _app.handle()
+                let handle = _app.handle();
+                handle
                     .plugin(tauri_plugin_updater::Builder::new().build())?;
+                eprintln!("[Updater] Plugin initialized with endpoints from config");
             }
             Ok(())
         })
@@ -367,7 +402,8 @@ pub fn run() {
             fts_is_ready,
             export_html,
             export_html_to_file,
-            get_default_db_path
+            get_default_db_path,
+            debug_update_check
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
