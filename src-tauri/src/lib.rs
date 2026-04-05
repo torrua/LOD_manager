@@ -34,10 +34,10 @@ pub fn run() {
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
-        .setup(|app| {
+        .setup(|_app| {
             #[cfg(desktop)]
             {
-                let handle = app.handle();
+                let handle = _app.handle();
                 handle.plugin(tauri_plugin_updater::Builder::new().build())?;
                 eprintln!("[Updater] Plugin initialized with endpoints from config");
             }
