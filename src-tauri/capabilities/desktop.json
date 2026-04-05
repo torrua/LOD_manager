@@ -3,7 +3,7 @@
   "identifier": "desktop-capability",
   "description": "Capability for desktop platforms",
   "windows": ["main"],
-  "platforms": ["linux", "windows", "macos"],
+  "platforms": ["linux", "windows", "macOS"],
   "permissions": [
     "core:default",
     "dialog:allow-open",
