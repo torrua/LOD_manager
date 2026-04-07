@@ -155,12 +155,12 @@ pub fn generate_html(conn: &Connection, event_name: Option<&str>) -> rusqlite::R
     // which prevents the query planner from using the event index.
     let rows: Vec<WordRow> = if let Some(ev) = event_name {
         let mut stmt = conn.prepare(
-            "SELECT w.id, w.name, t.name, w.source, w.year, w.rank, w.match_,
+            "SELECT w.id, w.name, t.type, NULL, w.year, w.rank, w.match_,
                     w.origin, w.origin_x, w.notes
              FROM words w
-             LEFT JOIN types t ON t.id = w.type_id
-             WHERE (w.event_start_id IS NULL OR w.event_start_id <= (SELECT id FROM events WHERE name = ?1))
-               AND (w.event_end_id IS NULL OR w.event_end_id > (SELECT id FROM events WHERE name = ?1))
+             LEFT JOIN types t ON t.id = w.type
+             WHERE (w.event_start <= (SELECT event_id FROM events WHERE name = ?1))
+               AND (w.event_end IS NULL OR w.event_end > (SELECT event_id FROM events WHERE name = ?1))
              ORDER BY LOWER(w.name)",
         )?;
         let rows: Vec<WordRow> = stmt
@@ -170,10 +170,10 @@ pub fn generate_html(conn: &Connection, event_name: Option<&str>) -> rusqlite::R
         rows
     } else {
         let mut stmt = conn.prepare(
-            "SELECT w.id, w.name, t.name, w.source, w.year, w.rank, w.match_,
+            "SELECT w.id, w.name, t.type, NULL, w.year, w.rank, w.match_,
                     w.origin, w.origin_x, w.notes
              FROM words w
-             LEFT JOIN types t ON t.id = w.type_id
+             LEFT JOIN types t ON t.id = w.type
              ORDER BY LOWER(w.name)",
         )?;
         let rows: Vec<WordRow> = stmt
@@ -197,7 +197,7 @@ pub fn generate_html(conn: &Connection, event_name: Option<&str>) -> rusqlite::R
     let mut defs_map: HashMap<i64, Vec<DefRow>> = HashMap::with_capacity(ids.len());
     {
         let mut stmt = conn.prepare(
-            "SELECT word_id, grammar, usage, body, tags
+            "SELECT word_id, grammar_code, usage, body, case_tags
              FROM definitions
              ORDER BY word_id, position",
         )?;
@@ -229,34 +229,14 @@ pub fn generate_html(conn: &Connection, event_name: Option<&str>) -> rusqlite::R
         }
     }
 
-    // ── 4. Build "used in" map by matching affixes against word names in Rust ────
-    // Avoids SQL LIKE issues with special characters in affixes.
+    // ── 4. Build "used in" map from word_usage table ────────────────────────
     let mut used_map: HashMap<i64, Vec<String>> = HashMap::new();
     {
-        let all_words: Vec<(i64, String)> = {
-            let mut stmt = conn.prepare("SELECT id, name FROM words")?;
-            stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?
-                .filter_map(std::result::Result::ok)
-                .collect()
-        };
-        for (word_id, affixes) in &afx_map {
-            let mut matches: Vec<String> = Vec::new();
-            for affix in affixes {
-                let affix_lower = affix.to_lowercase();
-                for (other_id, other_name) in &all_words {
-                    if *other_id != *word_id
-                        && other_name.to_lowercase().contains(&affix_lower)
-                        && matches.len() < 60
-                        && !matches.contains(other_name)
-                    {
-                        matches.push(other_name.clone());
-                    }
-                }
-            }
-            if !matches.is_empty() {
-                matches.sort();
-                used_map.insert(*word_id, matches);
-            }
+        let mut stmt =
+            conn.prepare("SELECT word_id, used_in_word FROM word_usage ORDER BY word_id")?;
+        let iter = stmt.query_map([], |r| Ok((r.get::<_, i64>(0)?, r.get::<_, String>(1)?)))?;
+        for row in iter.filter_map(std::result::Result::ok) {
+            used_map.entry(row.0).or_default().push(row.1);
         }
     }
 

@@ -20,6 +20,7 @@
 #![allow(clippy::cast_precision_loss)]
 
 mod commands;
+mod converter;
 mod db;
 mod export;
 mod import;
@@ -27,6 +28,9 @@ mod models;
 
 use commands::AppState;
 use std::sync::Mutex;
+
+// Re-export converter functions for easier access
+pub use converter::converter::convert_text_to_sqlite;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -70,6 +74,7 @@ pub fn run() {
             commands::authors::delete_author,
             commands::import::import_lod_contents,
             commands::import::import_lod_files,
+            commands::import::convert_text_files,
             commands::search::search_english,
             commands::search::rebuild_fts,
             commands::search::compact_db,
@@ -183,14 +188,14 @@ mod tests {
         .unwrap();
 
         conn.execute(
-            "INSERT INTO definitions (word_id, position, grammar, usage, body, tags) 
+            "INSERT INTO definitions (word_id, position, grammar_code, usage, body, case_tags)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
             (word_id, 0, "grammar1", "usage1", "body1", "tags1"),
         )
         .unwrap();
 
         conn.execute(
-            "INSERT INTO definitions (word_id, position, grammar, usage, body, tags) 
+            "INSERT INTO definitions (word_id, position, grammar_code, usage, body, case_tags)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
             (word_id, 1, "grammar2", "usage2", "body2", "tags2"),
         )
@@ -354,11 +359,11 @@ mod tests {
         assert_eq!(word.affixes.len(), 0);
 
         conn.execute(
-            "INSERT INTO definitions (word_id, position, grammar, usage, body, tags) VALUES (?1, 0, 'GU', 'test', 'first definition', 'tag1')",
+            "INSERT INTO definitions (word_id, position, grammar_code, usage, body, case_tags) VALUES (?1, 0, 'GU', 'test', 'first definition', 'tag1')",
             [word_id],
         ).unwrap();
         conn.execute(
-            "INSERT INTO definitions (word_id, position, grammar, usage, body, tags) VALUES (?1, 1, 'N', 'test', 'second definition', 'tag2')",
+            "INSERT INTO definitions (word_id, position, grammar_code, usage, body, case_tags) VALUES (?1, 1, 'N', 'test', 'second definition', 'tag2')",
             [word_id],
         ).unwrap();
 
@@ -386,10 +391,10 @@ mod tests {
         let word_id: i64 = conn.last_insert_rowid();
 
         let def_data = models::SaveDefinition {
-            grammar: Some("GU".to_string()),
+            grammar_code: Some("GU".to_string()),
             usage: Some("verb".to_string()),
             body: "to want".to_string(),
-            tags: Some("main".to_string()),
+            case_tags: Some("main".to_string()),
         };
         db::save_definition(&conn, None, word_id, &def_data).unwrap();
 
@@ -400,10 +405,10 @@ mod tests {
         db::delete_definition(&conn, def_id).unwrap();
 
         let updated_def = models::SaveDefinition {
-            grammar: Some("GU".to_string()),
+            grammar_code: Some("GU".to_string()),
             usage: Some("verb".to_string()),
             body: "to strongly want".to_string(),
-            tags: Some("updated".to_string()),
+            case_tags: Some("updated".to_string()),
         };
         db::save_definition(&conn, None, word_id, &updated_def).unwrap();
 
@@ -626,11 +631,11 @@ mod tests {
         let conn = rusqlite::Connection::open_in_memory().unwrap();
         db::init_schema(&conn).unwrap();
 
-        conn.execute("INSERT INTO types (name) VALUES ('gismu')", [])
+        conn.execute("INSERT INTO types (type) VALUES ('gismu')", [])
             .unwrap();
         let type_id: i64 = conn.last_insert_rowid();
         conn.execute(
-            "INSERT INTO words (name, type_id) VALUES ('camgu', ?1)",
+            "INSERT INTO words (name, type, id_old, event_start) VALUES ('camgu', ?1, 1, 1)",
             [type_id],
         )
         .unwrap();
@@ -699,10 +704,10 @@ mod tests {
         let word_id: i64 = conn.last_insert_rowid();
 
         let def_data = models::SaveDefinition {
-            grammar: Some("GU".to_string()),
+            grammar_code: Some("GU".to_string()),
             usage: None,
             body: "original text".to_string(),
-            tags: None,
+            case_tags: None,
         };
         db::save_definition(&conn, None, word_id, &def_data).unwrap();
         let def_id: i64 = conn
