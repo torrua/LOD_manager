@@ -17,14 +17,16 @@ use std::path::Path;
 const SEP: char = '@';
 
 type WordData = (
-    String,
-    Option<String>,
-    Option<String>,
-    Option<String>,
-    Option<String>,
-    Option<String>,
-    Option<String>,
-    Vec<String>,
+    String,         // type_name (from column 1)
+    Option<String>, // match_ (from column 4)
+    Option<String>, // source (from column 5)
+    Option<String>, // year (from column 6)
+    Option<String>, // rank (from column 7)
+    Option<String>, // origin (from column 8)
+    Option<String>, // origin_x (from column 9)
+    Vec<String>,    // affixes (from column 3)
+    Option<String>, // usedin (from column 10)
+    Option<String>, // tid_old (from column 11)
 );
 
 fn rows(content: &str) -> Vec<Vec<String>> {
@@ -137,10 +139,11 @@ pub fn import_files(conn: &mut Connection, paths: &[String]) -> Result<ImportRes
             if let Some(name) = r.first().filter(|s| !s.is_empty()) {
                 let type_x = r.get(1).and_then(|s| opt(s));
                 let group = r.get(2).and_then(|s| opt(s));
+                let description = r.get(3).and_then(|s| opt(s));
                 if tx
                     .execute(
-                        "INSERT OR IGNORE INTO types (name, type_x, group_) VALUES (?1,?2,?3)",
-                        params![name, type_x, group],
+                        "INSERT OR IGNORE INTO types (type, type_x, group_, parentable, description, id, created, updated) VALUES (?1,?2,?3,?4,?5, (SELECT COALESCE(MAX(id), 0) + 1 FROM types), datetime('now'), datetime('now'))",
+                        params![name, type_x, group, Some(true), description],
                     )
                     .is_ok()
                     && tx.changes() > 0
@@ -168,8 +171,8 @@ pub fn import_files(conn: &mut Connection, paths: &[String]) -> Result<ImportRes
                 let full_name = r.get(1).and_then(|s| opt(s));
                 if tx
                     .execute(
-                        "INSERT OR IGNORE INTO authors (initials, full_name) VALUES (?1,?2)",
-                        params![initials, full_name],
+                        "INSERT OR IGNORE INTO authors (abbreviation, full_name, notes, id, created, updated) VALUES (?1,?2,?3, (SELECT COALESCE(MAX(id), 0) + 1 FROM authors), datetime('now'), datetime('now'))",
+                        params![initials, full_name, r.get(2).and_then(|s| opt(s))],
                     )
                     .is_ok()
                     && tx.changes() > 0
@@ -203,9 +206,9 @@ pub fn import_files(conn: &mut Connection, paths: &[String]) -> Result<ImportRes
             let notes = r.get(3).and_then(|s| opt(s));
             let suffix = r.get(4).and_then(|s| opt(s));
             let annotation = r.get(5).and_then(|s| opt(s));
-            if tx.execute("INSERT OR IGNORE INTO events (name, date, annotation, suffix, notes) VALUES (?1,?2,?3,?4,?5)", params![name, date, annotation, suffix, notes]).is_ok()
+            if tx.execute("INSERT OR IGNORE INTO events (event_id, name, date, definition, annotation, suffix, id, created, updated) VALUES (?1,?2,?3,?4,?5,?6, (SELECT COALESCE(MAX(id), 0) + 1 FROM events), datetime('now'), datetime('now'))", params![old_id, name, date, notes, annotation, suffix]).is_ok()
                     && tx.changes() > 0
-                        && let Ok(eid) = tx.query_row("SELECT id FROM events WHERE name=?1", params![name], |row| row.get::<_, i64>(0)) {
+                        && let Ok(eid) = tx.query_row("SELECT id FROM events WHERE event_id=?1", params![old_id], |row| row.get::<_, i64>(0)) {
                             event_id_map.insert(old_id.clone(), eid);
                             result.events += 1;
                         }
@@ -227,7 +230,7 @@ pub fn import_files(conn: &mut Connection, paths: &[String]) -> Result<ImportRes
             }
             let old_id = r[0].clone();
             let type_name = r.get(1).map_or("", String::as_str).to_string();
-            let affixes = r
+            let affixes: Vec<String> = r
                 .get(3)
                 .map_or("", String::as_str)
                 .split_whitespace()
@@ -236,14 +239,19 @@ pub fn import_files(conn: &mut Connection, paths: &[String]) -> Result<ImportRes
             word_staging.insert(
                 old_id,
                 (
-                    type_name,
-                    r.get(4).and_then(|s| opt(s)),
-                    r.get(5).and_then(|s| opt(s)),
-                    r.get(6).and_then(|s| opt(s)),
-                    r.get(7).and_then(|s| opt(s)),
-                    r.get(8).and_then(|s| opt(s)),
-                    r.get(9).and_then(|s| opt(s)),
-                    affixes,
+                    r.get(1).map_or("", String::as_str).to_string(), // type_name (col 1)
+                    r.get(4).and_then(|s| opt(s)),               // match_ (col 4)
+                    r.get(5).and_then(|s| opt(s)),               // source (col 5)
+                    r.get(6).and_then(|s| opt(s)),               // year (col 6)
+                    r.get(7).and_then(|s| opt(s)),               // rank (col 7)
+                    r.get(8).and_then(|s| opt(s)),               // origin (col 8)
+                    r.get(9).and_then(|s| opt(s)),               // origin_x (col 9)
+                    r.get(3).map_or("", String::as_str)          // affixes (col 3)
+                        .split_whitespace()
+                        .map(String::from)
+                        .collect(),
+                    r.get(10).and_then(|s| opt(s)),              // usedin (col 10)
+                    r.get(11).and_then(|s| opt(s)),              // tid_old (col 11)
                 ),
             );
         }
@@ -275,27 +283,38 @@ pub fn import_files(conn: &mut Connection, paths: &[String]) -> Result<ImportRes
                     .and_then(|s| opt(s))
                     .and_then(|s| event_id_map.get(&s).copied());
 
-                let (type_name, match_, source, year, rank, origin, origin_x, affixes) =
+                let (type_name, match_, source, year, rank, origin, origin_x, affixes, usedin, tid_old) =
                     word_staging.get(old_id).cloned().unwrap_or_default();
                 let type_id: Option<i64> = if type_name.is_empty() {
                     None
                 } else {
                     tx.query_row(
-                        "SELECT id FROM types WHERE name=?1",
+                        "SELECT id FROM types WHERE type=?1",
                         params![type_name],
                         |r| r.get(0),
                     )
                     .ok()
                 };
 
-                if tx.execute("INSERT OR IGNORE INTO words (name, type_id, match_, source, year, rank, origin, origin_x, event_start_id, event_end_id) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10)", params![name, type_id, match_, source, year, rank, origin, origin_x, ev_start, ev_end]).is_ok() {
+                if tx.execute("INSERT OR IGNORE INTO words (name, type, match_, rank, year, origin, id_old, event_start, event_end, id, created, updated) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9, (SELECT COALESCE(MAX(id), 0) + 1 FROM words), datetime('now'), datetime('now'))", params![name, type_id, match_, rank, year, origin, old_id, ev_start, ev_end]).is_ok() {
                     let db_id = if tx.changes() > 0 {
                         let wid = tx.last_insert_rowid();
                         result.words += 1;
                         for a in &affixes { let _ = tx.execute("INSERT INTO word_affixes (word_id, affix) VALUES (?1,?2)", params![wid, a]); }
+
+                        // Save usedin relationships if present
+                        if let Some(ref usedin_data) = usedin {
+                            for used_word in usedin_data.split_whitespace() {
+                                let used_word: &str = used_word.trim();
+                                if !used_word.is_empty() && used_word != "|" {
+                                    let _ = tx.execute("INSERT INTO word_usage (word_id, used_in_word) VALUES (?1,?2)", params![wid, used_word]);
+                                }
+                            }
+                        }
+
                         wid
                     } else {
-                        tx.query_row("SELECT id FROM words WHERE name=?1 AND (type_id=?2 OR (type_id IS NULL AND ?2 IS NULL))", params![name, type_id], |r| r.get(0)).unwrap_or(0)
+                        tx.query_row("SELECT id FROM words WHERE name=?1 AND (type=?2 OR (type IS NULL AND ?2 IS NULL))", params![name, type_id], |r| r.get(0)).unwrap_or(0)
                     };
                     if db_id > 0 { old_id_to_db_id.insert(old_id.clone(), db_id); }
                 }
@@ -329,7 +348,7 @@ pub fn import_files(conn: &mut Connection, paths: &[String]) -> Result<ImportRes
                     .get(old_word_id)
                     .copied()
                     .or_else(|| old_word_id.parse().ok())
-                    && tx.execute("INSERT OR IGNORE INTO definitions (word_id, position, grammar, usage, body, tags) VALUES (?1,?2,?3,?4,?5,?6)", params![wid, position, grammar, usage, body, tags]).is_ok()
+                    && tx.execute("INSERT OR IGNORE INTO definitions (word_id, position, body, usage, grammar_code, case_tags, id, created, updated) VALUES (?1,?2,?3,?4,?5,?6, (SELECT COALESCE(MAX(id), 0) + 1 FROM definitions), datetime('now'), datetime('now'))", params![wid, position, body, usage, grammar, tags]).is_ok()
                         && tx.changes() > 0 {
                             def_count += 1;
                         }
@@ -370,9 +389,11 @@ fn import_settings(conn: &Connection, path: &str) -> Result<usize, Box<dyn std::
                 count += 1;
             }
         } else if line.contains('@') && line.chars().filter(|&c| c == '@').count() >= 3 {
-            // Special format like "07.10.2020 07:10:20@2@10141@4.5.8"
-            // Store as database_info key
-            conn.execute("INSERT INTO settings(key,value) VALUES(?1,?2) ON CONFLICT(key) DO UPDATE SET value=excluded.value", params!["database_info", line])?;
+            // Handle @-delimited format: "07.10.2020 07:10:20@2@10141@4.5.8"
+            let parts: Vec<&str> = line.split('@').collect();
+            if parts.len() >= 4 {
+                conn.execute("INSERT OR IGNORE INTO settings (date, db_version, last_word_id, db_release, id, created, updated) VALUES (?1,?2,?3,?4, (SELECT COALESCE(MAX(id), 0) + 1 FROM settings), datetime('now'), datetime('now'))", params![parts[0], parts[1], parts[2], parts[3]])?;
+            }
             count += 1;
         }
     }
