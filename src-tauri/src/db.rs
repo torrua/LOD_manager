@@ -14,52 +14,63 @@ use std::convert::TryInto;
 
 pub fn init_schema(conn: &Connection) -> rusqlite::Result<()> {
     conn.execute_batch(
-        "
-        PRAGMA foreign_keys=ON;
+        "PRAGMA foreign_keys=ON;
 
         CREATE TABLE IF NOT EXISTS types (
             id      INTEGER PRIMARY KEY AUTOINCREMENT,
-            name    TEXT NOT NULL UNIQUE,
+            type    TEXT NOT NULL UNIQUE,
             type_x  TEXT,
-            group_  TEXT
+            group_  TEXT,
+            parentable BOOLEAN DEFAULT TRUE,
+            description TEXT,
+            created   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated   DATETIME DEFAULT CURRENT_TIMESTAMP
         );
 
         CREATE TABLE IF NOT EXISTS authors (
             id        INTEGER PRIMARY KEY AUTOINCREMENT,
-            initials  TEXT NOT NULL UNIQUE,
+            abbreviation  TEXT NOT NULL UNIQUE,
             full_name TEXT,
-            notes     TEXT
+            notes     TEXT,
+            created   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated   DATETIME DEFAULT CURRENT_TIMESTAMP
         );
 
         CREATE TABLE IF NOT EXISTS events (
-            id         INTEGER PRIMARY KEY AUTOINCREMENT,
-            name       TEXT NOT NULL UNIQUE,
+            event_id  INTEGER NOT NULL UNIQUE,
+            name       TEXT NOT NULL,
             date       TEXT,
+            definition TEXT,
             annotation TEXT,
             suffix     TEXT,
-            notes      TEXT
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            created    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated    DATETIME DEFAULT CURRENT_TIMESTAMP
         );
 
         CREATE TABLE IF NOT EXISTS words (
             id              INTEGER PRIMARY KEY AUTOINCREMENT,
             name            TEXT NOT NULL,
-            type_id         INTEGER REFERENCES types(id),
-            source          TEXT,
-            year            TEXT,
-            rank            TEXT,
-            match_          TEXT,
+            type            INTEGER NOT NULL REFERENCES types(id),
             origin          TEXT,
             origin_x        TEXT,
+            match_          TEXT,
+            rank            TEXT,
+            year            TEXT,
             notes           TEXT,
-            event_start_id  INTEGER REFERENCES events(id),
-            event_end_id    INTEGER REFERENCES events(id),
-            UNIQUE(name, type_id)
+            id_old          INTEGER NOT NULL,
+            TID_old         INTEGER,
+            event_start     INTEGER NOT NULL REFERENCES events(event_id),
+            event_end       INTEGER REFERENCES events(event_id),
+            created         DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated         DATETIME DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(name, type)
         );
         CREATE INDEX IF NOT EXISTS idx_words_name       ON words(name);
         CREATE INDEX IF NOT EXISTS idx_words_name_lower ON words(LOWER(name));
-        CREATE INDEX IF NOT EXISTS idx_words_type_id    ON words(type_id);
-        CREATE INDEX IF NOT EXISTS idx_words_ev_start   ON words(event_start_id);
-        CREATE INDEX IF NOT EXISTS idx_words_ev_end     ON words(event_end_id);
+        CREATE INDEX IF NOT EXISTS idx_words_type      ON words(type);
+        CREATE INDEX IF NOT EXISTS idx_words_ev_start   ON words(event_start);
+        CREATE INDEX IF NOT EXISTS idx_words_ev_end     ON words(event_end);
 
         CREATE TABLE IF NOT EXISTS word_spellings (
             id      INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -76,26 +87,52 @@ pub fn init_schema(conn: &Connection) -> rusqlite::Result<()> {
         CREATE INDEX IF NOT EXISTS idx_word_affixes_word_id ON word_affixes(word_id);
         CREATE INDEX IF NOT EXISTS idx_word_affixes_affix   ON word_affixes(affix);
 
+        CREATE TABLE IF NOT EXISTS word_usage (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            word_id     INTEGER NOT NULL REFERENCES words(id) ON DELETE CASCADE,
+            used_in_word TEXT NOT NULL,
+            created     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE INDEX IF NOT EXISTS idx_word_usage_word_id ON word_usage(word_id);
+        CREATE INDEX IF NOT EXISTS idx_word_usage_used_in ON word_usage(used_in_word);
+
         CREATE TABLE IF NOT EXISTS settings (
-            key   TEXT PRIMARY KEY,
-            value TEXT NOT NULL DEFAULT ''
+            date        DATETIME NOT NULL,
+            db_version  INTEGER NOT NULL,
+            last_word_id INTEGER NOT NULL,
+            db_release  TEXT NOT NULL,
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            created     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated     DATETIME DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(date)
         );
 
         CREATE TABLE IF NOT EXISTS definitions (
-            id       INTEGER PRIMARY KEY AUTOINCREMENT,
-            word_id  INTEGER NOT NULL REFERENCES words(id) ON DELETE CASCADE,
-            position INTEGER NOT NULL DEFAULT 0,
-            grammar  TEXT,
-            usage    TEXT,
-            body     TEXT NOT NULL DEFAULT '',
-            tags     TEXT,
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            word_id     INTEGER NOT NULL REFERENCES words(id) ON DELETE CASCADE,
+            position    INTEGER NOT NULL DEFAULT 0,
+            body        TEXT NOT NULL DEFAULT '',
+            usage       TEXT,
+            grammar_code TEXT,
+            slots       INTEGER,
+            case_tags   TEXT,
+            language    TEXT,
+            notes       TEXT,
+            created     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated     DATETIME DEFAULT CURRENT_TIMESTAMP,
             UNIQUE(word_id, position)
         );
-        -- Covering index: WHERE word_id=? ORDER BY position — no separate sort step.
         CREATE INDEX IF NOT EXISTS idx_def_word_pos ON definitions(word_id, position);
 
-        INSERT OR IGNORE INTO events (name) VALUES ('Start');
-    ",
+        CREATE TABLE IF NOT EXISTS connect_words (
+            parent_id INTEGER NOT NULL REFERENCES words(id) ON DELETE CASCADE,
+            child_id  INTEGER NOT NULL REFERENCES words(id) ON DELETE CASCADE,
+            PRIMARY KEY (parent_id, child_id)
+        );
+        CREATE INDEX IF NOT EXISTS index_parent_id ON connect_words (parent_id);
+        CREATE INDEX IF NOT EXISTS index_child_id  ON connect_words (child_id);
+
+        INSERT OR IGNORE INTO events (event_id, name, date, definition, annotation, suffix) VALUES (1, 'Start', '', '', '', '');"
     )
 }
 
@@ -111,6 +148,25 @@ pub fn add_missing_indexes(conn: &Connection) -> rusqlite::Result<()> {
         CREATE INDEX IF NOT EXISTS idx_words_ev_start         ON words(event_start_id);
         CREATE INDEX IF NOT EXISTS idx_words_ev_end           ON words(event_end_id);
         CREATE INDEX IF NOT EXISTS idx_def_word_pos           ON definitions(word_id, position);
+        
+        -- Migration: Add connect_words table if it doesn't exist
+        CREATE TABLE IF NOT EXISTS connect_words (
+            parent_id INTEGER NOT NULL REFERENCES words(id) ON DELETE CASCADE,
+            child_id  INTEGER NOT NULL REFERENCES words(id) ON DELETE CASCADE,
+            PRIMARY KEY (parent_id, child_id)
+        );
+        CREATE INDEX IF NOT EXISTS index_parent_id ON connect_words (parent_id);
+        CREATE INDEX IF NOT EXISTS index_child_id  ON connect_words (child_id);
+
+        -- Migration: Add word_usage table if it doesn't exist (for databases created before usedin support)
+        CREATE TABLE IF NOT EXISTS word_usage (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            word_id     INTEGER NOT NULL REFERENCES words(id) ON DELETE CASCADE,
+            used_in_word TEXT NOT NULL,
+            created     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE INDEX IF NOT EXISTS idx_word_usage_word_id ON word_usage(word_id);
+        CREATE INDEX IF NOT EXISTS idx_word_usage_used_in ON word_usage(used_in_word);
         ",
     )
 }
@@ -250,6 +306,10 @@ pub fn list_words(
     type_filter: &str,
     event_id: Option<i64>,
 ) -> rusqlite::Result<Vec<WordListItem>> {
+    println!(
+        "list_words called with q='{}', type_filter='{}', event_id={:?}",
+        q, type_filter, event_id
+    );
     let pattern = if q.contains('*') || q.contains('?') {
         q.to_lowercase().replace('*', "%").replace('?', "_")
     } else if q.is_empty() {
@@ -259,23 +319,27 @@ pub fn list_words(
         format!("{}%", q.to_lowercase())
     };
 
-    // Single query: optional type filter is handled by (?2 = '' OR t.name = ?2).
+    // Single query: optional type filter is handled by (?2 = '' OR t.type = ?2).
     // Optional event filter: ?3 IS NULL skips the clause entirely.
     let sql = "
-        SELECT w.id, w.name, t.name,
+        SELECT w.id, w.name, t.type,
                (SELECT COUNT(*) FROM definitions d WHERE d.word_id = w.id)
         FROM words w
-        LEFT JOIN types t ON t.id = w.type_id
+        LEFT JOIN types t ON t.id = w.type
         WHERE LOWER(w.name) LIKE ?1
-          AND (?2 = '' OR t.name = ?2)
+          AND (?2 = '' OR t.type = ?2)
           AND (?3 IS NULL
-               OR (w.event_start_id <= ?3
-                   AND (w.event_end_id IS NULL OR w.event_end_id > ?3)))
+               OR (w.event_start <= ?3
+                   AND (w.event_end IS NULL OR w.event_end > ?3)))
         ORDER BY LOWER(w.name)
     ";
-    conn.prepare(sql)?
+    println!("list_words: executing SQL query");
+    let mut stmt = conn.prepare(sql)?;
+    let result: Vec<WordListItem> = stmt
         .query_map(params![pattern, type_filter, event_id], map_wli)?
-        .collect()
+        .collect::<Result<Vec<_>, _>>()?;
+    println!("list_words: collected {} results", result.len());
+    Ok(result)
 }
 
 /// Fetch a word with all its related data (affixes, spellings, definitions, used-in).
@@ -288,35 +352,35 @@ pub fn list_words(
 pub fn get_word(conn: &Connection, id: i64) -> rusqlite::Result<WordDetail> {
     // ── 1. Main word row ──────────────────────────────────────────────────────
     let mut word: WordDetail = conn.query_row(
-        "SELECT w.id, w.name, t.name, w.type_id,
-                w.source, w.year, w.rank, w.match_,
-                w.origin, w.origin_x, w.notes,
-                es.name, ee.name
+        "SELECT w.id, w.name, w.origin, w.origin_x, w.match_, w.rank, w.year, w.notes,
+                w.id_old, w.TID_old, w.type, w.event_start, w.event_end,
+                t.type as type_name, es.name as event_start_name, ee.name as event_end_name
          FROM words w
-         LEFT JOIN types t  ON t.id  = w.type_id
-         LEFT JOIN events es ON es.id = w.event_start_id
-         LEFT JOIN events ee ON ee.id = w.event_end_id
+         LEFT JOIN types t ON t.id = w.type
+         LEFT JOIN events es ON es.event_id = w.event_start
+         LEFT JOIN events ee ON ee.event_id = w.event_end
          WHERE w.id = ?1",
         params![id],
         |r| {
             Ok(WordDetail {
-                id: r.get(0)?,
-                name: r.get(1)?,
-                type_name: r.get(2)?,
-                type_id: r.get(3)?,
-                source: r.get(4)?,
-                year: r.get(5)?,
-                rank: r.get(6)?,
-                match_: r.get(7)?,
-                origin: r.get(8)?,
-                origin_x: r.get(9)?,
-                notes: r.get(10)?,
-                event_start_name: r.get(11)?,
-                event_end_name: r.get(12)?,
+                id: r.get(0)?,                // w.id
+                name: r.get(1)?,              // w.name
+                type_name: r.get(13)?,        // t.type as type_name
+                type_id: r.get(10)?,          // w.type (INTEGER)
+                source: None,                 // source not in database
+                origin: r.get(2)?,            // w.origin
+                origin_x: r.get(3)?,          // w.origin_x
+                match_: r.get(4)?,            // w.match_
+                rank: r.get(5)?,              // w.rank
+                year: r.get(6)?,              // w.year
+                notes: r.get(7)?,             // w.notes
+                event_start_name: r.get(14)?, // es.name as event_start_name
+                event_end_name: r.get(15)?,   // ee.name as event_end_name
                 affixes: vec![],
                 spellings: vec![],
                 definitions: vec![],
                 used_in: vec![],
+                children: vec![],
             })
         },
     )?;
@@ -350,10 +414,10 @@ pub fn get_word(conn: &Connection, id: i64) -> rusqlite::Result<WordDetail> {
                     json_object(
                         'id',       id,
                         'position', position,
-                        'grammar',  grammar,
+                        'grammar_code',  grammar_code,
                         'usage',    usage,
                         'body',     body,
-                        'tags',     tags
+                        'case_tags',     case_tags
                     )
                 ),
                 '[]'
@@ -368,20 +432,26 @@ pub fn get_word(conn: &Connection, id: i64) -> rusqlite::Result<WordDetail> {
 
     word.definitions = serde_json::from_str::<Vec<Definition>>(&json_str).unwrap_or_default();
 
-    // ── 4. Used-in: words whose name contains one of this word's affixes ───────
-    // EXISTS with idx_word_affixes_word_id makes the inner scan O(affixes).
+    // ── 4. Used-in: direct relationships from word_usage table ───────────────────
     let mut s = conn.prepare(
-        "SELECT DISTINCT w.name FROM words w
-         WHERE w.id != ?1
-           AND EXISTS (
-               SELECT 1 FROM word_affixes wa
-               WHERE wa.word_id = ?1
-                 AND LOWER(w.name) LIKE '%' || LOWER(wa.affix) || '%'
-           )
-         ORDER BY w.name
+        "SELECT DISTINCT used_in_word FROM word_usage
+         WHERE word_id = ?1
+         ORDER BY used_in_word
          LIMIT 100",
     )?;
     word.used_in = s
+        .query_map(params![id], |r| r.get(0))?
+        .filter_map(std::result::Result::ok)
+        .collect();
+    
+    // ── 5. Children: words that list this word as a parent in connect_words ──────
+    let mut s = conn.prepare(
+        "SELECT w.name FROM words w
+         JOIN connect_words cw ON cw.child_id = w.id
+         WHERE cw.parent_id = ?1
+         ORDER BY w.name",
+    )?;
+    word.children = s
         .query_map(params![id], |r| r.get(0))?
         .filter_map(std::result::Result::ok)
         .collect();
@@ -391,7 +461,7 @@ pub fn get_word(conn: &Connection, id: i64) -> rusqlite::Result<WordDetail> {
 
 pub fn save_word(conn: &Connection, id: Option<i64>, data: &SaveWord) -> rusqlite::Result<i64> {
     let type_id: Option<i64> = if let Some(tn) = &data.type_name {
-        conn.query_row("SELECT id FROM types WHERE name=?1", params![tn], |r| {
+        conn.query_row("SELECT id FROM types WHERE type=?1", params![tn], |r| {
             r.get(0)
         })
         .ok()
@@ -399,19 +469,23 @@ pub fn save_word(conn: &Connection, id: Option<i64>, data: &SaveWord) -> rusqlit
         None
     };
 
-    let ev_start_id: Option<i64> = if let Some(en) = &data.event_start {
-        conn.query_row("SELECT id FROM events WHERE name=?1", params![en], |r| {
-            r.get(0)
-        })
+    let ev_start: Option<i64> = if let Some(en) = &data.event_start {
+        conn.query_row(
+            "SELECT id FROM events WHERE event_id=?1",
+            params![en],
+            |r| r.get(0),
+        )
         .ok()
     } else {
         None
     };
 
-    let ev_end_id: Option<i64> = if let Some(en) = &data.event_end {
-        conn.query_row("SELECT id FROM events WHERE name=?1", params![en], |r| {
-            r.get(0)
-        })
+    let ev_end: Option<i64> = if let Some(en) = &data.event_end {
+        conn.query_row(
+            "SELECT id FROM events WHERE event_id=?1",
+            params![en],
+            |r| r.get(0),
+        )
         .ok()
     } else {
         None
@@ -419,32 +493,42 @@ pub fn save_word(conn: &Connection, id: Option<i64>, data: &SaveWord) -> rusqlit
 
     let word_id = if let Some(wid) = id {
         conn.execute(
-            "UPDATE words SET name=?1, type_id=?2, source=?3, year=?4, rank=?5,
-             match_=?6, origin=?7, origin_x=?8, notes=?9, event_start_id=?10, event_end_id=?11
+            "UPDATE words SET name=?1, type=?2, match_=?3, rank=?4, year=?5,
+             origin=?6, origin_x=?7, notes=?8, id_old=?9, event_start=?10, event_end=?11
              WHERE id=?12",
             params![
                 data.name,
                 type_id,
-                data.source,
-                data.year,
-                data.rank,
                 data.match_,
+                data.rank,
+                data.year,
                 data.origin,
                 data.origin_x,
                 data.notes,
-                ev_start_id,
-                ev_end_id,
-                wid
+                data.id_old.unwrap_or(0),
+                ev_start,
+                ev_end,
+                wid,
             ],
         )?;
         wid
     } else {
         conn.execute(
-            "INSERT INTO words (name, type_id, source, year, rank, match_, origin, origin_x, notes, event_start_id, event_end_id)
-             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11)",
-            params![data.name, type_id, data.source, data.year, data.rank,
-                    data.match_, data.origin, data.origin_x, data.notes,
-                    ev_start_id, ev_end_id])?;
+            "INSERT INTO words (name, type, match_, rank, year, origin, origin_x, notes, id_old, event_start, event_end, created, updated) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11, datetime('now'), datetime('now'))",
+            params![
+                data.name,
+                type_id,
+                data.match_,
+                data.rank,
+                data.year,
+                data.origin,
+                data.origin_x,
+                data.notes,
+                data.id_old.unwrap_or(0),
+                ev_start,
+                ev_end,
+            ],
+        )?;
         conn.last_insert_rowid()
     };
 
@@ -490,8 +574,14 @@ pub fn save_definition(
 ) -> rusqlite::Result<()> {
     if let Some(did) = id {
         conn.execute(
-            "UPDATE definitions SET grammar=?1, usage=?2, body=?3, tags=?4 WHERE id=?5",
-            params![data.grammar, data.usage, data.body, data.tags, did],
+            "UPDATE definitions SET grammar_code=?1, usage=?2, body=?3, case_tags=?4 WHERE id=?5",
+            params![
+                data.grammar_code,
+                data.usage,
+                data.body,
+                data.case_tags,
+                did
+            ],
         )?;
     } else {
         let pos: i64 = conn
@@ -502,8 +592,8 @@ pub fn save_definition(
             )
             .unwrap_or(0);
         conn.execute(
-            "INSERT INTO definitions (word_id, position, grammar, usage, body, tags) VALUES (?1,?2,?3,?4,?5,?6)",
-            params![word_id, pos, data.grammar, data.usage, data.body, data.tags])?;
+            "INSERT INTO definitions (word_id, position, grammar_code, usage, body, case_tags, created, updated) VALUES (?1,?2,?3,?4,?5,?6, datetime('now'), datetime('now'))",
+            params![word_id, pos, data.grammar_code, data.usage, data.body, data.case_tags])?;
     }
     Ok(())
 }
@@ -516,8 +606,8 @@ pub fn delete_definition(conn: &Connection, id: i64) -> rusqlite::Result<()> {
 // ─── Events ──────────────────────────────────────────────────────────────────
 
 pub fn list_events(conn: &Connection) -> rusqlite::Result<Vec<EventItem>> {
-    let mut s =
-        conn.prepare("SELECT id, name, date, annotation, suffix, notes FROM events ORDER BY id")?;
+    let mut s = conn
+        .prepare("SELECT id, name, date, annotation, suffix, definition FROM events ORDER BY id")?;
     let rows = s.query_map([], |r| {
         Ok(EventItem {
             id: r.get(0)?,
@@ -534,7 +624,7 @@ pub fn list_events(conn: &Connection) -> rusqlite::Result<Vec<EventItem>> {
 pub fn save_event(conn: &Connection, id: Option<i64>, data: &SaveEvent) -> rusqlite::Result<i64> {
     if let Some(eid) = id {
         conn.execute(
-            "UPDATE events SET name=?1, date=?2, annotation=?3, suffix=?4, notes=?5 WHERE id=?6",
+            "UPDATE events SET name=?1, date=?2, annotation=?3, suffix=?4, definition=?5 WHERE id=?6",
             params![
                 data.name,
                 data.date,
@@ -547,13 +637,14 @@ pub fn save_event(conn: &Connection, id: Option<i64>, data: &SaveEvent) -> rusql
         Ok(eid)
     } else {
         conn.execute(
-            "INSERT INTO events (name, date, annotation, suffix, notes) VALUES (?1,?2,?3,?4,?5)",
+            "INSERT INTO events (event_id, name, date, definition, annotation, suffix, id, created, updated) VALUES (?1,?2,?3,?4,?5,?6, (SELECT COALESCE(MAX(id), 0) + 1 FROM events), datetime('now'), datetime('now'))",
             params![
+                (conn.query_row("SELECT COALESCE(MAX(event_id), 0) + 1 FROM events", [], |r| r.get(0)).unwrap_or(1)),
                 data.name,
                 data.date,
+                data.notes,
                 data.annotation,
                 data.suffix,
-                data.notes
             ],
         )?;
         Ok(conn.last_insert_rowid())
@@ -569,9 +660,9 @@ pub fn delete_event(conn: &Connection, id: i64) -> rusqlite::Result<()> {
 
 pub fn list_types(conn: &Connection) -> rusqlite::Result<Vec<TypeItem>> {
     let mut s = conn.prepare(
-        "SELECT t.id, t.name, t.type_x, t.group_, COUNT(w.id)
-         FROM types t LEFT JOIN words w ON w.type_id=t.id
-         GROUP BY t.id ORDER BY t.name",
+        "SELECT t.id, t.type, t.type_x, t.group_, COUNT(w.id)
+         FROM types t LEFT JOIN words w ON w.type=t.id
+         GROUP BY t.id ORDER BY t.type",
     )?;
     let rows = s.query_map([], |r| {
         Ok(TypeItem {
@@ -594,18 +685,15 @@ pub fn save_type(conn: &Connection, id: Option<i64>, data: &SaveType) -> rusqlit
         Ok(tid)
     } else {
         conn.execute(
-            "INSERT INTO types (name, type_x, group_) VALUES (?1,?2,?3)",
-            params![data.name, data.type_x, data.group_],
+            "INSERT INTO types (type, type_x, group_, parentable, description, id, created, updated) VALUES (?1,?2,?3,?4,?5, (SELECT COALESCE(MAX(id), 0) + 1 FROM types), datetime('now'), datetime('now'))",
+            params![data.name, data.type_x, data.group_, data.parentable, data.description],
         )?;
         Ok(conn.last_insert_rowid())
     }
 }
 
 pub fn delete_type(conn: &Connection, id: i64) -> rusqlite::Result<()> {
-    conn.execute(
-        "UPDATE words SET type_id=NULL WHERE type_id=?1",
-        params![id],
-    )?;
+    conn.execute("UPDATE words SET type=NULL WHERE type=?1", params![id])?;
     conn.execute("DELETE FROM types WHERE id=?1", params![id])?;
     Ok(())
 }
@@ -613,8 +701,9 @@ pub fn delete_type(conn: &Connection, id: i64) -> rusqlite::Result<()> {
 // ─── Authors ─────────────────────────────────────────────────────────────────
 
 pub fn list_authors(conn: &Connection) -> rusqlite::Result<Vec<AuthorItem>> {
-    let mut s =
-        conn.prepare("SELECT id, initials, full_name, notes, 0 FROM authors ORDER BY initials")?;
+    let mut s = conn.prepare(
+        "SELECT id, abbreviation, full_name, notes, 0 FROM authors ORDER BY abbreviation",
+    )?;
     let rows = s.query_map([], |r| {
         Ok(AuthorItem {
             id: r.get(0)?,
@@ -630,13 +719,13 @@ pub fn list_authors(conn: &Connection) -> rusqlite::Result<Vec<AuthorItem>> {
 pub fn save_author(conn: &Connection, id: Option<i64>, data: &SaveAuthor) -> rusqlite::Result<i64> {
     if let Some(aid) = id {
         conn.execute(
-            "UPDATE authors SET initials=?1, full_name=?2, notes=?3 WHERE id=?4",
+            "UPDATE authors SET abbreviation=?1, full_name=?2, notes=?3 WHERE id=?4",
             params![data.initials, data.full_name, data.notes, aid],
         )?;
         Ok(aid)
     } else {
         conn.execute(
-            "INSERT INTO authors (initials, full_name, notes) VALUES (?1,?2,?3)",
+            "INSERT INTO authors (abbreviation, full_name, notes, id, created, updated) VALUES (?1,?2,?3, (SELECT COALESCE(MAX(id), 0) + 1 FROM authors), datetime('now'), datetime('now'))",
             params![data.initials, data.full_name, data.notes],
         )?;
         Ok(conn.last_insert_rowid())
@@ -878,14 +967,14 @@ pub fn search_english_fts(
             SELECT
                 w.id            AS word_id,
                 w.name          AS word_name,
-                t.name          AS type_name,
-                d.grammar       AS grammar,
+                t.type          AS type_name,
+                d.grammar_code  AS grammar,
                 snippet(def_fts, 0, '«', '»', '…', 10) AS snip,
                 fts.rank        AS rank
             FROM def_fts fts
             JOIN definitions d ON d.id  = fts.rowid
             JOIN words       w ON w.id  = d.word_id
-            LEFT JOIN types  t ON t.id  = w.type_id
+            LEFT JOIN types  t ON t.id  = w.type
             WHERE def_fts MATCH ?1
             ORDER BY rank
             LIMIT ?2
@@ -931,15 +1020,15 @@ pub fn search_english_keywords_fts(
             SELECT
                 w.id            AS word_id,
                 w.name          AS word_name,
-                t.name          AS type_name,
-                d.grammar       AS grammar,
+                t.type          AS type_name,
+                d.grammar_code  AS grammar,
                 -- Use the full body for the snippet (more readable than keywords-only)
                 snippet(def_fts, 0, '«', '»', '…', 10) AS snip,
                 kw.rank         AS rank
             FROM def_kw_fts kw
             JOIN definitions d ON d.id  = kw.rowid
             JOIN words       w ON w.id  = d.word_id
-            LEFT JOIN types  t ON t.id  = w.type_id
+            LEFT JOIN types  t ON t.id  = w.type
             -- Also join def_fts so we can call snippet() on the body column
             LEFT JOIN def_fts ON def_fts.rowid = d.id
             WHERE def_kw_fts MATCH ?1
@@ -987,13 +1076,13 @@ pub fn search_english_like(
             SELECT
                 w.id            AS word_id,
                 w.name          AS word_name,
-                t.name          AS type_name,
-                d.grammar       AS grammar,
+                t.type          AS type_name,
+                d.grammar_code  AS grammar,
                 d.body          AS body,
                 COUNT(*) OVER (PARTITION BY w.id) AS match_count
             FROM definitions d
             JOIN words       w ON w.id = d.word_id
-            LEFT JOIN types  t ON t.id = w.type_id
+            LEFT JOIN types  t ON t.id = w.type
             WHERE LOWER(d.body) LIKE ?1
             ORDER BY w.name
             LIMIT ?2
@@ -1036,13 +1125,13 @@ pub fn search_english_keywords_like(
             SELECT
                 w.id            AS word_id,
                 w.name          AS word_name,
-                t.name          AS type_name,
-                d.grammar       AS grammar,
+                t.type          AS type_name,
+                d.grammar_code  AS grammar,
                 d.body          AS body,
                 COUNT(*) OVER (PARTITION BY w.id) AS match_count
             FROM definitions d
             JOIN words       w ON w.id = d.word_id
-            LEFT JOIN types  t ON t.id = w.type_id
+            LEFT JOIN types  t ON t.id = w.type
             WHERE LOWER(d.body) LIKE ?1
             ORDER BY w.name
             LIMIT ?2

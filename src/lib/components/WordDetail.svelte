@@ -94,6 +94,7 @@
   let defForm = $state({ grammar: '', usage: '', body: '', tags: '' });
   let confirmDel = $state(false);
   let usedInOpen = $state(true);
+  let childrenOpen = $state(true);
   let activeTooltip = $state<{ content: string; x: number; y: number } | null>(null);
 
   function handleTooltipClick(e: MouseEvent | KeyboardEvent, content: string) {
@@ -345,6 +346,32 @@
     {#if usedInOpen}
       <div class="used-in">
         {#each word.used_in as w}
+          <button
+            class="ui-word"
+            onclick={() => {
+              const f = app.words.find((x) => x.name === w);
+              if (f) selectWord(f.id);
+            }}
+          >
+            {w}
+          </button>
+        {/each}
+      </div>
+    {/if}
+  {/if}
+
+  <!-- ── CHILDREN ──────────────────────────────────────────────── -->
+  {#if word.children.length > 0}
+    <div class="sec-row no-rule">
+      <button class="sec-toggle" onclick={() => (childrenOpen = !childrenOpen)}>
+        <span class="sec-title">Children</span>
+        <span class="sec-cnt">{word.children.length}</span>
+        <span class="sec-arrow" class:open={childrenOpen}>›</span>
+      </button>
+    </div>
+    {#if childrenOpen}
+      <div class="used-in">
+        {#each word.children as w}
           <button
             class="ui-word"
             onclick={() => {

@@ -30,6 +30,7 @@ export interface WordDetail {
   spellings: string[];
   definitions: Definition[];
   used_in: string[];
+  children: string[];
 }
 export interface EventItem {
   id: number;
