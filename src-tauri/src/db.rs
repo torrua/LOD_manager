@@ -167,6 +167,9 @@ pub fn add_missing_indexes(conn: &Connection) -> rusqlite::Result<()> {
         );
         CREATE INDEX IF NOT EXISTS idx_word_usage_word_id ON word_usage(word_id);
         CREATE INDEX IF NOT EXISTS idx_word_usage_used_in ON word_usage(used_in_word);
+
+        -- Clean up pipe separators mistakenly stored as word entries
+        DELETE FROM word_usage WHERE used_in_word = '|';
         ",
     )
 }
