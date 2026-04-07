@@ -436,8 +436,7 @@ pub fn get_word(conn: &Connection, id: i64) -> rusqlite::Result<WordDetail> {
     let mut s = conn.prepare(
         "SELECT DISTINCT used_in_word FROM word_usage
          WHERE word_id = ?1
-         ORDER BY used_in_word
-         LIMIT 100",
+         ORDER BY used_in_word",
     )?;
     word.used_in = s
         .query_map(params![id], |r| r.get(0))?
