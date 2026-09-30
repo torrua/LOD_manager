@@ -18,6 +18,7 @@ import type {
   Tab,
   ImportResult,
 } from '../types';
+import { findAffixWord, findWordByName } from './text';
 
 // ─── Preferences ─────────────────────────────────────────────────────────────
 function loadPrefs() {
@@ -223,13 +224,18 @@ async function loadAll() {
 }
 
 export async function loadWords() {
-  app.words = await invoke('get_words', {
-    q: '',
-    typeFilter: '',
-    eventId: app.prefs.eventFilter ?? null,
-  });
-  app.wordCount = app.words.length;
-  applyFilter();
+  try {
+    const words = (await invoke('get_words', {
+      q: '',
+      typeFilter: '',
+      eventId: app.prefs.eventFilter ?? null,
+    })) as WordListItem[];
+    app.words = words;
+    app.wordCount = app.words.length;
+    applyFilter();
+  } catch (error) {
+    console.error('loadWords: error:', error);
+  }
 }
 // Reactive derived — tracks app.events and app.prefs.eventFilter automatically.
 // Export as function since derived values cannot be exported directly from modules
@@ -297,11 +303,85 @@ export async function selectWord(id: number, pushHist = true) {
     app.panel = 'word';
     if (pushHist) pushHistory({ tab: 'words', id });
     // No auto-scroll - let keyboard navigation handle it
-  } catch {
+  } catch (error) {
+    console.error('selectWord: error:', error);
     toast('Word not found', 'err');
     if (app.loadingWordId === id) app.mobileShowList = true;
   } finally {
     if (app.loadingWordId === id) app.loadingWordId = null;
+  }
+}
+
+function getAffixTypeSet(): Set<string> {
+  const affixTypes = new Set<string>(['Afx', 'Affix']);
+  for (const t of app.types) {
+    if (t.type_x === 'Affix' || t.group_ === 'Affix') {
+      affixTypes.add(t.name);
+    }
+  }
+  return affixTypes;
+}
+
+export async function selectWordByName(name: string) {
+  const affixTypes = getAffixTypeSet();
+  const w = findWordByName(app.words, name, affixTypes);
+  if (w) {
+    await selectWord(w.id);
+    return;
+  }
+  const clean = name.trim().replace(/^-+|-+$/g, '');
+  if (!clean) return;
+  try {
+    const q = clean.includes('*') || clean.includes('?') ? clean : `*${clean}*`;
+    const matches = (await invoke('get_words', {
+      q,
+      typeFilter: '',
+      eventId: null,
+    })) as WordListItem[];
+    const exact = findWordByName(matches, name, affixTypes);
+    if (exact) {
+      await selectWord(exact.id);
+    }
+  } catch (error) {
+    console.error('selectWordByName: error:', error);
+  }
+}
+
+export async function selectAffixByName(affix: string) {
+  const affixTypes = getAffixTypeSet();
+
+  const found = findAffixWord(app.words, affix, affixTypes);
+  if (found) {
+    await selectWord(found.id);
+    return;
+  }
+
+  const clean = affix.trim().replace(/^-+|-+$/g, '');
+  if (!clean) return;
+
+  try {
+    const q = clean.includes('*') || clean.includes('?') ? clean : `*${clean}*`;
+    const matches = (await invoke('get_words', {
+      q,
+      typeFilter: '',
+      eventId: null,
+    })) as WordListItem[];
+    const dbMatch = findAffixWord(matches, affix, affixTypes);
+    if (dbMatch) {
+      await selectWord(dbMatch.id);
+      return;
+    }
+  } catch (error) {
+    console.error('selectAffixByName: error:', error);
+  }
+
+  // Fallback to search filter
+  app.tab = 'words';
+  app.searchQ = clean;
+  applyFilter();
+  const filteredMatch = findAffixWord(app.filteredWords, affix, affixTypes) ?? app.filteredWords[0];
+  if (filteredMatch) {
+    await selectWord(filteredMatch.id);
   }
 }
 export async function saveWord(id: number | null, data: object) {
@@ -340,17 +420,19 @@ export async function autoSelectLatestEvent() {
   // Only auto-select if user hasn't already set a filter
   if (app.prefs.eventFilter !== null) return;
 
-  let latestEvent;
+  let latestEvent: EventItem | undefined;
 
-  // First try to find the latest event by date
-  const eventsWithDate = app.events.filter((e) => e.date !== null);
+  // First try to find the latest event by valid non-empty date
+  const eventsWithDate = app.events.filter(
+    (e) => e.date !== null && e.date.trim() !== '' && !Number.isNaN(new Date(e.date).getTime())
+  );
   if (eventsWithDate.length > 0) {
-    latestEvent = eventsWithDate.sort(
+    latestEvent = [...eventsWithDate].sort(
       (a, b) => new Date(b.date ?? 0).getTime() - new Date(a.date ?? 0).getTime()
     )[0];
   } else {
-    // Fallback: use the event with the highest ID (most recently added)
-    latestEvent = app.events.sort((a, b) => b.id - a.id)[0];
+    // Fallback: use the event with the highest ID without mutating app.events in-place
+    latestEvent = [...app.events].sort((a, b) => b.id - a.id)[0];
   }
 
   if (latestEvent) {
@@ -396,7 +478,7 @@ export async function deleteType(id: number) {
 }
 
 export async function loadAuthors() {
-  app.authors = await invoke('get_authors');
+  app.authors = (await invoke('get_authors')) as AuthorItem[];
 }
 export async function saveAuthor(id: number | null, data: object) {
   app.authors = await invoke('save_author', { id, data });
@@ -457,7 +539,7 @@ export async function importFiles(paths: string[], fileNames?: string[]) {
           }
         } else {
           // For regular file paths
-          name = p.split('/').pop() || `file_${i}.txt`;
+          name = p.split(/[/\\]/).pop() || `file_${i}.txt`;
         }
       }
       if (!name.endsWith('.txt')) name = `${name}.txt`;
@@ -478,6 +560,15 @@ export async function importFiles(paths: string[], fileNames?: string[]) {
   loadDbStats().catch(() => {});
   return result;
 }
+
+export async function convertTextFiles(textDir: string): Promise<ImportResult> {
+  const result = (await invoke('convert_text_files', { textDir })) as ImportResult;
+  await loadAll();
+  await autoSelectLatestEvent();
+  loadDbStats().catch(() => {});
+  return result;
+}
+
 export async function exportHtmlToFile(path: string, eventName: string | null): Promise<void> {
   await invoke('export_html_to_file', { path, eventName });
 }

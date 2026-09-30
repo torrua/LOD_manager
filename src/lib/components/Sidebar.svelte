@@ -47,8 +47,47 @@
 
   // Auto-scroll functionality removed
 
+  const filteredEvents = $derived(
+    (() => {
+      const q = app.searchQ.trim().toLowerCase();
+      if (!q) return app.events;
+      return app.events.filter(
+        (ev) =>
+          ev.name.toLowerCase().includes(q) ||
+          (ev.annotation && ev.annotation.toLowerCase().includes(q)) ||
+          (ev.suffix && ev.suffix.toLowerCase().includes(q))
+      );
+    })()
+  );
+
   // ── Keyboard nav ─────────────────────────────────────────────────────────
+  function focusItem(absIdx: number) {
+    if (!listEl) return;
+    if (app.tab === 'words') {
+      const itemTop = absIdx * ROW_H;
+      if (itemTop < listEl.scrollTop) {
+        listEl.scrollTop = itemTop;
+      } else if (itemTop + ROW_H > listEl.scrollTop + clientH) {
+        listEl.scrollTop = itemTop + ROW_H - clientH;
+      }
+    }
+    requestAnimationFrame(() => {
+      const el = listEl?.querySelector<HTMLElement>(`.si[data-idx="${absIdx}"]`);
+      el?.focus();
+    });
+  }
+
   function searchKeydown(e: KeyboardEvent) {
+    if (app.tab === 'events') {
+      if (e.key === 'ArrowDown' || e.key === 'Enter') {
+        e.preventDefault();
+        if (filteredEvents[0]) {
+          selectEvent(filteredEvents[0].id);
+          if (e.key === 'ArrowDown') focusItem(0);
+        }
+      }
+      return;
+    }
     if (app.searchMode === 'el') {
       if (e.key === 'Enter') {
         e.preventDefault();
@@ -58,7 +97,10 @@
     }
     if (e.key === 'ArrowDown') {
       e.preventDefault();
-      if (app.filteredWords[0]) selectWord(app.filteredWords[0].id);
+      if (app.filteredWords[0]) {
+        selectWord(app.filteredWords[0].id);
+        focusItem(0);
+      }
     }
     if (e.key === 'Enter') {
       e.preventDefault();
@@ -66,12 +108,40 @@
     }
   }
   function itemKeydown(e: KeyboardEvent, absIdx: number) {
+    if (app.tab === 'events') {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        const nxtEv = filteredEvents[absIdx + 1];
+        if (nxtEv) {
+          selectEvent(nxtEv.id);
+          focusItem(absIdx + 1);
+        }
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        if (absIdx === 0) document.getElementById('wsearch')?.focus();
+        else {
+          const prevEv = filteredEvents[absIdx - 1];
+          if (prevEv) {
+            selectEvent(prevEv.id);
+            focusItem(absIdx - 1);
+          }
+        }
+      }
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const curEv = filteredEvents[absIdx];
+        if (curEv) selectEvent(curEv.id);
+      }
+      return;
+    }
     if (e.key === 'ArrowDown') {
       e.preventDefault();
       const nxt = absIdx + 1;
       const nxtWord = app.filteredWords[nxt];
       if (nxt < app.filteredWords.length && nxtWord) {
         selectWord(nxtWord.id);
+        focusItem(nxt);
       }
     }
     if (e.key === 'ArrowUp') {
@@ -81,6 +151,7 @@
         const prevWord = app.filteredWords[absIdx - 1];
         if (prevWord) {
           selectWord(prevWord.id);
+          focusItem(absIdx - 1);
         }
       }
     }
@@ -95,13 +166,23 @@
   // ── Filter helpers ────────────────────────────────────────────────────────
   const groups = $derived([...new Set(app.types.map((t) => t.group_ || 'Other'))].sort());
 
+  // Single toggle: shows CURRENT mode
+  const modeLabel = $derived(app.searchMode === 'le' ? 'L' : 'E');
+  const modeTitle = $derived(
+    app.searchMode === 'le' ? 'Loglan→English (current)' : 'English→Loglan (current)'
+  );
+  const elMode = $derived(app.tab === 'words' && app.searchMode === 'el');
+  function toggleMode() {
+    setSearchMode(app.searchMode === 'le' ? 'el' : 'le');
+  }
+
   function clearFilters() {
     app.searchQ = '';
     app.typeFilter = '';
     applyFilter();
   }
   function clearSearch() {
-    if (app.searchMode === 'el') searchEnglishDebounced('');
+    if (elMode) searchEnglishDebounced('');
     else {
       app.searchQ = '';
       applyFilter();
@@ -129,8 +210,8 @@
     })()
   );
 
-  const hasQuery = $derived(app.searchMode === 'el' ? !!app.elQuery : !!app.searchQ);
-  const searchVal = $derived(app.searchMode === 'el' ? app.elQuery : app.searchQ);
+  const hasQuery = $derived(elMode ? !!app.elQuery : !!app.searchQ);
+  const searchVal = $derived(elMode ? app.elQuery : app.searchQ);
   const placeholder = $derived(
     app.tab !== 'words'
       ? 'Search events…'
@@ -140,21 +221,11 @@
   );
 
   function handleInput(v: string) {
-    if (app.searchMode === 'el') searchEnglishDebounced(v);
+    if (elMode) searchEnglishDebounced(v);
     else {
       app.searchQ = v;
       applyFilter();
     }
-  }
-
-  // Single toggle: shows CURRENT mode
-  const modeLabel = $derived(app.searchMode === 'le' ? 'L' : 'E');
-  const modeTitle = $derived(
-    app.searchMode === 'le' ? 'Loglan→English (current)' : 'English→Loglan (current)'
-  );
-  const elMode = $derived(app.searchMode === 'el');
-  function toggleMode() {
-    setSearchMode(app.searchMode === 'le' ? 'el' : 'le');
   }
 </script>
 
@@ -291,6 +362,7 @@
           {#each app.filteredWords.slice(vStart, vEnd) as w, i (w.id)}
             <div
               class="si"
+              data-idx={vStart + i}
               style="height:{ROW_H}px"
               class:on={app.curWord?.id === w.id || app.loadingWordId === w.id}
               class:loading={app.loadingWordId === w.id}
@@ -314,9 +386,10 @@
           <div style="height:{botPad}px;flex-shrink:0"></div>
         {/if}
       {:else if app.tab === 'events'}
-        {#each app.events as ev, i}
+        {#each filteredEvents as ev, i (ev.id)}
           <div
             class="si"
+            data-idx={i}
             style="height:{ROW_H}px"
             class:on={app.curEvent?.id === ev.id}
             role="button"
@@ -738,7 +811,7 @@
     padding: 2px 5px;
     border-radius: var(--r-sm);
     flex-shrink: 0;
-    max-width: 60px;
+    max-width: 45%;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;

@@ -8,6 +8,7 @@
     createDb,
     closeDb,
     importFiles,
+    convertTextFiles,
     exportHtmlToFile,
     toast,
     loadDbStats,
@@ -35,6 +36,11 @@
   let impDownloading = $state(false);
   let impGithubUrl = $state('https://github.com/torrua/LOD/tree/master/tables');
   let impEditingIdx = $state<number | null>(null);
+
+  // ── Text Converter ───────────────────────────────────────────────────────
+  let convDir = $state('');
+  let convRunning = $state(false);
+  let convResult = $state<ImportResult | null>(null);
 
   async function pickImport() {
     const sel = await openFilePicker({
@@ -170,6 +176,38 @@
     }
   }
 
+  // ── Text Converter Functions ────────────────────────────────────────────
+  async function pickConverterDir() {
+    const sel = await openFilePicker({
+      title: 'Select Directory with Text Files',
+      multiple: false,
+      directory: true,
+    });
+    if (sel) {
+      convDir = Array.isArray(sel) ? sel[0] : sel;
+      convResult = null;
+    }
+  }
+
+  async function runConverter() {
+    if (!convDir || convRunning) return;
+    convRunning = true;
+    convResult = null;
+    try {
+      const result = await convertTextFiles(convDir);
+      convResult = result;
+      app.impResult = result;
+      toast(
+        `Converted: ${result.words} words, ${result.definitions} definitions`,
+        result.errors ? 'err' : 'ok'
+      );
+    } catch (e) {
+      toast(String(e), 'err');
+    } finally {
+      convRunning = false;
+    }
+  }
+
   // ── Export — issue #4 ─────────────────────────────────────────────────────
   // Direction: 'le' = Loglan→English (standard), 'el' = English→Loglan (reversed)
   // For now both use same HTML structure; direction saved for future use
@@ -233,6 +271,15 @@
   // ── Database info parsing ──────────────────────────────────────────────────
   const dbInfo = $derived(() => {
     if (!app.dbStats?.settings) return null;
+
+    const dateSetting = app.dbStats.settings.find((s) => s.key === 'date')?.value;
+    const releaseSetting = app.dbStats.settings.find((s) => s.key === 'db_release')?.value;
+    if (dateSetting || releaseSetting) {
+      return {
+        created: dateSetting || '—',
+        version: releaseSetting || '—',
+      };
+    }
 
     const setting = app.dbStats.settings.find((s) => s.key === 'database_info');
     if (!setting?.value) return null;
@@ -455,6 +502,55 @@
           {impResult.settings} · Errors: {impResult.errors}
         </div>
       {/if}
+
+      <!-- Text Converter Section -->
+      <div style="border-top: 1px solid var(--border); margin-top: 1rem; padding-top: 1rem;">
+        <div class="sg-title" style="font-size:var(--fs-sm);margin-bottom:.4rem">
+          Text File Converter
+        </div>
+        <p class="td-hint">
+          Convert @-delimited text files (Python loglan_converter format) to SQLite database. Select
+          a directory containing: <code>Types.txt</code>, <code>Author.txt</code>,
+          <code>LexEvent.txt</code>, <code>Words.txt</code>, <code>WordSpell.txt</code>,
+          <code>WordDefinition.txt</code>, <code>Settings.txt</code>.
+        </p>
+        <div class="conv-dir-section">
+          <div class="conv-input-group">
+            <input
+              type="text"
+              class="conv-dir-input"
+              placeholder="Select directory with text files..."
+              value={convDir}
+              readonly
+            />
+            <button class="btn btn-au btn-sm" onclick={pickConverterDir} disabled={convRunning}>
+              Browse…
+            </button>
+          </div>
+        </div>
+        {#if convDir}
+          <button
+            class="btn btn-g btn-sm"
+            style="margin-top:.5rem"
+            onclick={runConverter}
+            disabled={convRunning || !app.dbOpen}
+          >
+            {convRunning ? 'Converting…' : 'Convert Text Files'}
+          </button>
+        {/if}
+        {#if !app.dbOpen}
+          <p class="td-hint td-warn">Open a database first.</p>
+        {/if}
+        {#if convResult}
+          <div class="imp-res" class:err={convResult.errors > 0}>
+            <b>{convResult.errors ? '⚠' : '✓'}</b>
+            Words: {convResult.words} · Defs: {convResult.definitions} · Events: {convResult.events} ·
+            Types:
+            {convResult.types} · Authors: {convResult.authors} · Settings: {convResult.settings} · Errors:
+            {convResult.errors}
+          </div>
+        {/if}
+      </div>
 
       <!-- ── EXPORT ── -->
     {:else if app.toolsTab === 'export'}
@@ -952,6 +1048,30 @@
     background: var(--red-g);
     border-color: var(--red-d);
     color: var(--red);
+  }
+
+  /* text converter */
+  .conv-dir-section {
+    margin: 0.5rem 0;
+  }
+  .conv-input-group {
+    display: flex;
+    gap: 0.3rem;
+    align-items: stretch;
+  }
+  .conv-dir-input {
+    flex: 1;
+    padding: 0.3rem 0.5rem;
+    font-size: var(--fs-sm);
+    background: var(--surf2);
+    border: 1px solid var(--border);
+    border-radius: var(--r-md);
+    color: var(--text);
+    font-family: inherit;
+  }
+  .conv-dir-input:read-only {
+    cursor: default;
+    opacity: 0.8;
   }
 
   /* settings */

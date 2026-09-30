@@ -19,6 +19,7 @@ export default [
       parser: svelteParser,
       parserOptions: {
         parser: ts.parser,
+        tsconfigRootDir: import.meta.dirname,
       },
       globals: { ...globals.browser },
     },
@@ -29,6 +30,9 @@ export default [
     files: ['**/*.ts'],
     languageOptions: {
       parser: ts.parser,
+      parserOptions: {
+        tsconfigRootDir: import.meta.dirname,
+      },
       globals: { ...globals.browser },
     },
   },
@@ -67,6 +71,13 @@ export default [
 
   // ── Ignore generated / build output ───────────────────────────────────────
   {
-    ignores: ['dist/**', 'src-tauri/gen/**', 'src-tauri/target/**', 'node_modules/**'],
+    ignores: [
+      'dist/**',
+      'src-tauri/gen/**',
+      'src-tauri/target/**',
+      'node_modules/**',
+      '.claude/**',
+      '.planning/**',
+    ],
   },
 ];

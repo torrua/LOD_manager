@@ -4,17 +4,19 @@
 
 ## Project Status
 
-| Attribute               | Value                   |
-| ----------------------- | ----------------------- |
-| **Mode**                | Analysis                |
-| **Version**             | 1.6.8                   |
-| **Phases Completed**    | 6                       |
-| **Phases Planned**      | 0                       |
-| **Codebase Documents**  | 7                       |
-| **Research Documents**  | 1                       |
-| **Requirements**        | 8 analysis requirements |
-| **Assessment Docs**     | 6                       |
-| **Recommendation Docs** | 4                       |
+| Attribute               | Value                                                             |
+| ----------------------- | ----------------------------------------------------------------- |
+| **Mode**                | Analysis & Stabilization                                          |
+| **Version**             | 1.6.10                                                            |
+| **Phases Completed**    | 6 + Root Senior Architect Audit                                   |
+| **Phases Planned**      | P0–P3 Stabilization (`TODO.md`)                                   |
+| **Root Docs**           | `PROJECT.md`, `ARCHITECTURE.md`, `AGENTS.md`, `CLAUDE.md`         |
+| **Audit & Roadmap**     | `AUDIT_REPORT.md`, `TODO.md`                                      |
+| **Codebase Documents**  | 7                                                                 |
+| **Research Documents**  | 1                                                                 |
+| **Requirements**        | 8 analysis requirements                                           |
+| **Assessment Docs**     | 6                                                                 |
+| **Recommendation Docs** | 4                                                                 |
 
 ## Workflow
 
@@ -90,7 +92,7 @@ Project initialized via `/gsd-new-project` in analyze mode. Architectural assess
 
 - Tauri v2 + Svelte 5 + Rust + SQLite (FTS5)
 - Frontend: TypeScript, Vite, ESLint, Prettier
-- Backend: rusqlite, 28 Tauri commands
+- Backend: rusqlite, 30 Tauri commands
 
 ### Architecture
 
@@ -128,7 +130,7 @@ cat .planning/codebase/CONCERNS.md
 
 ## Analysis Scope
 
-**Proportional to app size**: This is a dictionary manager with ~28 Tauri commands, NOT an enterprise system. Analysis will focus on:
+**Proportional to app size**: This is a dictionary manager with ~30 Tauri commands, NOT an enterprise system. Analysis will focus on:
 
 - Practical, actionable recommendations
 - Critical stability issues

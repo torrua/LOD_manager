@@ -4,6 +4,44 @@ All notable changes to LOD Manager are documented here. See [conventional commit
 
 ---
 
+## [1.7.0](https://github.com/torrua/LOD_manager/releases/tag/v1.7.0) — 2026-09-30
+
+### Features & `torrua/loglan_core` Compatibility
+
+- **100% `torrua/loglan_core` (`export.db`) Schema Parity**:
+  - Support canonical `"group"` (`types`) and `"match"` (`words`) columns with automatic legacy migration from `group_` / `match_`
+  - Combine `definitions.slots` and `definitions.grammar_code` on read (e.g. `(2a)`, `(3v)`) and split leading slot digits on save/import
+  - Extract word affixes (`djifoa`), derived complexes (`Used In`), morphological `Parents` (ordered by `origin` formula), and non-complex `Children` from `connect_words`
+  - Resolve word `Source` and author word counts via `connect_authors` + JSON `words.notes`
+  - Format `words.year` (`DATE` `'YYYY-01-01'`) and `words.rank` with JSON `words.notes` (`{"author", "year", "rank"}`), suppressing `'null'` strings
+  - Support `loglan_core` `settings` schema (`date, db_version, last_word_id, db_release`) in database statistics
+  - Add `syllables`, `keys`, `connect_keys`, and `connect_authors` tables to `init_schema`
+- **Dedicated `Parents` & `Children` Sections**: Separate complex constituent words (`Parents`, sorted morphologically by `origin`) from derived words (`Children`) in `WordDetail.svelte`
+- **Smart Affix vs. Word Navigation**: Prioritize `Afx`/`Affix` entries (including hyphenated forms like `hei-` and `-kai`) when clicking affix chips, while preferring standalone words (`LW`) in `{xref}`, `Used In`, `Parents`, and `Children`
+- **Project & Architecture Documentation**: Add `PROJECT.md`, `ARCHITECTURE.md`, `AGENTS.md`, `CLAUDE.md`, `AUDIT_REPORT.md`, and `TODO.md`
+
+### Bug Fixes
+
+- Synchronize `Definition` and `SaveDefinition` IPC fields (`grammar` ↔ `grammar_code`, `tags` ↔ `case_tags`) so grammar codes and case tags display and save without data loss
+- Remove `UNIQUE(name, type)` constraint on `words` to preserve all 11 homonymous/historical word pairs across events in `export.db`
+- Fix `FOREIGN KEY constraint failed` when deleting words, definitions, or authors on `export.db` (where foreign keys lack `ON DELETE CASCADE`)
+- Fix `db::save_type` (`SET type=?1`), `db::delete_type` (`NOT NULL` guard), `db::get_event_words` (`event_start`/`event_end`), and `db::save_word` (`id_old` preservation, `event_id` resolution, and `denormalize_word_fields` round-trip)
+- Fix `import.rs` and `converter/converter.rs` column swaps (`annotation`/`suffix`, `parentable`/`description`), case-insensitive `"False"` boolean parsing, `event_end = 9999` handling, and multi-spelling `id_old -> Vec<word_id>` definition mapping
+- Make `debug_update_check` async (`updater.check().await`) to prevent `block_on` panic on Tokio runtime
+- Remove restrictive `max-width` truncation on event metadata chips (`From` / `Until`) and top-bar event badges when horizontal space is available
+- Fix ` release.yml` JSON syntax for `windows-x86_64-msi` and update `tauri.conf.json` updater endpoint to GitHub Releases
+
+### Performance & UX Improvements
+
+- Incremental FTS5 cleanup on `delete_word` instead of full `rebuild_fts`
+- Reuse active `AppState` connection in `rebuild_fts` and `compact_db`
+- Direct in-memory Android import in `import_contents` without temporary disk round-trip
+- Add live search filtering and `ArrowUp`/`ArrowDown` keyboard focus navigation on the `Events` tab
+- Fix `NaN` date sorting on empty event dates and avoid in-place `$state` array mutation in `autoSelectLatestEvent`
+- Introduce typed `AppError` enum in Rust backend
+
+---
+
 ## [1.6.8](https://github.com/torrua/LOD_manager/releases/tag/v1.6.8) — 2026-04-04
 
 ### Features

@@ -1252,8 +1252,8 @@
     border-radius: var(--r-sm);
     background: rgba(128, 128, 128, 0.1);
     color: var(--text2);
-    flex-shrink: 0;
-    max-width: 80px;
+    flex-shrink: 1;
+    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;

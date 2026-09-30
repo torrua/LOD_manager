@@ -15,7 +15,7 @@ pub fn save_event(state: Db, id: Option<i64>, data: SaveEvent) -> Res<EventItem>
     let eid = with_db(&state, |conn| db::save_event(conn, id, &data))?;
     with_db(&state, |conn| {
         conn.query_row(
-            "SELECT id,name,date,annotation,suffix,notes FROM events WHERE id=?1",
+            "SELECT id,name,date,annotation,suffix,definition FROM events WHERE id=?1",
             params![eid],
             |r| {
                 Ok(EventItem {

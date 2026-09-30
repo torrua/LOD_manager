@@ -27,17 +27,20 @@ pub struct WordDetail {
     pub spellings: Vec<String>,
     pub definitions: Vec<Definition>,
     pub used_in: Vec<String>,
+    pub parents: Vec<String>,
     pub children: Vec<String>,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Definition {
     pub id: i64,
     pub position: i64,
-    pub grammar_code: Option<String>,
+    #[serde(alias = "grammar_code")]
+    pub grammar: Option<String>,
     pub usage: Option<String>,
     pub body: String,
-    pub case_tags: Option<String>,
+    #[serde(alias = "case_tags")]
+    pub tags: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -60,12 +63,14 @@ pub struct SaveWord {
     pub event_end_id: Option<i64>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone, Debug)]
 pub struct SaveDefinition {
-    pub grammar_code: Option<String>,
+    #[serde(alias = "grammar_code")]
+    pub grammar: Option<String>,
     pub usage: Option<String>,
     pub body: String,
-    pub case_tags: Option<String>,
+    #[serde(alias = "case_tags")]
+    pub tags: Option<String>,
 }
 
 #[derive(Serialize, Clone)]
@@ -134,7 +139,7 @@ pub struct ImportResult {
     pub messages: Vec<String>,
 }
 
-#[derive(Serialize, Clone)]
+#[derive(Serialize, Clone, Debug)]
 pub struct SettingItem {
     pub key: String,
     pub value: String,

@@ -27,3 +27,10 @@ Thumbs.db
 *.db-wal
 release.jks
 release.jks.base64
+keys signature.txt
+
+# AI / Local worktrees & crash logs
+.claude/
+hs_err_pid*.log
+*.profraw
+affix_count.txt

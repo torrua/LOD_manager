@@ -1,6 +1,13 @@
 <!-- eslint-disable svelte/no-at-html-tags -->
 <script lang="ts">
-  import { app, deleteWord, saveDef, deleteDef, selectWord, applyFilter } from '../store.svelte';
+  import {
+    app,
+    deleteWord,
+    saveDef,
+    deleteDef,
+    selectWordByName,
+    selectAffixByName,
+  } from '../store.svelte';
   import Icon from './Icon.svelte';
 
   // ── Tooltip lookup tables ─────────────────────────────────────────────────────
@@ -94,6 +101,7 @@
   let defForm = $state({ grammar: '', usage: '', body: '', tags: '' });
   let confirmDel = $state(false);
   let usedInOpen = $state(true);
+  let parentsOpen = $state(true);
   let childrenOpen = $state(true);
   let activeTooltip = $state<{ content: string; x: number; y: number } | null>(null);
 
@@ -154,25 +162,12 @@
 
   function handleXref(e: Event) {
     const t = e.target as HTMLElement;
-    if (t.classList.contains('xref')) {
-      const found = app.words.find((w) => w.name === t.dataset.word);
-      if (found) selectWord(found.id);
+    if (t.classList.contains('xref') && t.dataset.word) {
+      selectWordByName(t.dataset.word);
     }
   }
   function clickAffix(a: string) {
-    // Try to find exact match first (like xref)
-    const found = app.words.find((w) => w.name === a);
-    if (found) {
-      selectWord(found.id);
-    } else {
-      // Fallback to search if no exact match
-      app.tab = 'words';
-      app.searchQ = a;
-      applyFilter();
-      if (app.filteredWords.length > 0 && app.filteredWords[0]) {
-        selectWord(app.filteredWords[0].id);
-      }
-    }
+    selectAffixByName(a);
   }
 
   // Build visible meta chips once per word change.
@@ -346,13 +341,27 @@
     {#if usedInOpen}
       <div class="used-in">
         {#each word.used_in as w}
-          <button
-            class="ui-word"
-            onclick={() => {
-              const f = app.words.find((x) => x.name === w);
-              if (f) selectWord(f.id);
-            }}
-          >
+          <button class="ui-word" onclick={() => selectWordByName(w)}>
+            {w}
+          </button>
+        {/each}
+      </div>
+    {/if}
+  {/if}
+
+  <!-- ── PARENTS ───────────────────────────────────────────────── -->
+  {#if word.parents.length > 0}
+    <div class="sec-row no-rule">
+      <button class="sec-toggle" onclick={() => (parentsOpen = !parentsOpen)}>
+        <span class="sec-title">Parents</span>
+        <span class="sec-cnt">{word.parents.length}</span>
+        <span class="sec-arrow" class:open={parentsOpen}>›</span>
+      </button>
+    </div>
+    {#if parentsOpen}
+      <div class="used-in">
+        {#each word.parents as w}
+          <button class="ui-word" onclick={() => selectWordByName(w)}>
             {w}
           </button>
         {/each}
@@ -372,13 +381,7 @@
     {#if childrenOpen}
       <div class="used-in">
         {#each word.children as w}
-          <button
-            class="ui-word"
-            onclick={() => {
-              const f = app.words.find((x) => x.name === w);
-              if (f) selectWord(f.id);
-            }}
-          >
+          <button class="ui-word" onclick={() => selectWordByName(w)}>
             {w}
           </button>
         {/each}
@@ -521,13 +524,13 @@
     border-radius: var(--r-md);
     padding: 0.25rem 0.52rem;
     min-width: 0;
+    max-width: 100%;
   }
   /* mc-lbl and mc-val are global classes from App.svelte */
   .meta-chip :global(.mc-val) {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    max-width: 120px;
   }
 
   /* ── Origins ── */

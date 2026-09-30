@@ -12,9 +12,9 @@ Pre-built binaries are on the [Releases](../../releases) page:
 
 | Platform          | File                              |
 | ----------------- | --------------------------------- |
-| Windows installer | `LOD.Manager_1.6.x_x64-setup.exe` |
-| Windows MSI       | `LOD.Manager_1.6.x_x64_en-US.msi` |
-| Android (ARM64)   | `LOD.Manager_1.6.x_aarch64.apk`   |
+| Windows installer | `LOD.Manager_1.7.x_x64-setup.exe` |
+| Windows MSI       | `LOD.Manager_1.7.x_x64_en-US.msi` |
+| Android (ARM64)   | `LOD.Manager_1.7.x_aarch64.apk`   |
 
 ---
 
@@ -76,15 +76,16 @@ npm run tauri android build --debug
 
 ## Releasing a new version
 
-1. Bump version in **two files**:
+1. Bump version in **three files**:
    - `package.json` → `"version"`
    - `src-tauri/tauri.conf.json` → `"version"`
-     (current: `1.6.9`)
+   - `src-tauri/Cargo.toml` → `version`
+     (current: `1.7.0`)
 
 2. Commit and push a tag:
 
 ```bash
-git add package.json src-tauri/tauri.conf.json
+git add package.json src-tauri/tauri.conf.json src-tauri/Cargo.toml
 git commit -m "chore: bump version to 1.7.0"
 git tag v1.7.0
 git push && git push --tags

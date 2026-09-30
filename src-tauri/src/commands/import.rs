@@ -1,6 +1,7 @@
 //! Import commands.
 
 use super::{Db, Res, with_db, with_db_mut};
+use crate::converter::converter;
 use crate::db;
 use crate::import;
 use crate::models::ImportResult;
@@ -18,29 +19,24 @@ pub fn import_lod_contents(state: Db, files: Vec<(String, String)>) -> Res<Impor
             total_size as f64 / 1_000_000.0
         ));
     }
-    let result = with_db_mut(&state, |conn| {
-        import::import_contents(conn, &files).map_err(|e| {
-            rusqlite::Error::FromSqlConversionFailure(
-                0,
-                rusqlite::types::Type::Text,
-                Box::new(std::io::Error::other(e)),
-            )
-        })
-    })?;
+    let result = with_db_mut(&state, |conn| import::import_contents(conn, &files))?;
     let _ = with_db(&state, db::rebuild_fts);
     Ok(result)
 }
 
 #[tauri::command]
 pub fn import_lod_files(state: Db, paths: Vec<String>) -> Res<ImportResult> {
+    let result = with_db_mut(&state, |conn| import::import_files(conn, &paths))?;
+    let _ = with_db(&state, db::rebuild_fts);
+    Ok(result)
+}
+
+/// Convert `@`-delimited text files to `SQLite` database format
+/// Compatible with the Python `loglan_converter` output format
+#[tauri::command]
+pub fn convert_text_files(state: Db, text_dir: String) -> Res<ImportResult> {
     let result = with_db_mut(&state, |conn| {
-        import::import_files(conn, &paths).map_err(|e| {
-            rusqlite::Error::FromSqlConversionFailure(
-                0,
-                rusqlite::types::Type::Text,
-                Box::new(std::io::Error::other(e)),
-            )
-        })
+        converter::convert_text_to_sqlite(conn, &text_dir)
     })?;
     let _ = with_db(&state, db::rebuild_fts);
     Ok(result)

@@ -13,9 +13,7 @@ pub fn open_database(state: Db, path: String) -> Res<AppInfo> {
         .map_err(err)?;
     db::init_schema(&conn).map_err(err)?;
     db::init_fts(&conn).map_err(err)?;
-    let _ = db::migrate_words_unique_if_needed(&conn);
-    let _ = db::migrate_event_columns_if_needed(&conn);
-    let _ = db::add_missing_indexes(&conn);
+    db::add_missing_indexes(&conn).map_err(err)?;
     let mut info = db::get_stats(&conn).map_err(err)?;
     info.db_path.clone_from(&path);
     *state.db.lock().map_err(err)? = Some(conn);

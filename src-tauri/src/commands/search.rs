@@ -3,7 +3,6 @@
 use super::{Db, Res, with_db};
 use crate::db;
 use crate::models::*;
-use rusqlite::Connection;
 
 #[tauri::command]
 pub fn search_english(state: Db, params: ELSearchParams) -> Res<Vec<ELResult>> {
@@ -40,41 +39,25 @@ pub fn search_english(state: Db, params: ELSearchParams) -> Res<Vec<ELResult>> {
 
 #[tauri::command]
 pub fn rebuild_fts(state: Db) -> Res<i64> {
-    let path = state.db_path.lock().map_err(super::err)?.clone();
-    if path.is_empty() {
-        return Err("No database open".to_string());
-    }
-    let conn = Connection::open(&path).map_err(super::err)?;
-    conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;")
-        .map_err(super::err)?;
-    db::rebuild_fts(&conn).map_err(super::err)?;
-    let body_count: i64 = conn
-        .query_row("SELECT COUNT(*) FROM def_fts", [], |r| r.get(0))
-        .map_err(super::err)?;
-    let kw_count: i64 = conn
-        .query_row("SELECT COUNT(*) FROM def_kw_fts", [], |r| r.get(0))
-        .map_err(super::err)?;
-    Ok(body_count + kw_count)
+    with_db(&state, |conn| {
+        db::rebuild_fts(conn)?;
+        let body_count: i64 = conn.query_row("SELECT COUNT(*) FROM def_fts", [], |r| r.get(0))?;
+        let kw_count: i64 = conn.query_row("SELECT COUNT(*) FROM def_kw_fts", [], |r| r.get(0))?;
+        Ok(body_count + kw_count)
+    })
 }
 
 #[tauri::command]
 pub fn compact_db(state: Db) -> Res<String> {
-    let path = state.db_path.lock().map_err(super::err)?.clone();
-    if path.is_empty() {
-        return Err("No database open".to_string());
-    }
-    let conn = Connection::open(&path).map_err(super::err)?;
-    conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;")
-        .map_err(super::err)?;
-    db::vacuum_db(&conn).map_err(super::err)?;
-    let size: i64 = conn
-        .query_row(
+    with_db(&state, |conn| {
+        db::vacuum_db(conn)?;
+        let size: i64 = conn.query_row(
             "SELECT page_count * page_size FROM pragma_page_count, pragma_page_size",
             [],
             |r| r.get(0),
-        )
-        .map_err(super::err)?;
-    Ok(format!("{:.1} MB", size as f64 / 1_048_576.0))
+        )?;
+        Ok(format!("{:.1} MB", size as f64 / 1_048_576.0))
+    })
 }
 
 #[tauri::command]

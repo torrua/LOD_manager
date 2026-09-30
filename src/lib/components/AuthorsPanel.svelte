@@ -111,8 +111,7 @@
         class="fta"
         bind:value={form.notes}
         rows="2"
-        placeholder="Optional notes about this author…"
-      ></textarea>
+        placeholder="Optional notes about this author…"></textarea>
     </div>
     <div class="form-actions">
       <button class="btn btn-g btn-sm" onclick={submit}>Save</button>

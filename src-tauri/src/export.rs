@@ -3,7 +3,7 @@
 //! # Performance
 //! Uses 4 bulk queries (words, definitions, affixes, used-in) instead of N+1
 //! per-word queries. With 10 000 words the old approach ran ~30 000 individual
-//! SQL statements; the new approach runs exactly 4.
+//! SQL statements; the new approach runs 4 bulk queries.
 
 use rusqlite::{Connection, params};
 use std::collections::HashMap;
@@ -145,37 +145,53 @@ span.br{color:#800000;font-weight:700}
 }
 </style>";
 
+fn table_exists(conn: &Connection, table: &str) -> bool {
+    conn.query_row(
+        "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name=?1",
+        params![table],
+        |r| r.get::<_, i64>(0),
+    )
+    .unwrap_or(0)
+        > 0
+}
+
 pub fn generate_html(conn: &Connection, event_name: Option<&str>) -> rusqlite::Result<String> {
     let script = [SCRIPT_PREFIX, SCRIPT_SUFFIX].join("");
     let event_filter_label = event_name.map(|ev| format!("Event: {ev}"));
 
+    let has_connect_authors = table_exists(conn, "connect_authors");
+    let source_expr = if has_connect_authors {
+        "(SELECT GROUP_CONCAT(a.abbreviation, '/') FROM connect_authors ca JOIN authors a ON a.id = ca.\"AID\" WHERE ca.\"WID\" = w.id)"
+    } else {
+        "NULL"
+    };
+
     // ── 1. Load all words in ONE query ────────────────────────────────────────
-    // Two variants because rusqlite can't bind Optional<&str> to conditional SQL branches
-    // cleanly without a macro. Splitting here is explicit and avoids the ?1 IS NULL trick
-    // which prevents the query planner from using the event index.
     let rows: Vec<WordRow> = if let Some(ev) = event_name {
-        let mut stmt = conn.prepare(
-            "SELECT w.id, w.name, t.type, NULL, w.year, w.rank, w.match_,
+        let sql = format!(
+            "SELECT w.id, w.name, t.type, {source_expr}, w.year, w.rank, w.\"match\",
                     w.origin, w.origin_x, w.notes
              FROM words w
              LEFT JOIN types t ON t.id = w.type
              WHERE (w.event_start <= (SELECT event_id FROM events WHERE name = ?1))
                AND (w.event_end IS NULL OR w.event_end > (SELECT event_id FROM events WHERE name = ?1))
-             ORDER BY LOWER(w.name)",
-        )?;
+             ORDER BY LOWER(w.name)"
+        );
+        let mut stmt = conn.prepare(&sql)?;
         let rows: Vec<WordRow> = stmt
             .query_map(params![ev], map_word_row)?
             .filter_map(std::result::Result::ok)
             .collect();
         rows
     } else {
-        let mut stmt = conn.prepare(
-            "SELECT w.id, w.name, t.type, NULL, w.year, w.rank, w.match_,
+        let sql = format!(
+            "SELECT w.id, w.name, t.type, {source_expr}, w.year, w.rank, w.\"match\",
                     w.origin, w.origin_x, w.notes
              FROM words w
              LEFT JOIN types t ON t.id = w.type
-             ORDER BY LOWER(w.name)",
-        )?;
+             ORDER BY LOWER(w.name)"
+        );
+        let mut stmt = conn.prepare(&sql)?;
         let rows: Vec<WordRow> = stmt
             .query_map([], map_word_row)?
             .filter_map(std::result::Result::ok)
@@ -190,14 +206,15 @@ pub fn generate_html(conn: &Connection, event_name: Option<&str>) -> rusqlite::R
         );
     }
 
-    // Collect the IDs we actually need for the next 3 queries.
     let ids: Vec<i64> = rows.iter().map(|w| w.id).collect();
 
     // ── 2. Bulk-load ALL definitions for these words (1 query) ───────────────
     let mut defs_map: HashMap<i64, Vec<DefRow>> = HashMap::with_capacity(ids.len());
     {
         let mut stmt = conn.prepare(
-            "SELECT word_id, grammar_code, usage, body, case_tags
+            "SELECT word_id,
+                    NULLIF(COALESCE(CAST(slots AS TEXT), '') || COALESCE(grammar_code, ''), ''),
+                    usage, body, case_tags
              FROM definitions
              ORDER BY word_id, position",
         )?;
@@ -218,25 +235,66 @@ pub fn generate_html(conn: &Connection, event_name: Option<&str>) -> rusqlite::R
         }
     }
 
-    // ── 3. Bulk-load ALL affixes for these words (1 query) ───────────────────
+    // ── 3. Bulk-load ALL affixes for these words ─────────────────────────────
     let mut afx_map: HashMap<i64, Vec<String>> = HashMap::with_capacity(ids.len() / 4);
-    {
+    if table_exists(conn, "connect_words") {
+        let mut stmt = conn.prepare(
+            "SELECT cw.parent_id, REPLACE(w.name, '-', '')
+             FROM connect_words cw
+             JOIN words w ON w.id = cw.child_id
+             LEFT JOIN types t ON t.id = w.type
+             WHERE t.type_x = 'Affix' OR w.name LIKE '%-' OR w.name LIKE '-%'
+             ORDER BY cw.parent_id, w.id",
+        )?;
+        let iter = stmt.query_map([], |r| Ok((r.get::<_, i64>(0)?, r.get::<_, String>(1)?)))?;
+        for (wid, afx) in iter.filter_map(std::result::Result::ok) {
+            let entry = afx_map.entry(wid).or_default();
+            if !entry.contains(&afx) {
+                entry.push(afx);
+            }
+        }
+    }
+    if table_exists(conn, "word_affixes") {
         let mut stmt =
             conn.prepare("SELECT word_id, affix FROM word_affixes ORDER BY word_id, id")?;
         let iter = stmt.query_map([], |r| Ok((r.get::<_, i64>(0)?, r.get::<_, String>(1)?)))?;
-        for row in iter.filter_map(std::result::Result::ok) {
-            afx_map.entry(row.0).or_default().push(row.1);
+        for (wid, afx) in iter.filter_map(std::result::Result::ok) {
+            let cleaned = afx.replace('-', "");
+            let entry = afx_map.entry(wid).or_default();
+            if !entry.contains(&cleaned) {
+                entry.push(cleaned);
+            }
         }
     }
 
-    // ── 4. Build "used in" map from word_usage table ────────────────────────
+    // ── 4. Build "used in" map from connect_words and word_usage ─────────────
     let mut used_map: HashMap<i64, Vec<String>> = HashMap::new();
-    {
+    if table_exists(conn, "connect_words") {
+        let mut stmt = conn.prepare(
+            "SELECT cw.parent_id, w.name
+             FROM connect_words cw
+             JOIN words w ON w.id = cw.child_id
+             LEFT JOIN types t ON t.id = w.type
+             WHERE t.\"group\" = 'Cpx' OR t.type IN ('2-Cpx', '3-Cpx', 'C-Cpx')
+             ORDER BY cw.parent_id, LOWER(w.name)",
+        )?;
+        let iter = stmt.query_map([], |r| Ok((r.get::<_, i64>(0)?, r.get::<_, String>(1)?)))?;
+        for (wid, name) in iter.filter_map(std::result::Result::ok) {
+            let entry = used_map.entry(wid).or_default();
+            if !entry.contains(&name) {
+                entry.push(name);
+            }
+        }
+    }
+    if table_exists(conn, "word_usage") {
         let mut stmt =
             conn.prepare("SELECT word_id, used_in_word FROM word_usage ORDER BY word_id")?;
         let iter = stmt.query_map([], |r| Ok((r.get::<_, i64>(0)?, r.get::<_, String>(1)?)))?;
-        for row in iter.filter_map(std::result::Result::ok) {
-            used_map.entry(row.0).or_default().push(row.1);
+        for (wid, name) in iter.filter_map(std::result::Result::ok) {
+            let entry = used_map.entry(wid).or_default();
+            if !entry.contains(&name) {
+                entry.push(name);
+            }
         }
     }
 
@@ -248,7 +306,6 @@ pub fn generate_html(conn: &Connection, event_name: Option<&str>) -> rusqlite::R
         .into_iter()
         .collect();
 
-    // Pre-allocate generously: ~400 bytes per entry on average
     let mut html = String::with_capacity(rows.len() * 400);
 
     let title = match event_name {
@@ -409,17 +466,23 @@ pub fn generate_html(conn: &Connection, event_name: Option<&str>) -> rusqlite::R
 
 #[inline]
 fn map_word_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<WordRow> {
+    let raw_source: Option<String> = r.get(3)?;
+    let raw_year: Option<String> = r.get(4)?;
+    let raw_rank: Option<String> = r.get(5)?;
+    let raw_notes: Option<String> = r.get(9)?;
+    let (source, year, rank, notes) =
+        crate::db::normalize_word_fields(raw_source.as_deref(), raw_year, raw_rank, raw_notes);
     Ok(WordRow {
         id: r.get(0)?,
         name: r.get(1)?,
         type_name: r.get(2)?,
-        source: r.get(3)?,
-        year: r.get(4)?,
-        rank: r.get(5)?,
+        source,
+        year,
+        rank,
         match_: r.get(6)?,
         origin: r.get(7)?,
         origin_x: r.get(8)?,
-        notes: r.get(9)?,
+        notes,
     })
 }
 

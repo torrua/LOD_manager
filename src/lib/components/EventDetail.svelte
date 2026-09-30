@@ -1,6 +1,6 @@
 <script lang="ts">
   import Icon from './Icon.svelte';
-  import { app, deleteEvent, selectWord, getEventWords } from '../store.svelte';
+  import { app, deleteEvent, selectWordByName, getEventWords } from '../store.svelte';
   import type { EventItem } from '../../types';
 
   const { event }: { event: EventItem } = $props();
@@ -32,8 +32,7 @@
   });
 
   function clickWord(name: string) {
-    const w = app.words.find((x) => x.name === name);
-    if (w) selectWord(w.id);
+    selectWordByName(name);
   }
 </script>
 

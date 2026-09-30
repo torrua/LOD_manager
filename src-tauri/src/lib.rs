@@ -38,10 +38,12 @@ pub fn run() {
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
-        .setup(|_app| {
+        .setup(|app| {
+            #[cfg(not(desktop))]
+            let _ = app;
             #[cfg(desktop)]
             {
-                let handle = _app.handle();
+                let handle = app.handle();
                 handle.plugin(tauri_plugin_updater::Builder::new().build())?;
                 eprintln!("[Updater] Plugin initialized with endpoints from config");
             }
@@ -91,15 +93,14 @@ pub fn run() {
 /// Desktop-only update check command.
 #[cfg(desktop)]
 #[tauri::command]
-fn debug_update_check(app: tauri::AppHandle) -> commands::Res<String> {
-    use tauri::async_runtime::block_on;
+async fn debug_update_check(app: tauri::AppHandle) -> commands::Res<String> {
     use tauri_plugin_updater::UpdaterExt;
     eprintln!("[Updater] debug_update_check called");
 
     match app.updater() {
         Ok(updater) => {
             eprintln!("[Updater] Updater obtained, calling check()");
-            let result = block_on(updater.check());
+            let result = updater.check().await;
             match result {
                 Ok(Some(update)) => {
                     eprintln!("[Updater] Update found: {}", update.version);
@@ -150,7 +151,7 @@ mod tests {
         db::add_missing_indexes(&conn).unwrap();
 
         conn.execute(
-            "INSERT INTO types (name, group_) VALUES (?1, ?2)",
+            "INSERT INTO types (type, \"group\") VALUES (?1, ?2)",
             ("test_type", "test_group"),
         )
         .unwrap();
@@ -158,12 +159,11 @@ mod tests {
         let type_id: i64 = conn.last_insert_rowid();
 
         conn.execute(
-            "INSERT INTO words (name, type_id, source, year, rank, match_, origin, notes) 
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+            "INSERT INTO words (name, type, year, rank, \"match\", origin, notes, id_old, event_start) 
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 1, 1)",
             (
                 "testword",
                 type_id,
-                "test_source",
                 "2023",
                 "A",
                 "exact",
@@ -211,9 +211,6 @@ mod tests {
         }
         let duration = start.elapsed();
 
-        println!("100 get_word calls with optimal 3-query approach took: {duration:?}");
-        println!("Average per call: {:?}", duration / 100);
-
         assert!(duration.as_millis() < 1000, "get_word should be very fast");
 
         let result = db::get_word(&conn, 999_999);
@@ -226,11 +223,11 @@ mod tests {
         db::init_schema(&conn).unwrap();
         db::init_fts(&conn).unwrap();
 
-        conn.execute("INSERT INTO types (name) VALUES ('gismu')", [])
+        conn.execute("INSERT INTO types (type) VALUES ('gismu')", [])
             .unwrap();
         let type_id: i64 = conn.last_insert_rowid();
         conn.execute(
-            "INSERT INTO words (name, type_id) VALUES ('testword', ?1)",
+            "INSERT INTO words (name, type, id_old, event_start) VALUES ('testword', ?1, 1, 1)",
             [type_id],
         )
         .unwrap();
@@ -269,22 +266,22 @@ mod tests {
         db::init_schema(&conn).unwrap();
         db::init_fts(&conn).unwrap();
 
-        conn.execute("INSERT INTO types (name) VALUES ('gismu')", [])
+        conn.execute("INSERT INTO types (type) VALUES ('gismu')", [])
             .unwrap();
         let type_id: i64 = conn.last_insert_rowid();
 
         conn.execute(
-            "INSERT INTO words (name, type_id) VALUES ('abc', ?1)",
+            "INSERT INTO words (name, type, id_old, event_start) VALUES ('abc', ?1, 1, 1)",
             [type_id],
         )
         .unwrap();
         conn.execute(
-            "INSERT INTO words (name, type_id) VALUES ('xyz', ?1)",
+            "INSERT INTO words (name, type, id_old, event_start) VALUES ('xyz', ?1, 2, 1)",
             [type_id],
         )
         .unwrap();
         conn.execute(
-            "INSERT INTO words (name, type_id) VALUES ('def', ?1)",
+            "INSERT INTO words (name, type, id_old, event_start) VALUES ('def', ?1, 3, 1)",
             [type_id],
         )
         .unwrap();
@@ -303,7 +300,7 @@ mod tests {
         let words = db::list_words(&conn, "", "gismu", None).unwrap();
         assert_eq!(words.len(), 3);
 
-        let words = db::list_words(&conn, "", "", Some(999)).unwrap();
+        let words = db::list_words(&conn, "", "", Some(0)).unwrap();
         assert_eq!(words.len(), 0);
     }
 
@@ -313,11 +310,11 @@ mod tests {
         db::init_schema(&conn).unwrap();
         db::init_fts(&conn).unwrap();
 
-        conn.execute("INSERT INTO types (name) VALUES ('gismu')", [])
+        conn.execute("INSERT INTO types (type) VALUES ('gismu')", [])
             .unwrap();
         let type_id: i64 = conn.last_insert_rowid();
         conn.execute(
-            "INSERT INTO words (name, type_id) VALUES ('camgu', ?1)",
+            "INSERT INTO words (name, type, id_old, event_start) VALUES ('camgu', ?1, 1, 1)",
             [type_id],
         )
         .unwrap();
@@ -339,15 +336,15 @@ mod tests {
         db::init_schema(&conn).unwrap();
 
         conn.execute(
-            "INSERT INTO types (name, group_) VALUES ('gismu', 'core')",
+            "INSERT INTO types (type, \"group\") VALUES ('gismu', 'core')",
             [],
         )
         .unwrap();
         let type_id: i64 = conn.last_insert_rowid();
 
         conn.execute(
-            "INSERT INTO words (name, type_id, source, year, rank, match_, origin, notes)
-             VALUES ('testword', ?1, 'test_source', '2024', 'A', 'exact', 'test_origin', 'test_notes')",
+            "INSERT INTO words (name, type, year, rank, \"match\", origin, notes, id_old, event_start)
+             VALUES ('testword', ?1, '2024', 'A', 'exact', 'test_origin', 'test_notes', 1, 1)",
             [type_id],
         ).unwrap();
         let word_id: i64 = conn.last_insert_rowid();
@@ -380,21 +377,21 @@ mod tests {
         let conn = rusqlite::Connection::open_in_memory().unwrap();
         db::init_schema(&conn).unwrap();
 
-        conn.execute("INSERT INTO types (name) VALUES ('gismu')", [])
+        conn.execute("INSERT INTO types (type) VALUES ('gismu')", [])
             .unwrap();
         let type_id: i64 = conn.last_insert_rowid();
         conn.execute(
-            "INSERT INTO words (name, type_id) VALUES ('testword', ?1)",
+            "INSERT INTO words (name, type, id_old, event_start) VALUES ('testword', ?1, 1, 1)",
             [type_id],
         )
         .unwrap();
         let word_id: i64 = conn.last_insert_rowid();
 
         let def_data = models::SaveDefinition {
-            grammar_code: Some("GU".to_string()),
+            grammar: Some("GU".to_string()),
             usage: Some("verb".to_string()),
             body: "to want".to_string(),
-            case_tags: Some("main".to_string()),
+            tags: Some("main".to_string()),
         };
         db::save_definition(&conn, None, word_id, &def_data).unwrap();
 
@@ -405,10 +402,10 @@ mod tests {
         db::delete_definition(&conn, def_id).unwrap();
 
         let updated_def = models::SaveDefinition {
-            grammar_code: Some("GU".to_string()),
+            grammar: Some("GU".to_string()),
             usage: Some("verb".to_string()),
             body: "to strongly want".to_string(),
-            case_tags: Some("updated".to_string()),
+            tags: Some("updated".to_string()),
         };
         db::save_definition(&conn, None, word_id, &updated_def).unwrap();
 
@@ -426,12 +423,18 @@ mod tests {
         let conn = rusqlite::Connection::open_in_memory().unwrap();
         db::init_schema(&conn).unwrap();
 
-        conn.execute(
-            "INSERT INTO types (name, group_) VALUES ('lujvo', 'derived')",
-            [],
+        let type_id = db::save_type(
+            &conn,
+            None,
+            &models::SaveType {
+                name: "lujvo".to_string(),
+                type_x: Some("Lujvo".to_string()),
+                group_: Some("derived".to_string()),
+                parentable: Some(true),
+                description: Some("Derived word".to_string()),
+            },
         )
         .unwrap();
-        let type_id: i64 = conn.last_insert_rowid();
         assert!(type_id > 0);
 
         let types = db::list_types(&conn).unwrap();
@@ -439,9 +442,16 @@ mod tests {
         assert!(found.is_some());
         assert_eq!(found.unwrap().group_.as_deref(), Some("derived"));
 
-        conn.execute(
-            "UPDATE types SET group_ = 'modified' WHERE id = ?1",
-            [type_id],
+        db::save_type(
+            &conn,
+            Some(type_id),
+            &models::SaveType {
+                name: "lujvo".to_string(),
+                type_x: Some("Lujvo".to_string()),
+                group_: Some("modified".to_string()),
+                parentable: Some(true),
+                description: None,
+            },
         )
         .unwrap();
 
@@ -450,11 +460,11 @@ mod tests {
         assert_eq!(found.unwrap().group_.as_deref(), Some("modified"));
 
         conn.execute(
-            "INSERT INTO words (name, type_id) VALUES ('testlujvo', ?1)",
+            "INSERT INTO words (name, type, id_old, event_start) VALUES ('testlujvo', ?1, 1, 1)",
             [type_id],
         )
         .unwrap();
-        let result = conn.execute("DELETE FROM types WHERE id = ?1", [type_id]);
+        let result = db::delete_type(&conn, type_id);
         assert!(result.is_err(), "Cannot delete type with dependent words");
     }
 
@@ -463,11 +473,18 @@ mod tests {
         let conn = rusqlite::Connection::open_in_memory().unwrap();
         db::init_schema(&conn).unwrap();
 
-        conn.execute(
-            "INSERT INTO events (name, date, annotation, suffix, notes) VALUES ('NewEvent', '2024-06-15', 'test annotation', 'NE', 'test notes')",
-            [],
-        ).unwrap();
-        let event_id: i64 = conn.last_insert_rowid();
+        let event_id = db::save_event(
+            &conn,
+            None,
+            &models::SaveEvent {
+                name: "NewEvent".to_string(),
+                date: Some("2024-06-15".to_string()),
+                annotation: Some("test annotation".to_string()),
+                suffix: Some("NE".to_string()),
+                notes: Some("test notes".to_string()),
+            },
+        )
+        .unwrap();
         assert!(event_id > 0);
 
         let events = db::list_events(&conn).unwrap();
@@ -475,17 +492,22 @@ mod tests {
         assert!(found.is_some());
         assert_eq!(found.unwrap().date.as_deref(), Some("2024-06-15"));
 
-        conn.execute(
-            "UPDATE events SET date = '2024-07-01', annotation = 'updated' WHERE id = ?1",
-            [event_id],
+        db::save_event(
+            &conn,
+            Some(event_id),
+            &models::SaveEvent {
+                name: "NewEvent".to_string(),
+                date: Some("2024-07-01".to_string()),
+                annotation: Some("updated".to_string()),
+                suffix: Some("NE".to_string()),
+                notes: Some("test notes".to_string()),
+            },
         )
         .unwrap();
 
         let events = db::list_events(&conn).unwrap();
         let found = events.iter().find(|e| e.name == "NewEvent");
         assert_eq!(found.unwrap().date.as_deref(), Some("2024-07-01"));
-
-        let events = db::list_events(&conn).unwrap();
         assert!(events.len() >= 2);
     }
 
@@ -494,8 +516,16 @@ mod tests {
         let conn = rusqlite::Connection::open_in_memory().unwrap();
         db::init_schema(&conn).unwrap();
 
-        conn.execute("INSERT INTO authors (initials, full_name, notes) VALUES ('JD', 'John Doe', 'test author')", []).unwrap();
-        let author_id: i64 = conn.last_insert_rowid();
+        let author_id = db::save_author(
+            &conn,
+            None,
+            &models::SaveAuthor {
+                initials: "JD".to_string(),
+                full_name: Some("John Doe".to_string()),
+                notes: Some("test author".to_string()),
+            },
+        )
+        .unwrap();
         assert!(author_id > 0);
 
         let authors = db::list_authors(&conn).unwrap();
@@ -503,9 +533,14 @@ mod tests {
         assert!(found.is_some());
         assert_eq!(found.unwrap().full_name.as_deref(), Some("John Doe"));
 
-        conn.execute(
-            "UPDATE authors SET full_name = 'Jane Doe' WHERE id = ?1",
-            [author_id],
+        db::save_author(
+            &conn,
+            Some(author_id),
+            &models::SaveAuthor {
+                initials: "JD".to_string(),
+                full_name: Some("Jane Doe".to_string()),
+                notes: Some("test author".to_string()),
+            },
         )
         .unwrap();
 
@@ -523,11 +558,11 @@ mod tests {
         let conn = rusqlite::Connection::open_in_memory().unwrap();
         db::init_schema(&conn).unwrap();
 
-        conn.execute("INSERT INTO types (name) VALUES ('gismu')", [])
+        conn.execute("INSERT INTO types (type) VALUES ('gismu')", [])
             .unwrap();
         let type_id: i64 = conn.last_insert_rowid();
         conn.execute(
-            "INSERT INTO words (name, type_id) VALUES ('testword', ?1)",
+            "INSERT INTO words (name, type, id_old, event_start) VALUES ('testword', ?1, 1, 1)",
             [type_id],
         )
         .unwrap();
@@ -539,7 +574,11 @@ mod tests {
         )
         .unwrap();
 
-        conn.execute("INSERT INTO word_spellings (word_id, spelling) VALUES (?1, 'testword2'), (?1, 'testword3')", [word_id]).unwrap();
+        conn.execute(
+            "INSERT INTO word_spellings (word_id, spelling) VALUES (?1, 'testword2'), (?1, 'testword3')",
+            [word_id],
+        )
+        .unwrap();
 
         let word = db::get_word(&conn, word_id).unwrap();
         assert_eq!(word.affixes.len(), 2);
@@ -556,65 +595,374 @@ mod tests {
     }
 
     #[test]
-    fn test_migrate_words_unique_if_needed() {
+    fn test_p0_1_definition_slots_and_grammar_code() {
         let conn = rusqlite::Connection::open_in_memory().unwrap();
         db::init_schema(&conn).unwrap();
+        db::init_fts(&conn).unwrap();
 
-        db::migrate_words_unique_if_needed(&conn).unwrap();
-        let flag: i64 = conn
+        conn.execute("INSERT INTO types (type) VALUES ('C-Prim')", [])
+            .unwrap();
+        let type_id: i64 = conn.last_insert_rowid();
+        conn.execute(
+            "INSERT INTO words (name, type, id_old, event_start) VALUES ('ekti', ?1, 100, 1)",
+            [type_id],
+        )
+        .unwrap();
+        let word_id: i64 = conn.last_insert_rowid();
+
+        // Simulate frontend IPC payload {"grammar": "2a", "usage": "%", "body": "«act» on something", "tags": "B-K"}
+        let ipc_json = r#"{"grammar":"2a","usage":"%","body":"«act» on something","tags":"B-K"}"#;
+        let save_def: models::SaveDefinition = serde_json::from_str(ipc_json).unwrap();
+        assert_eq!(save_def.grammar.as_deref(), Some("2a"));
+        assert_eq!(save_def.tags.as_deref(), Some("B-K"));
+
+        db::save_definition(&conn, None, word_id, &save_def).unwrap();
+
+        // Verify slots and grammar_code are split in SQLite table (loglan_core parity)
+        let (slots, gcode, ctags): (Option<i64>, Option<String>, Option<String>) = conn
             .query_row(
-                "SELECT COUNT(*) FROM settings WHERE key='words_unique_migrated'",
-                [],
-                |r| r.get(0),
+                "SELECT slots, grammar_code, case_tags FROM definitions WHERE word_id = ?1",
+                [word_id],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
             )
             .unwrap();
-        assert_eq!(flag, 1);
+        assert_eq!(slots, Some(2));
+        assert_eq!(gcode.as_deref(), Some("a"));
+        assert_eq!(ctags.as_deref(), Some("B-K"));
 
-        db::migrate_words_unique_if_needed(&conn).unwrap();
+        // Verify get_word combines slots + grammar_code into "2a" and serializes "grammar" & "tags"
+        let word = db::get_word(&conn, word_id).unwrap();
+        assert_eq!(word.definitions.len(), 1);
+        assert_eq!(word.definitions[0].grammar.as_deref(), Some("2a"));
+        assert_eq!(word.definitions[0].tags.as_deref(), Some("B-K"));
+        let serialized = serde_json::to_value(&word.definitions[0]).unwrap();
+        assert_eq!(serialized["grammar"], "2a");
+        assert_eq!(serialized["tags"], "B-K");
+
+        // Verify FTS and LIKE searches and HTML export also return combined "2a"
+        db::rebuild_fts(&conn).unwrap();
+        let fts_res = db::search_english_fts(&conn, "act", 10).unwrap();
+        assert_eq!(fts_res[0].grammar.as_deref(), Some("2a"));
+        let kw_res = db::search_english_keywords_fts(&conn, "act", 10).unwrap();
+        assert_eq!(kw_res[0].grammar.as_deref(), Some("2a"));
+        let like_res = db::search_english_like(&conn, "act", 10).unwrap();
+        assert_eq!(like_res[0].grammar.as_deref(), Some("2a"));
+        let html = crate::export::generate_html(&conn, None).unwrap();
+        assert!(html.contains("(2a)"));
     }
 
     #[test]
-    fn test_migrate_event_columns_if_needed() {
+    fn test_p0_3_get_event_words() {
         let conn = rusqlite::Connection::open_in_memory().unwrap();
         db::init_schema(&conn).unwrap();
 
+        conn.execute("INSERT INTO types (type) VALUES ('C-Prim')", [])
+            .unwrap();
+        let type_id: i64 = conn.last_insert_rowid();
         conn.execute(
-            "INSERT INTO events (name, annotation, notes) VALUES ('TestEvent', 'ann', 'notes')",
+            "INSERT INTO events (event_id, name, date) VALUES (2, 'EventTwo', '2020-01-01')",
+            [],
+        )
+        .unwrap();
+        let ev2_pk: i64 = conn.last_insert_rowid();
+
+        conn.execute(
+            "INSERT INTO words (name, type, id_old, event_start, event_end) VALUES ('oldword', ?1, 1, 1, 2)",
+            [type_id],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO words (name, type, id_old, event_start, event_end) VALUES ('newword', ?1, 2, 2, NULL)",
+            [type_id],
+        )
+        .unwrap();
+
+        let (added, removed) = db::get_event_words(&conn, ev2_pk).unwrap();
+        assert_eq!(added, vec!["newword".to_string()]);
+        assert_eq!(removed, vec!["oldword".to_string()]);
+    }
+
+    #[test]
+    fn test_p0_4_save_word_and_p3_4_rename_cascade() {
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        db::init_schema(&conn).unwrap();
+
+        conn.execute("INSERT INTO types (type) VALUES ('C-Prim')", [])
+            .unwrap();
+
+        let wid = db::save_word(
+            &conn,
+            None,
+            &models::SaveWord {
+                name: "oldname".to_string(),
+                type_name: Some("C-Prim".to_string()),
+                source: Some("JCB".to_string()),
+                year: Some("1975".to_string()),
+                rank: Some("1.0".to_string()),
+                match_: Some("99%".to_string()),
+                origin: Some("origin".to_string()),
+                origin_x: Some("origin_x".to_string()),
+                notes: Some("custom note".to_string()),
+                event_start: Some("Start".to_string()),
+                event_end: None,
+                affixes: vec!["old".to_string()],
+                spellings: vec![],
+                id_old: Some(42),
+                event_start_id: None,
+                event_end_id: None,
+            },
+        )
+        .unwrap();
+
+        // Add a word_usage entry referencing "oldname"
+        conn.execute(
+            "INSERT INTO word_usage (word_id, used_in_word) VALUES (?1, 'oldname')",
+            [wid],
+        )
+        .unwrap();
+
+        // Rename "oldname" -> "newname" via save_word
+        db::save_word(
+            &conn,
+            Some(wid),
+            &models::SaveWord {
+                name: "newname".to_string(),
+                type_name: Some("C-Prim".to_string()),
+                source: Some("JCB".to_string()),
+                year: Some("1975".to_string()),
+                rank: Some("1.0".to_string()),
+                match_: Some("99%".to_string()),
+                origin: Some("origin".to_string()),
+                origin_x: Some("origin_x".to_string()),
+                notes: Some("custom note".to_string()),
+                event_start: Some("Start".to_string()),
+                event_end: None,
+                affixes: vec!["new".to_string()],
+                spellings: vec![],
+                id_old: Some(42),
+                event_start_id: None,
+                event_end_id: None,
+            },
+        )
+        .unwrap();
+
+        let detail = db::get_word(&conn, wid).unwrap();
+        assert_eq!(detail.name, "newname");
+        assert_eq!(detail.source.as_deref(), Some("JCB"));
+        assert_eq!(detail.used_in, vec!["newname".to_string()]);
+    }
+
+    #[test]
+    fn test_p0_5_duplicate_word_name_and_type_across_events() {
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        db::init_schema(&conn).unwrap();
+        db::add_missing_indexes(&conn).unwrap();
+
+        conn.execute("INSERT INTO types (type) VALUES ('C-Prim')", [])
+            .unwrap();
+        let tid: i64 = conn.last_insert_rowid();
+        conn.execute(
+            "INSERT INTO events (event_id, name) VALUES (6, 'Event6')",
             [],
         )
         .unwrap();
 
-        db::migrate_event_columns_if_needed(&conn).unwrap();
+        // Insert two historical versions of 'cenja' with same (name, type) across different event intervals
+        conn.execute(
+            "INSERT INTO words (name, type, id_old, event_start, event_end) VALUES ('cenja', ?1, 802, 1, 6)",
+            [tid],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO words (name, type, id_old, event_start, event_end) VALUES ('cenja', ?1, 10133, 6, NULL)",
+            [tid],
+        )
+        .unwrap();
 
-        let flag: i64 = conn
-            .query_row(
-                "SELECT COUNT(*) FROM settings WHERE key='ev_col_migrated'",
-                [],
-                |r| r.get(0),
-            )
+        let count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM words WHERE name='cenja'", [], |r| {
+                r.get(0)
+            })
             .unwrap();
-        assert_eq!(flag, 1);
+        assert_eq!(
+            count, 2,
+            "Both historical and active rows of cenja must coexist"
+        );
+    }
 
-        let (ann, notes): (String, String) = conn
-            .query_row(
-                "SELECT annotation, notes FROM events WHERE name='TestEvent'",
-                [],
-                |r| Ok((r.get(0)?, r.get(1)?)),
-            )
-            .unwrap();
-        assert_eq!(ann, "notes");
-        assert_eq!(notes, "ann");
+    #[test]
+    fn test_p0_6_settings_loglan_core_schema() {
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        db::init_schema(&conn).unwrap();
 
-        db::migrate_event_columns_if_needed(&conn).unwrap();
-        let (ann2, notes2): (String, String) = conn
-            .query_row(
-                "SELECT annotation, notes FROM events WHERE name='TestEvent'",
-                [],
-                |r| Ok((r.get(0)?, r.get(1)?)),
-            )
-            .unwrap();
-        assert_eq!(ann2, "notes");
-        assert_eq!(notes2, "ann");
+        conn.execute(
+            "INSERT INTO settings (date, db_version, last_word_id, db_release) VALUES ('2024-08-22', 1, 10150, '4.5.9')",
+            [],
+        )
+        .unwrap();
+
+        let stats = db::get_db_stats(&conn).unwrap();
+        assert!(
+            stats
+                .settings
+                .iter()
+                .any(|s| s.key == "db_release" && s.value == "4.5.9")
+        );
+        assert!(
+            stats
+                .settings
+                .iter()
+                .any(|s| s.key == "last_word_id" && s.value == "10150")
+        );
+
+        db::upsert_setting(&conn, "db_release", "4.6.0").unwrap();
+        let settings = db::list_settings(&conn).unwrap();
+        assert!(
+            settings
+                .iter()
+                .any(|s| s.key == "db_release" && s.value == "4.6.0")
+        );
+    }
+
+    #[test]
+    fn test_p0_7_connect_words_authors_year_and_json_notes() {
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        db::init_schema(&conn).unwrap();
+
+        conn.execute(
+            "INSERT INTO types (type, type_x, \"group\") VALUES ('C-Prim', 'Composite Primitive', 'Prim')",
+            [],
+        )
+        .unwrap();
+        let prim_tid: i64 = conn.last_insert_rowid();
+
+        conn.execute(
+            "INSERT INTO types (type, type_x, \"group\") VALUES ('Afx', 'Affix', 'Affix')",
+            [],
+        )
+        .unwrap();
+        let afx_tid: i64 = conn.last_insert_rowid();
+
+        conn.execute(
+            "INSERT INTO types (type, type_x, \"group\") VALUES ('2-Cpx', 'Two-Term Complex', 'Cpx')",
+            [],
+        )
+        .unwrap();
+        let cpx_tid: i64 = conn.last_insert_rowid();
+
+        conn.execute(
+            "INSERT INTO authors (abbreviation, full_name) VALUES ('JCB', 'James Cooke Brown')",
+            [],
+        )
+        .unwrap();
+        let aid: i64 = conn.last_insert_rowid();
+
+        // Word with DATE year '1975-01-01' and JSON notes
+        conn.execute(
+            "INSERT INTO words (name, type, year, rank, notes, id_old, event_start)
+             VALUES ('humni', ?1, '1975-01-01', '1.0', '{\"year\":\"(changed ''16)\",\"author\":\"L4\",\"rank\":\"top\"}', 10, 1)",
+            [prim_tid],
+        )
+        .unwrap();
+        let humni_id: i64 = conn.last_insert_rowid();
+
+        // Affix with hyphen 'hei-' and JSON 'null' notes
+        conn.execute(
+            "INSERT INTO words (name, type, notes, id_old, event_start)
+             VALUES ('hei-', ?1, 'null', 11, 1)",
+            [afx_tid],
+        )
+        .unwrap();
+        let afx_id: i64 = conn.last_insert_rowid();
+
+        // Complex word derived from humni
+        conn.execute(
+            "INSERT INTO words (name, type, notes, id_old, event_start)
+             VALUES ('humcpx', ?1, 'null', 12, 1)",
+            [cpx_tid],
+        )
+        .unwrap();
+        let cpx_id: i64 = conn.last_insert_rowid();
+
+        // Derived non-affix, non-complex child word from humni
+        conn.execute(
+            "INSERT INTO words (name, type, notes, id_old, event_start)
+             VALUES ('humda', ?1, 'null', 13, 1)",
+            [prim_tid],
+        )
+        .unwrap();
+        let child_id: i64 = conn.last_insert_rowid();
+
+        conn.execute(
+            "INSERT INTO connect_words (parent_id, child_id) VALUES (?1, ?2), (?1, ?3), (?1, ?4)",
+            (humni_id, afx_id, cpx_id, child_id),
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO connect_authors (\"AID\", \"WID\") VALUES (?1, ?2)",
+            (aid, humni_id),
+        )
+        .unwrap();
+
+        let humni = db::get_word(&conn, humni_id).unwrap();
+        assert_eq!(humni.affixes, vec!["hei".to_string()]);
+        assert_eq!(humni.used_in, vec!["humcpx".to_string()]);
+        assert_eq!(humni.children, vec!["humda".to_string()]);
+        assert!(humni.parents.is_empty());
+        assert_eq!(humni.source.as_deref(), Some("JCB L4"));
+        assert_eq!(humni.year.as_deref(), Some("1975 (changed '16)"));
+        assert_eq!(humni.rank.as_deref(), Some("1.0 top"));
+
+        let cpx = db::get_word(&conn, cpx_id).unwrap();
+        assert_eq!(cpx.notes, None, "JSON 'null' string must become None");
+        assert_eq!(
+            cpx.parents,
+            vec!["humni".to_string()],
+            "Complex word should show parent words in parents"
+        );
+        assert!(
+            cpx.children.is_empty(),
+            "Complex word must not show parent words in children"
+        );
+
+        let humda = db::get_word(&conn, child_id).unwrap();
+        assert_eq!(humda.parents, vec!["humni".to_string()]);
+        assert!(humda.children.is_empty());
+
+        let authors = db::list_authors(&conn).unwrap();
+        assert_eq!(authors[0].word_count, 1);
+    }
+
+    #[test]
+    fn test_p0_8_delete_without_on_delete_cascade() {
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        // Create schema mimicking export.db where foreign keys do NOT have ON DELETE CASCADE
+        conn.execute_batch(
+            "PRAGMA foreign_keys=ON;
+             CREATE TABLE types (id INTEGER PRIMARY KEY, type TEXT NOT NULL, type_x TEXT, \"group\" TEXT, parentable BOOLEAN, description TEXT);
+             CREATE TABLE events (id INTEGER PRIMARY KEY, event_id INTEGER NOT NULL UNIQUE, name TEXT NOT NULL, date TEXT, definition TEXT, annotation TEXT, suffix TEXT);
+             CREATE TABLE authors (id INTEGER PRIMARY KEY, abbreviation TEXT NOT NULL UNIQUE, full_name TEXT, notes TEXT);
+             CREATE TABLE words (id INTEGER PRIMARY KEY, name TEXT NOT NULL, type INTEGER NOT NULL REFERENCES types(id), origin TEXT, origin_x TEXT, \"match\" TEXT, rank TEXT, year TEXT, notes TEXT, id_old INTEGER NOT NULL, \"TID_old\" INTEGER, event_start INTEGER NOT NULL REFERENCES events(event_id), event_end INTEGER REFERENCES events(event_id));
+             CREATE TABLE definitions (id INTEGER PRIMARY KEY, word_id INTEGER NOT NULL REFERENCES words(id), position INTEGER NOT NULL, body TEXT NOT NULL, usage TEXT, grammar_code TEXT, slots INTEGER, case_tags TEXT, language TEXT, notes TEXT);
+             CREATE TABLE keys (id INTEGER PRIMARY KEY, word TEXT NOT NULL, language TEXT);
+             CREATE TABLE connect_keys (\"KID\" INTEGER NOT NULL REFERENCES keys(id), \"DID\" INTEGER NOT NULL REFERENCES definitions(id), PRIMARY KEY (\"KID\", \"DID\"));
+             CREATE TABLE connect_words (parent_id INTEGER NOT NULL REFERENCES words(id), child_id INTEGER NOT NULL REFERENCES words(id), PRIMARY KEY (parent_id, child_id));
+             CREATE TABLE connect_authors (\"AID\" INTEGER NOT NULL REFERENCES authors(id), \"WID\" INTEGER NOT NULL REFERENCES words(id), PRIMARY KEY (\"AID\", \"WID\"));
+             INSERT INTO types (id, type) VALUES (1, 'C-Prim');
+             INSERT INTO events (id, event_id, name) VALUES (1, 1, 'Start');
+             INSERT INTO authors (id, abbreviation) VALUES (1, 'JCB');
+             INSERT INTO words (id, name, type, id_old, event_start) VALUES (1, 'w1', 1, 1, 1), (2, 'w2', 1, 2, 1);
+             INSERT INTO definitions (id, word_id, position, body) VALUES (10, 1, 1, 'def1'), (20, 2, 1, 'def2');
+             INSERT INTO keys (id, word) VALUES (100, 'key1');
+             INSERT INTO connect_keys (\"KID\", \"DID\") VALUES (100, 10), (100, 20);
+             INSERT INTO connect_words (parent_id, child_id) VALUES (1, 2);
+             INSERT INTO connect_authors (\"AID\", \"WID\") VALUES (1, 1), (1, 2);",
+        )
+        .unwrap();
+
+        db::delete_definition(&conn, 10).unwrap();
+        db::delete_author(&conn, 1).unwrap();
+        db::delete_word(&conn, 2).unwrap();
     }
 
     #[test]
@@ -658,11 +1006,11 @@ mod tests {
         db::init_schema(&conn).unwrap();
         db::init_fts(&conn).unwrap();
 
-        conn.execute("INSERT INTO types (name) VALUES ('gismu')", [])
+        conn.execute("INSERT INTO types (type) VALUES ('gismu')", [])
             .unwrap();
         let type_id: i64 = conn.last_insert_rowid();
         conn.execute(
-            "INSERT INTO words (name, type_id) VALUES ('testword', ?1)",
+            "INSERT INTO words (name, type, id_old, event_start) VALUES ('testword', ?1, 1, 1)",
             [type_id],
         )
         .unwrap();
@@ -693,21 +1041,21 @@ mod tests {
         db::init_schema(&conn).unwrap();
         db::init_fts(&conn).unwrap();
 
-        conn.execute("INSERT INTO types (name) VALUES ('gismu')", [])
+        conn.execute("INSERT INTO types (type) VALUES ('gismu')", [])
             .unwrap();
         let type_id: i64 = conn.last_insert_rowid();
         conn.execute(
-            "INSERT INTO words (name, type_id) VALUES ('word1', ?1)",
+            "INSERT INTO words (name, type, id_old, event_start) VALUES ('word1', ?1, 1, 1)",
             [type_id],
         )
         .unwrap();
         let word_id: i64 = conn.last_insert_rowid();
 
         let def_data = models::SaveDefinition {
-            grammar_code: Some("GU".to_string()),
+            grammar: Some("GU".to_string()),
             usage: None,
             body: "original text".to_string(),
-            case_tags: None,
+            tags: None,
         };
         db::save_definition(&conn, None, word_id, &def_data).unwrap();
         let def_id: i64 = conn
@@ -735,17 +1083,17 @@ mod tests {
         db::init_schema(&conn).unwrap();
         db::init_fts(&conn).unwrap();
 
-        conn.execute("INSERT INTO types (name) VALUES ('gismu')", [])
+        conn.execute("INSERT INTO types (type) VALUES ('gismu')", [])
             .unwrap();
         let type_id: i64 = conn.last_insert_rowid();
         conn.execute(
-            "INSERT INTO words (name, type_id) VALUES ('kwtest', ?1)",
+            "INSERT INTO words (name, type, id_old, event_start) VALUES ('kwtest', ?1, 1, 1)",
             [type_id],
         )
         .unwrap();
         let word_id: i64 = conn.last_insert_rowid();
         conn.execute(
-            "INSERT INTO definitions (word_id, position, body) VALUES (?1, 0, 'text with \\u{AB}keyword\\u{BB} marker')",
+            "INSERT INTO definitions (word_id, position, body) VALUES (?1, 0, 'text with \u{AB}keyword\u{BB} marker')",
             [word_id],
         ).unwrap();
 
@@ -790,10 +1138,74 @@ mod tests {
         let mut conn = rusqlite::Connection::open_in_memory().unwrap();
         db::init_schema(&conn).unwrap();
 
-        let files = vec![("types.txt".to_string(), "gismu@core\n".to_string())];
+        let files = vec![
+            (
+                "types.txt".to_string(),
+                "C-Prim@Composite Primitive@Prim@False@Composite desc\n".to_string(),
+            ),
+            (
+                "lexevent.txt".to_string(),
+                "1@Initial@01.01.1975@The initial vocabulary@INIT@init\n".to_string(),
+            ),
+            (
+                "author.txt".to_string(),
+                "JCB@James Cooke Brown@Founder\n".to_string(),
+            ),
+            (
+                "words.txt".to_string(),
+                "75@C-Prim@@alk@50%@JCB@1975@1.0@3/6E alcohol@alcohol@@10\n".to_string(),
+            ),
+            (
+                "wordspell.txt".to_string(),
+                "75@alkooli@@1@1@2\n75@alkoholi@@2@1@9999\n".to_string(),
+            ),
+            (
+                "worddefinition.txt".to_string(),
+                "75@1@%@2a@«alcohol» drink@\n".to_string(),
+            ),
+        ];
         let result = import::import_contents(&mut conn, &files).unwrap();
         assert_eq!(result.types, 1);
+        assert_eq!(result.events, 1);
+        assert_eq!(result.authors, 1);
+        assert_eq!(result.words, 2);
+        assert_eq!(
+            result.definitions, 2,
+            "Both spellings of old_id=75 must get the definition"
+        );
         assert_eq!(result.skipped_rows, 0);
+
+        // Verify event annotation vs suffix order and event_id=1 update
+        let events = db::list_events(&conn).unwrap();
+        let ev1 = events
+            .iter()
+            .find(|e| e.name == "Initial")
+            .expect("event_id 1 should be updated to Initial");
+        assert_eq!(ev1.annotation.as_deref(), Some("INIT"));
+        assert_eq!(ev1.suffix.as_deref(), Some("init"));
+
+        // Verify types parentable ("False") and description
+        let (parentable, desc): (bool, Option<String>) = conn
+            .query_row(
+                "SELECT parentable, description FROM types WHERE type='C-Prim'",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap();
+        assert!(!parentable);
+        assert_eq!(desc.as_deref(), Some("Composite desc"));
+
+        // Verify origin_x, TID_old, and event_end=9999 -> NULL
+        let (ox, tid_old, ev_end): (Option<String>, Option<i64>, Option<i64>) = conn
+            .query_row(
+                "SELECT origin_x, \"TID_old\", event_end FROM words WHERE name='alkoholi'",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+            )
+            .unwrap();
+        assert_eq!(ox.as_deref(), Some("alcohol"));
+        assert_eq!(tid_old, Some(10));
+        assert_eq!(ev_end, None);
     }
 
     #[test]
@@ -888,5 +1300,454 @@ mod tests {
         assert_eq!(result.skipped_rows, 0);
 
         let _ = std::fs::remove_dir_all(&tmp_dir);
+    }
+
+    #[test]
+    fn test_export_db_real_compatibility() {
+        let export_path = std::path::Path::new("../export.db");
+        if !export_path.exists() {
+            return;
+        }
+        let conn = rusqlite::Connection::open_with_flags(
+            export_path,
+            rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
+        )
+        .unwrap();
+
+        let stats = db::get_db_stats(&conn).unwrap();
+        assert_eq!(stats.word_count, 10_173);
+        assert_eq!(stats.definition_count, 18_766);
+        assert!(
+            stats
+                .settings
+                .iter()
+                .any(|s| s.key == "db_release" && !s.value.is_empty()),
+            "Should read db_release from export.db settings, got: {:?}",
+            stats.settings
+        );
+
+        let types = db::list_types(&conn).unwrap();
+        assert_eq!(types.len(), 17);
+        assert!(types.iter().any(|t| t.group_.as_deref() == Some("Cpx")));
+
+        let authors = db::list_authors(&conn).unwrap();
+        assert_eq!(authors.len(), 47);
+        assert!(
+            authors
+                .iter()
+                .any(|a| a.initials == "JCB" && a.word_count > 1000)
+        );
+
+        // Check a word with affixes, used_in, authors, slots+grammar_code, and 'null' notes
+        let humni_id: i64 = conn
+            .query_row("SELECT id FROM words WHERE name='humni'", [], |r| r.get(0))
+            .unwrap();
+        let humni = db::get_word(&conn, humni_id).unwrap();
+        assert_eq!(humni.notes, None, "'null' JSON in export.db should be None");
+        assert!(
+            !humni.affixes.is_empty(),
+            "humni should have affixes from connect_words"
+        );
+        assert!(
+            !humni.used_in.is_empty(),
+            "humni should have used_in complexes from connect_words"
+        );
+        assert!(
+            humni.source.is_some(),
+            "humni should have source from connect_authors"
+        );
+        assert_eq!(humni.year.as_deref(), Some("1975"));
+        assert!(
+            humni
+                .definitions
+                .iter()
+                .any(|d| d.grammar.as_deref() == Some("2n") && d.tags.as_deref() == Some("P-S")),
+            "humni definition should combine slots=2 and grammar_code='n' into '2n' with tags='P-S', got: {:?}",
+            humni.definitions
+        );
+
+        // Verify complex word 'farlai' has parents ['fanra', 'landi'] in parents, NOT in children
+        let farlai_id: i64 = conn
+            .query_row("SELECT id FROM words WHERE name='farlai'", [], |r| r.get(0))
+            .unwrap();
+        let farlai = db::get_word(&conn, farlai_id).unwrap();
+        assert_eq!(
+            farlai.parents,
+            vec!["fanra".to_string(), "landi".to_string()],
+            "farlai must list fanra and landi in parents"
+        );
+        assert!(
+            farlai.children.is_empty(),
+            "farlai must have empty children, got: {:?}",
+            farlai.children
+        );
+
+        // Verify 'hekri' has affix 'hei' and event 'Torrua Dictionary Repair', and 'hei-' (Afx) has parent 'hekri'
+        let hekri_id: i64 = conn
+            .query_row("SELECT id FROM words WHERE name='hekri'", [], |r| r.get(0))
+            .unwrap();
+        let hekri = db::get_word(&conn, hekri_id).unwrap();
+        assert_eq!(hekri.affixes, vec!["hei".to_string()]);
+        assert_eq!(
+            hekri.event_start_name.as_deref(),
+            Some("Torrua Dictionary Repair")
+        );
+
+        let hei_afx_id: i64 = conn
+            .query_row("SELECT id FROM words WHERE name='hei-'", [], |r| r.get(0))
+            .unwrap();
+        let hei_afx = db::get_word(&conn, hei_afx_id).unwrap();
+        assert_eq!(hei_afx.type_name.as_deref(), Some("Afx"));
+        assert_eq!(hei_afx.parents, vec!["hekri".to_string()]);
+        assert!(hei_afx.children.is_empty());
+
+        // Verify morphological ordering of parents for non-alphabetical compounds (e.g. heicli = hekri + clika, heirslicui = hekri + sliti + cutri)
+        let heicli_id: i64 = conn
+            .query_row("SELECT id FROM words WHERE name='heicli'", [], |r| r.get(0))
+            .unwrap();
+        let heicli = db::get_word(&conn, heicli_id).unwrap();
+        assert_eq!(
+            heicli.parents,
+            vec!["hekri".to_string(), "clika".to_string()],
+            "heicli parents must follow morphological order from origin"
+        );
+
+        let heirslicui_id: i64 = conn
+            .query_row("SELECT id FROM words WHERE name='heirslicui'", [], |r| {
+                r.get(0)
+            })
+            .unwrap();
+        let heirslicui = db::get_word(&conn, heirslicui_id).unwrap();
+        assert_eq!(
+            heirslicui.parents,
+            vec![
+                "hekri".to_string(),
+                "sliti".to_string(),
+                "cutri".to_string()
+            ],
+            "heirslicui parents must follow morphological order from origin"
+        );
+
+        // Verify list_words orders active words (event_end IS NULL) before retired homonyms when event_id is None
+        let clika_matches = db::list_words(&conn, "clika", "", None).unwrap();
+        assert!(clika_matches.len() >= 2);
+        let first_clika = db::get_word(&conn, clika_matches[0].id).unwrap();
+        assert_eq!(
+            first_clika.event_end_name, None,
+            "Active word (event_end IS NULL) must precede retired homonym in list_words"
+        );
+    }
+
+    #[test]
+    fn test_export_db_roundtrip_save_word_preserves_metadata_and_id_old() {
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        db::init_schema(&conn).unwrap();
+
+        conn.execute(
+            "INSERT INTO types (type, type_x, \"group\") VALUES ('C-Prim', 'Composite Primitive', 'Prim'), ('Afx', 'Affix', 'Affix')",
+            [],
+        )
+        .unwrap();
+        let prim_tid: i64 = conn
+            .query_row("SELECT id FROM types WHERE type='C-Prim'", [], |r| r.get(0))
+            .unwrap();
+        let afx_tid: i64 = conn
+            .query_row("SELECT id FROM types WHERE type='Afx'", [], |r| r.get(0))
+            .unwrap();
+
+        conn.execute(
+            "INSERT INTO authors (abbreviation, full_name) VALUES ('JCB', 'James Cooke Brown')",
+            [],
+        )
+        .unwrap();
+        let aid: i64 = conn.last_insert_rowid();
+
+        conn.execute(
+            "INSERT INTO words (name, type, year, rank, notes, id_old, event_start)
+             VALUES ('humni', ?1, '1975-01-01', '1.0', '{\"author\":\"(?)\",\"year\":\"(changed ''16)\",\"rank\":\"(grammar vocab project)\"}', 1388, 1)",
+            [prim_tid],
+        )
+        .unwrap();
+        let wid: i64 = conn.last_insert_rowid();
+
+        conn.execute(
+            "INSERT INTO words (name, type, notes, id_old, event_start) VALUES ('hum', ?1, 'null', 1389, 1), ('hmu-', ?1, 'null', 1390, 1)",
+            [afx_tid],
+        )
+        .unwrap();
+        let hum_id: i64 = conn
+            .query_row("SELECT id FROM words WHERE name='hum'", [], |r| r.get(0))
+            .unwrap();
+        let hmu_id: i64 = conn
+            .query_row("SELECT id FROM words WHERE name='hmu-'", [], |r| r.get(0))
+            .unwrap();
+
+        conn.execute(
+            "INSERT INTO connect_authors (\"AID\", \"WID\") VALUES (?1, ?2)",
+            (aid, wid),
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO connect_words (parent_id, child_id) VALUES (?1, ?2), (?1, ?3)",
+            (wid, hum_id, hmu_id),
+        )
+        .unwrap();
+
+        let loaded = db::get_word(&conn, wid).unwrap();
+        assert_eq!(loaded.source.as_deref(), Some("JCB (?)"));
+        assert_eq!(loaded.year.as_deref(), Some("1975 (changed '16)"));
+        assert_eq!(loaded.rank.as_deref(), Some("1.0 (grammar vocab project)"));
+        assert_eq!(loaded.notes, None);
+        assert_eq!(loaded.affixes, vec!["hmu".to_string(), "hum".to_string()]);
+
+        // Simulate WordForm.svelte submitting the loaded word (with id_old = None, removing 'hmu', adding custom note)
+        db::save_word(
+            &conn,
+            Some(wid),
+            &models::SaveWord {
+                name: loaded.name,
+                type_name: loaded.type_name,
+                source: loaded.source,
+                year: loaded.year,
+                rank: loaded.rank,
+                match_: loaded.match_,
+                origin: loaded.origin,
+                origin_x: loaded.origin_x,
+                notes: Some("custom note".to_string()),
+                event_start: loaded.event_start_name,
+                event_end: loaded.event_end_name,
+                affixes: vec!["hum".to_string()],
+                spellings: loaded.spellings,
+                id_old: None,
+                event_start_id: None,
+                event_end_id: None,
+            },
+        )
+        .unwrap();
+
+        // 1. id_old must still be 1388
+        let (db_id_old, db_year, db_rank, db_notes): (
+            i64,
+            Option<String>,
+            Option<String>,
+            Option<String>,
+        ) = conn
+            .query_row(
+                "SELECT id_old, year, rank, notes FROM words WHERE id=?1",
+                [wid],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
+            )
+            .unwrap();
+        assert_eq!(
+            db_id_old, 1388,
+            "save_word must preserve existing id_old when data.id_old is None"
+        );
+        assert_eq!(
+            db_year.as_deref(),
+            Some("1975-01-01"),
+            "year must be stored in canonical DATE format"
+        );
+        assert_eq!(
+            db_rank.as_deref(),
+            Some("1.0"),
+            "base rank must be separated from rank note"
+        );
+        assert!(
+            db_notes.as_deref().unwrap_or("").starts_with('{'),
+            "notes must preserve JSON structure"
+        );
+
+        // 2. Bogus author "JCB (?)" must NOT be created in authors table
+        let bogus_author_count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM authors WHERE abbreviation LIKE '%(%'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(
+            bogus_author_count, 0,
+            "Note suffix must not be inserted as an author abbreviation"
+        );
+
+        // 3. Reload via get_word and verify full round-trip
+        let reloaded = db::get_word(&conn, wid).unwrap();
+        assert_eq!(reloaded.source.as_deref(), Some("JCB (?)"));
+        assert_eq!(reloaded.year.as_deref(), Some("1975 (changed '16)"));
+        assert_eq!(
+            reloaded.rank.as_deref(),
+            Some("1.0 (grammar vocab project)")
+        );
+        assert_eq!(reloaded.notes.as_deref(), Some("custom note"));
+        assert_eq!(
+            reloaded.affixes,
+            vec!["hum".to_string()],
+            "Removed affix 'hmu' must not reappear from connect_words"
+        );
+    }
+
+    #[test]
+    fn test_export_db_ddl_save_event_and_type_with_none_fields() {
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        conn.execute_batch(
+            "PRAGMA foreign_keys=ON;
+             CREATE TABLE types (
+                 type VARCHAR(16) NOT NULL,
+                 type_x VARCHAR(16) NOT NULL,
+                 \"group\" VARCHAR(16) NOT NULL,
+                 parentable BOOLEAN NOT NULL,
+                 description VARCHAR(255),
+                 id INTEGER NOT NULL,
+                 created DATETIME NOT NULL,
+                 updated DATETIME,
+                 PRIMARY KEY (id)
+             );
+             CREATE TABLE events (
+                 event_id INTEGER NOT NULL,
+                 name VARCHAR(64) NOT NULL,
+                 date DATE NOT NULL,
+                 definition TEXT NOT NULL,
+                 annotation VARCHAR(16) NOT NULL,
+                 suffix VARCHAR(16) NOT NULL,
+                 id INTEGER NOT NULL,
+                 created DATETIME NOT NULL,
+                 updated DATETIME,
+                 PRIMARY KEY (id),
+                 UNIQUE (event_id)
+             );
+             CREATE TABLE words (
+                 id INTEGER NOT NULL PRIMARY KEY,
+                 name VARCHAR(64) NOT NULL,
+                 type INTEGER NOT NULL REFERENCES types(id),
+                 id_old INTEGER NOT NULL,
+                 event_start INTEGER NOT NULL REFERENCES events(event_id),
+                 event_end INTEGER REFERENCES events(event_id),
+                 created DATETIME NOT NULL
+             );",
+        )
+        .unwrap();
+
+        let eid = db::save_event(
+            &conn,
+            None,
+            &models::SaveEvent {
+                name: "TestEvent".to_string(),
+                date: None,
+                annotation: None,
+                suffix: None,
+                notes: None,
+            },
+        )
+        .unwrap();
+        db::save_event(
+            &conn,
+            Some(eid),
+            &models::SaveEvent {
+                name: "TestEventUpdated".to_string(),
+                date: None,
+                annotation: None,
+                suffix: None,
+                notes: None,
+            },
+        )
+        .unwrap();
+
+        let tid = db::save_type(
+            &conn,
+            None,
+            &models::SaveType {
+                name: "TestType".to_string(),
+                type_x: None,
+                group_: None,
+                parentable: None,
+                description: None,
+            },
+        )
+        .unwrap();
+        db::save_type(
+            &conn,
+            Some(tid),
+            &models::SaveType {
+                name: "TestTypeUpdated".to_string(),
+                type_x: None,
+                group_: None,
+                parentable: None,
+                description: None,
+            },
+        )
+        .unwrap();
+
+        conn.execute(
+            "INSERT INTO words (id, name, type, id_old, event_start, created) VALUES (1, 'w1', ?1, 1, 1, datetime('now'))",
+            [tid],
+        )
+        .unwrap();
+
+        assert!(
+            db::delete_event(&conn, eid).is_err(),
+            "Deleting an event referenced by words must return an error"
+        );
+    }
+
+    #[test]
+    fn test_export_db_ddl_import_contents_and_dedup_definitions() {
+        let mut conn = rusqlite::Connection::open_in_memory().unwrap();
+        conn.execute_batch(
+            "PRAGMA foreign_keys=ON;
+             CREATE TABLE authors (abbreviation VARCHAR(64) NOT NULL, full_name VARCHAR(64), notes VARCHAR(128), id INTEGER NOT NULL, created DATETIME NOT NULL, updated DATETIME, PRIMARY KEY (id), UNIQUE (abbreviation));
+             CREATE TABLE events (event_id INTEGER NOT NULL, name VARCHAR(64) NOT NULL, date DATE NOT NULL, definition TEXT NOT NULL, annotation VARCHAR(16) NOT NULL, suffix VARCHAR(16) NOT NULL, id INTEGER NOT NULL, created DATETIME NOT NULL, updated DATETIME, PRIMARY KEY (id), UNIQUE (event_id));
+             CREATE TABLE settings (date DATETIME NOT NULL, db_version INTEGER NOT NULL, last_word_id INTEGER NOT NULL, db_release VARCHAR(16) NOT NULL, id INTEGER NOT NULL, created DATETIME NOT NULL, updated DATETIME, PRIMARY KEY (id), UNIQUE (date));
+             CREATE TABLE syllables (name VARCHAR(8) NOT NULL, type VARCHAR(32) NOT NULL, allowed BOOLEAN NOT NULL, id INTEGER NOT NULL, created DATETIME NOT NULL, updated DATETIME, PRIMARY KEY (id));
+             CREATE TABLE types (type VARCHAR(16) NOT NULL, type_x VARCHAR(16) NOT NULL, \"group\" VARCHAR(16) NOT NULL, parentable BOOLEAN NOT NULL, description VARCHAR(255), id INTEGER NOT NULL, created DATETIME NOT NULL, updated DATETIME, PRIMARY KEY (id));
+             CREATE TABLE words (id INTEGER NOT NULL, name VARCHAR(64) NOT NULL, origin VARCHAR(128), origin_x VARCHAR(64), \"match\" VARCHAR(8), rank VARCHAR(8), year DATE, notes JSON, id_old INTEGER NOT NULL, \"TID_old\" INTEGER, type INTEGER NOT NULL, event_start INTEGER NOT NULL, event_end INTEGER, created DATETIME NOT NULL, updated DATETIME, PRIMARY KEY (id), FOREIGN KEY(type) REFERENCES types (id), FOREIGN KEY(event_start) REFERENCES events (event_id), FOREIGN KEY(event_end) REFERENCES events (event_id));
+             CREATE TABLE connect_authors (\"AID\" INTEGER NOT NULL, \"WID\" INTEGER NOT NULL, PRIMARY KEY (\"AID\", \"WID\"), FOREIGN KEY(\"AID\") REFERENCES authors (id), FOREIGN KEY(\"WID\") REFERENCES words (id));
+             CREATE TABLE connect_words (parent_id INTEGER NOT NULL, child_id INTEGER NOT NULL, PRIMARY KEY (parent_id, child_id), FOREIGN KEY(parent_id) REFERENCES words (id), FOREIGN KEY(child_id) REFERENCES words (id));
+             CREATE TABLE definitions (word_id INTEGER NOT NULL, position INTEGER NOT NULL, body TEXT NOT NULL, usage VARCHAR(64), grammar_code VARCHAR(8), slots INTEGER, case_tags VARCHAR(16), language VARCHAR(16), notes VARCHAR(255), id INTEGER NOT NULL, created DATETIME NOT NULL, updated DATETIME, PRIMARY KEY (id), FOREIGN KEY(word_id) REFERENCES words (id));",
+        )
+        .unwrap();
+
+        let files = vec![
+            (
+                "types.txt".to_string(),
+                "C-Prim@Composite Primitive@Prim@False@Composite desc\n".to_string(),
+            ),
+            (
+                "lexevent.txt".to_string(),
+                "1@Initial@01.01.1975@The initial vocabulary@INIT@\n".to_string(),
+            ),
+            (
+                "author.txt".to_string(),
+                "JCB@James Cooke Brown@Founder\n".to_string(),
+            ),
+            ("syllables.txt".to_string(), "ba@CV@True\n".to_string()),
+            (
+                "words.txt".to_string(),
+                "75@C-Prim@@alk@50%@JCB (?)@1988 (Keugru Proposal 2)@7+@3/6E alcohol@alcohol@@10\n"
+                    .to_string(),
+            ),
+            (
+                "wordspell.txt".to_string(),
+                "75@alkooli@@1@1@9999\n75@alkoholi@@2@1@9999\n".to_string(),
+            ),
+            (
+                "worddefinition.txt".to_string(),
+                "75@1@%@2a@«alcohol» drink@\n75@1@%@2a@«alcohol» drink@\n".to_string(),
+            ),
+            (
+                "setting.txt".to_string(),
+                "22.08.2024 05:08:00@1@10150@4.5.9\n".to_string(),
+            ),
+        ];
+
+        let res = import::import_contents(&mut conn, &files).unwrap();
+        assert_eq!(res.types, 1);
+        assert_eq!(res.events, 1);
+        assert_eq!(res.authors, 1);
+        assert_eq!(res.words, 2);
+        assert_eq!(
+            res.definitions, 2,
+            "Duplicate (WID=75, position=1) rows in WordDefinition.txt must be deduplicated to 1 per spelling (2 total)"
+        );
+        assert_eq!(res.settings, 1);
     }
 }
