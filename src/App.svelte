@@ -47,12 +47,15 @@
 
       // ── DB auto-open ───────────────────────────────────────────────────────
       if (app.currentPlatform === 'android') {
-        // On Android always open the canonical path from Rust's app_data_dir.
-        // This is reliable across restarts and avoids content:// URI issues.
-        // openDb creates the file via SQLite if it doesn't exist yet.
-        const dbPath = await getDefaultDbPath().catch(() => '');
-        if (dbPath) {
-          openDb(dbPath).catch((e) => console.error('Android DB open failed:', e));
+        // On Android always open the canonical path inside app_data_dir.
+        // This directory survives app updates and is not affected by
+        // Scoped Storage restrictions (Android 10+).
+        // SQLite's Connection::open() creates the file if it doesn't exist.
+        try {
+          const dbPath = await getDefaultDbPath();
+          await openDb(dbPath);
+        } catch (e) {
+          toast(`DB error: ${String(e)}`, 'err');
         }
       } else {
         const last = getLastDbPath();
@@ -436,30 +439,53 @@
       <div class="no-db-inner">
         <div class="no-db-icon"><Icon name="words" size={64} /></div>
         <h1>Loglan Online Dictionary</h1>
-        <p>Open an existing database or create a new one.</p>
-        <div class="no-db-btns">
-          <button
-            class="btn btn-au btn-lg"
-            onclick={async () => {
-              const p = await openDialog({
-                title: 'Open LOD Database',
-                filters: [{ name: 'SQLite', extensions: ['db', 'sqlite', 'sqlite3'] }],
-              });
-              if (p) await openDb(p as string).catch((e) => toast(String(e), 'err'));
-            }}>Open DB</button
-          >
-          <button
-            class="btn btn-g btn-lg"
-            onclick={async () => {
-              const p = await saveDialog({
-                title: 'Create New Database',
-                defaultPath: 'loglan.db',
-                filters: [{ name: 'SQLite', extensions: ['db'] }],
-              });
-              if (p) await createDb(p).catch((e) => toast(String(e), 'err'));
-            }}>New DB</button
-          >
-        </div>
+        {#if app.currentPlatform === 'android'}
+          <p>Database is loading…</p>
+          <p style="font-size:0.7rem;color:var(--text2);margin-top:0.5rem">
+            If this screen persists, tap the button below to import dictionary data.
+          </p>
+          <div class="no-db-btns">
+            <button
+              class="btn btn-au btn-lg"
+              onclick={() => {
+                // Force-open the canonical lod.db (creates if missing) then show import
+                (async () => {
+                  try {
+                    const dbPath = await getDefaultDbPath();
+                    await openDb(dbPath);
+                  } catch (e) {
+                    toast(String(e), 'err');
+                  }
+                })();
+              }}>Retry / Import</button
+            >
+          </div>
+        {:else}
+          <p>Open an existing database or create a new one.</p>
+          <div class="no-db-btns">
+            <button
+              class="btn btn-au btn-lg"
+              onclick={async () => {
+                const p = await openDialog({
+                  title: 'Open LOD Database',
+                  filters: [{ name: 'SQLite', extensions: ['db', 'sqlite', 'sqlite3'] }],
+                });
+                if (p) await openDb(p as string).catch((e) => toast(String(e), 'err'));
+              }}>Open DB</button
+            >
+            <button
+              class="btn btn-g btn-lg"
+              onclick={async () => {
+                const p = await saveDialog({
+                  title: 'Create New Database',
+                  defaultPath: 'loglan.db',
+                  filters: [{ name: 'SQLite', extensions: ['db'] }],
+                });
+                if (p) await createDb(p).catch((e) => toast(String(e), 'err'));
+              }}>New DB</button
+            >
+          </div>
+        {/if}
       </div>
     </div>
   {:else}
@@ -929,7 +955,13 @@
     gap: 0.38rem;
     margin-top: 0.7rem;
     padding-top: 0.58rem;
+    padding-bottom: calc(var(--mob-bar-h, 56px) + 0.5rem);
     border-top: 1px solid var(--border);
+  }
+  @media (min-width: 641px) {
+    :global(.form-actions) {
+      padding-bottom: 0;
+    }
   }
 
   /* ── Shared tokens ── */

@@ -142,19 +142,20 @@ export async function getDefaultDbPath(): Promise<string> {
 
 export async function openDb(path: string) {
   // Android file picker returns content:// URIs which SQLite cannot open
-  // directly. Copy the file to app data dir and open from there instead.
+  // directly. Copy the file into app_data_dir as lod.db (the canonical path)
+  // so that it survives app restarts and updates.
   let actualPath = path;
   if (path.startsWith('content://')) {
     try {
       const bytes = await readFile(path);
-      const destName = `imported_${Date.now()}.db`;
+      const destName = 'lod.db';
       await writeFile(destName, bytes, { baseDir: BaseDirectory.AppData });
       const dir = await appDataDir();
       actualPath = dir.endsWith('/') ? `${dir}${destName}` : `${dir}/${destName}`;
     } catch (e) {
       // Intentionally throw without cause - Error message is self-explanatory
       throw new Error(
-        `Cannot read Android file: ${String(e)}. Try using "New Database" and importing your data instead.`
+        `Cannot read Android file: ${String(e)}. Try using "Import" from the Tools menu instead.`
       );
     }
   }

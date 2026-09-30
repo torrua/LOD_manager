@@ -381,17 +381,19 @@
           {/if}
         </div>
         <!-- issue #1: no ellipsis on buttons -->
-        <div class="td-acts">
-          <button class="btn btn-au btn-sm" onclick={handleSwitch}
-            ><Icon name="database" size={16} /> Switch DB</button
-          >
-          <button class="btn btn-g btn-sm" onclick={handleNew}
-            ><Icon name="plus" size={16} /> New DB</button
-          >
-          <button class="btn btn-r btn-sm" onclick={closeDb}
-            ><Icon name="close" size={16} /> Close</button
-          >
-        </div>
+        {#if app.currentPlatform !== 'android'}
+          <div class="td-acts">
+            <button class="btn btn-au btn-sm" onclick={handleSwitch}
+              ><Icon name="database" size={16} /> Switch DB</button
+            >
+            <button class="btn btn-g btn-sm" onclick={handleNew}
+              ><Icon name="plus" size={16} /> New DB</button
+            >
+            <button class="btn btn-r btn-sm" onclick={closeDb}
+              ><Icon name="close" size={16} /> Close</button
+            >
+          </div>
+        {/if}
         <div class="db-maintenance" style="margin-top:1rem">
           <div class="sg-title" style="font-size:var(--fs-sm);margin-bottom:.4rem">
             Database Maintenance
@@ -405,11 +407,15 @@
           </p>
         </div>
       {:else}
-        <p class="td-hint">No database open.</p>
-        <div class="td-acts">
-          <button class="btn btn-au btn-lg" onclick={handleSwitch}>Open DB</button>
-          <button class="btn btn-g btn-lg" onclick={handleNew}>New DB</button>
-        </div>
+        {#if app.currentPlatform === 'android'}
+          <p class="td-hint">Database is loading…</p>
+        {:else}
+          <p class="td-hint">No database open.</p>
+          <div class="td-acts">
+            <button class="btn btn-au btn-lg" onclick={handleSwitch}>Open DB</button>
+            <button class="btn btn-g btn-lg" onclick={handleNew}>New DB</button>
+          </div>
+        {/if}
       {/if}
 
       <!-- ── IMPORT ── -->
@@ -428,7 +434,7 @@
             }}
             disabled={impDownloading}
           />
-          <button class="btn btn-g btn-sm" onclick={downloadFromGitHub} disabled={impDownloading}>
+          <button class="btn btn-g" onclick={downloadFromGitHub} disabled={impDownloading}>
             {impDownloading ? '↓ Downloading…' : '↓ From GitHub'}
           </button>
         </div>
@@ -442,7 +448,13 @@
       </p>
       <div class="file-zone" class:has={impPaths.length > 0}>
         {#if impPaths.length === 0}
-          <button class="btn btn-au btn-sm" onclick={pickImport}>Browse files…</button>
+          {#if app.currentPlatform === 'android'}
+            <p class="td-hint">
+              Use «↓ From GitHub» above to download dictionary files, then tap Import.
+            </p>
+          {:else}
+            <button class="btn btn-au btn-sm" onclick={pickImport}>Browse files…</button>
+          {/if}
         {:else}
           {#each impPaths as p, idx}
             <div class="file-row">
@@ -476,14 +488,17 @@
               >
             </div>
           {/each}
-          <button class="btn btn-sm" style="margin-top:.3rem" onclick={pickImport}>Add more…</button
-          >
+          {#if app.currentPlatform !== 'android'}
+            <button class="btn btn-sm" style="margin-top:.3rem" onclick={pickImport}
+              >Add more…</button
+            >
+          {/if}
         {/if}
       </div>
       {#if impPaths.length > 0}
         <button
-          class="btn btn-g btn-sm"
-          style="margin-top:.5rem"
+          class="btn btn-g"
+          style="margin-top:.5rem;width:100%"
           onclick={runImport}
           disabled={impRunning || !app.dbOpen}
         >
@@ -503,54 +518,56 @@
         </div>
       {/if}
 
-      <!-- Text Converter Section -->
-      <div style="border-top: 1px solid var(--border); margin-top: 1rem; padding-top: 1rem;">
-        <div class="sg-title" style="font-size:var(--fs-sm);margin-bottom:.4rem">
-          Text File Converter
-        </div>
-        <p class="td-hint">
-          Convert @-delimited text files (Python loglan_converter format) to SQLite database. Select
-          a directory containing: <code>Types.txt</code>, <code>Author.txt</code>,
-          <code>LexEvent.txt</code>, <code>Words.txt</code>, <code>WordSpell.txt</code>,
-          <code>WordDefinition.txt</code>, <code>Settings.txt</code>.
-        </p>
-        <div class="conv-dir-section">
-          <div class="conv-input-group">
-            <input
-              type="text"
-              class="conv-dir-input"
-              placeholder="Select directory with text files..."
-              value={convDir}
-              readonly
-            />
-            <button class="btn btn-au btn-sm" onclick={pickConverterDir} disabled={convRunning}>
-              Browse…
+      <!-- Text Converter Section — hidden on Android (requires directory picker) -->
+      {#if app.currentPlatform !== 'android'}
+        <div style="border-top: 1px solid var(--border); margin-top: 1rem; padding-top: 1rem;">
+          <div class="sg-title" style="font-size:var(--fs-sm);margin-bottom:.4rem">
+            Text File Converter
+          </div>
+          <p class="td-hint">
+            Convert @-delimited text files (Python loglan_converter format) to SQLite database.
+            Select a directory containing: <code>Types.txt</code>, <code>Author.txt</code>,
+            <code>LexEvent.txt</code>, <code>Words.txt</code>, <code>WordSpell.txt</code>,
+            <code>WordDefinition.txt</code>, <code>Settings.txt</code>.
+          </p>
+          <div class="conv-dir-section">
+            <div class="conv-input-group">
+              <input
+                type="text"
+                class="conv-dir-input"
+                placeholder="Select directory with text files..."
+                value={convDir}
+                readonly
+              />
+              <button class="btn btn-au btn-sm" onclick={pickConverterDir} disabled={convRunning}>
+                Browse…
+              </button>
+            </div>
+          </div>
+          {#if convDir}
+            <button
+              class="btn btn-g btn-sm"
+              style="margin-top:.5rem"
+              onclick={runConverter}
+              disabled={convRunning || !app.dbOpen}
+            >
+              {convRunning ? 'Converting…' : 'Convert Text Files'}
             </button>
-          </div>
+          {/if}
+          {#if !app.dbOpen}
+            <p class="td-hint td-warn">Open a database first.</p>
+          {/if}
+          {#if convResult}
+            <div class="imp-res" class:err={convResult.errors > 0}>
+              <b>{convResult.errors ? '⚠' : '✓'}</b>
+              Words: {convResult.words} · Defs: {convResult.definitions} · Events: {convResult.events}
+              · Types:
+              {convResult.types} · Authors: {convResult.authors} · Settings: {convResult.settings} · Errors:
+              {convResult.errors}
+            </div>
+          {/if}
         </div>
-        {#if convDir}
-          <button
-            class="btn btn-g btn-sm"
-            style="margin-top:.5rem"
-            onclick={runConverter}
-            disabled={convRunning || !app.dbOpen}
-          >
-            {convRunning ? 'Converting…' : 'Convert Text Files'}
-          </button>
-        {/if}
-        {#if !app.dbOpen}
-          <p class="td-hint td-warn">Open a database first.</p>
-        {/if}
-        {#if convResult}
-          <div class="imp-res" class:err={convResult.errors > 0}>
-            <b>{convResult.errors ? '⚠' : '✓'}</b>
-            Words: {convResult.words} · Defs: {convResult.definitions} · Events: {convResult.events} ·
-            Types:
-            {convResult.types} · Authors: {convResult.authors} · Settings: {convResult.settings} · Errors:
-            {convResult.errors}
-          </div>
-        {/if}
-      </div>
+      {/if}
 
       <!-- ── EXPORT ── -->
     {:else if app.toolsTab === 'export'}
@@ -920,11 +937,15 @@
     line-height: 1.6;
   }
   .td-hint > code {
-    color: #c8a454 !important;
-    background: rgba(200, 164, 84, 0.1) !important;
-    padding: 0 3px !important;
-    border-radius: 2px !important;
-    border: 1px solid #7a6030 !important;
+    color: var(--gold) !important;
+    background: var(--gold-g) !important;
+    padding: 1px 5px !important;
+    border-radius: var(--r-sm) !important;
+    border: 1px solid color-mix(in srgb, var(--gold-d) 50%, transparent) !important;
+    font-size: 0.63rem !important;
+    font-weight: 400 !important;
+    letter-spacing: 0.02em !important;
+    white-space: nowrap !important;
   }
   .td-warn {
     color: var(--red);
@@ -1007,42 +1028,48 @@
   .file-zone {
     border: 1px dashed var(--border2);
     border-radius: var(--r-lg);
-    padding: 0.5rem 0.6rem;
+    padding: 0.4rem 0.5rem;
     display: flex;
     flex-direction: column;
-    gap: 0.2rem;
-    min-height: 48px;
+    gap: 0.15rem;
+    min-height: 40px;
+    max-height: 240px;
+    overflow-y: auto;
     justify-content: center;
     align-items: flex-start;
   }
   .file-zone.has {
     align-items: stretch;
+    justify-content: flex-start;
   }
   .file-row {
     display: flex;
     align-items: center;
-    gap: 0.35rem;
+    gap: 0.25rem;
     background: var(--surf2);
     border: 1px solid var(--border);
     border-radius: var(--r-sm);
-    padding: 0.16rem 0.38rem;
+    padding: 0.12rem 0.3rem;
+    min-height: 26px;
   }
   .f-name {
-    font-size: 0.68rem;
+    font-size: 0.62rem;
     color: var(--gold);
     font-weight: 600;
     flex: 1;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    max-width: 120px;
   }
   .imp-res {
-    font-size: 0.7rem;
-    padding: 0.42rem 0.55rem;
+    font-size: 0.75rem;
+    padding: 0.5rem 0.65rem;
     border-radius: var(--r-md);
     background: var(--green-g);
     border: 1px solid var(--green-d);
     color: var(--green);
+    line-height: 1.5;
   }
   .imp-res.err {
     background: var(--red-g);

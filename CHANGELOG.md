@@ -4,6 +4,19 @@ All notable changes to LOD Manager are documented here. See [conventional commit
 
 ---
 
+## [1.7.1](https://github.com/torrua/LOD_manager/releases/tag/v1.7.1) — 2026-09-30
+
+### Bug Fixes
+
+- **Android: Database Persistence** — Auto-open canonical `app_data_dir/lod.db` at startup instead of showing useless file picker dialogs blocked by Scoped Storage (Android 10+); data now survives app restarts and updates
+- **Android: content:// Import** — Copy imported database as `lod.db` (canonical path) instead of timestamped filename, ensuring data persists across restarts
+- **Android: UI Adaptation** — Hide desktop-only controls (Switch DB, New DB, Close, Browse files, Text Converter) on Android; show "↓ From GitHub" as the primary import method
+- **Mobile: Form Buttons** — Add bottom padding to Save/Cancel buttons so they're not hidden behind the mobile navigation bar
+- **Import UI** — Make file list scrollable with max height to prevent overflow; enlarge Import and GitHub download buttons for better tap targets
+- **Code Badges** — Restyle inline file name badges (`Types.txt`, etc.) to be thinner and more elegant
+
+---
+
 ## [1.7.0](https://github.com/torrua/LOD_manager/releases/tag/v1.7.0) — 2026-09-30
 
 ### Features & `torrua/loglan_core` Compatibility
