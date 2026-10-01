@@ -6,6 +6,7 @@
   let form = $state({ initials: '', full_name: '', notes: '' });
 
   function startEdit(id: number) {
+    if (app.readonly) return;
     const a = app.authors.find((x) => x.id === id);
     if (!a) return;
     form = { initials: a.initials, full_name: a.full_name || '', notes: a.notes || '' };
@@ -13,6 +14,7 @@
     creating = false;
   }
   function startNew() {
+    if (app.readonly) return;
     form = { initials: '', full_name: '', notes: '' };
     creating = true;
     editing = null;

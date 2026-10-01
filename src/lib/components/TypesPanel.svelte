@@ -6,6 +6,7 @@
   let form = $state({ name: '', type_x: '', group_: '' });
 
   function startEdit(id: number) {
+    if (app.readonly) return;
     const t = app.types.find((x) => x.id === id);
     if (!t) return;
     form = { name: t.name, type_x: t.type_x || '', group_: t.group_ || '' };
@@ -13,6 +14,7 @@
     creating = false;
   }
   function startNew() {
+    if (app.readonly) return;
     form = { name: '', type_x: '', group_: '' };
     creating = true;
     editing = null;

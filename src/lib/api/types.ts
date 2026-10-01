@@ -29,6 +29,7 @@ export interface DataAdapter {
   getDbStats(): Promise<DbStats>;
 
   // Extended operations supported natively in Tauri and mapped/stubbed in HTTP
+  checkAdminStatus?(): Promise<boolean>;
   saveEvent?(id: number | null, data: object): Promise<EventItem>;
   deleteEvent?(id: number): Promise<void>;
   saveType?(id: number | null, data: object): Promise<TypeItem[]>;

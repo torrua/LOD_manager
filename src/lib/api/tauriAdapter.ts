@@ -64,6 +64,10 @@ export class TauriAdapter implements DataAdapter {
     return tauriInvoke('get_db_stats');
   }
 
+  async checkAdminStatus(): Promise<boolean> {
+    return true;
+  }
+
   async saveEvent(id: number | null, data: object): Promise<EventItem> {
     return tauriInvoke('save_event', { id, data });
   }

@@ -135,11 +135,13 @@
   }
 
   function startEditDef(d: Definition) {
+    if (app.readonly) return;
     editingDef = d.id;
     newDef = false;
     defForm = { grammar: d.grammar || '', usage: d.usage || '', body: d.body, tags: d.tags || '' };
   }
   function startNewDef() {
+    if (app.readonly) return;
     newDef = true;
     editingDef = null;
     defForm = { grammar: '', usage: '', body: '', tags: '' };
@@ -198,23 +200,21 @@
         {/each}
       </div>
     {/if}
-    <div
-      class="wd-acts"
-      style:visibility={app.readonly ? 'hidden' : 'visible'}
-      aria-hidden={app.readonly}
-    >
-      <button
-        class="btn btn-ic btn-au"
-        title="Edit word"
-        onclick={() => {
-          app.panel = 'word-form';
-          app.editing = true;
-        }}><Icon name="edit" size={app.currentPlatform === 'android' ? 18 : 16} /></button
-      >
-      <button class="btn btn-ic btn-r" title="Delete word" onclick={() => (confirmDel = true)}
-        ><Icon name="delete" size={app.currentPlatform === 'android' ? 18 : 16} /></button
-      >
-    </div>
+    {#if !app.readonly}
+      <div class="wd-acts">
+        <button
+          class="btn btn-ic btn-au"
+          title="Edit word"
+          onclick={() => {
+            app.panel = 'word-form';
+            app.editing = true;
+          }}><Icon name="edit" size={app.currentPlatform === 'android' ? 18 : 16} /></button
+        >
+        <button class="btn btn-ic btn-r" title="Delete word" onclick={() => (confirmDel = true)}
+          ><Icon name="delete" size={app.currentPlatform === 'android' ? 18 : 16} /></button
+        >
+      </div>
+    {/if}
   </div>
 
   <!-- ── META CHIPS ─────────────────────────────────────────────── -->
@@ -241,12 +241,9 @@
   <!-- sec-row: symmetric padding so + Add button has equal space top/bottom from divider line -->
   <div class="sec-row">
     <span class="sec-title">Definitions</span>
-    <button
-      class="btn btn-g btn-sm"
-      style:visibility={app.readonly ? 'hidden' : 'visible'}
-      aria-hidden={app.readonly}
-      onclick={startNewDef}>+ Add</button
-    >
+    {#if !app.readonly}
+      <button class="btn btn-g btn-sm" onclick={startNewDef}>+ Add</button>
+    {/if}
   </div>
 
   <ol class="def-list">
@@ -298,19 +295,16 @@
                 [{d.tags}]
               </span>
             {/if}
-            <!-- btn-ic: fixed 26×26px square regardless of glyph width -->
-            <div
-              class="def-acts"
-              style:visibility={app.readonly ? 'hidden' : 'visible'}
-              aria-hidden={app.readonly}
-            >
-              <button class="btn btn-ic btn-ghost" onclick={() => startEditDef(d)}
-                ><Icon name="edit" size={app.currentPlatform === 'android' ? 18 : 16} /></button
-              >
-              <button class="btn btn-ic btn-ghost btn-r" onclick={() => deleteDef(d.id, word.id)}
-                ><Icon name="delete" size={app.currentPlatform === 'android' ? 18 : 16} /></button
-              >
-            </div>
+            {#if !app.readonly}
+              <div class="def-acts">
+                <button class="btn btn-ic btn-ghost" onclick={() => startEditDef(d)}
+                  ><Icon name="edit" size={app.currentPlatform === 'android' ? 18 : 16} /></button
+                >
+                <button class="btn btn-ic btn-ghost btn-r" onclick={() => deleteDef(d.id, word.id)}
+                  ><Icon name="delete" size={app.currentPlatform === 'android' ? 18 : 16} /></button
+                >
+              </div>
+            {/if}
           </div>
           <!-- svelte-ignore a11y_no_static_element_interactions -->
           <div class="def-body" onclick={handleXref} onkeydown={handleXref}>

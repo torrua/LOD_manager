@@ -12,7 +12,7 @@
   let saving = $state(false);
 
   async function submit() {
-    if (!form.name.trim() || saving) return;
+    if (app.readonly || !form.name.trim() || saving) return;
     saving = true;
     try {
       await saveEvent(ev?.id ?? null, {
@@ -31,6 +31,12 @@
     app.panel = ev ? 'event' : 'welcome';
     if (!ev) app.mobileShowList = true;
   }
+
+  $effect(() => {
+    if (app.readonly) {
+      cancel();
+    }
+  });
 </script>
 
 <div class="ef">

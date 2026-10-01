@@ -515,17 +515,19 @@
         {/if}
         <div class="sep hide-compact"></div>
       {/if}
-      <button
-        class="btn btn-ic btn-ghost hide-compact"
-        class:btn-active={!app.readonly}
-        onclick={toggleReadonly}
-        title={app.readonly ? 'Read-only mode' : 'Edit mode'}
-      >
-        {#if app.readonly}<Icon name="read-mode" size={18} />{:else}<Icon
-            name="edit-mode"
-            size={18}
-          />{/if}
-      </button>
+      {#if app.isAdmin}
+        <button
+          class="btn btn-ic btn-ghost hide-compact"
+          class:btn-active={!app.readonly}
+          onclick={toggleReadonly}
+          title={app.readonly ? 'Read-only mode' : 'Edit mode'}
+        >
+          {#if app.readonly}<Icon name="read-mode" size={18} />{:else}<Icon
+              name="edit-mode"
+              size={18}
+            />{/if}
+        </button>
+      {/if}
       <button class="btn btn-ic btn-ghost hide-compact" onclick={toggleTheme} title="Toggle theme"
         ><Icon name="theme" size={18} /></button
       >
@@ -675,17 +677,19 @@
           <div class="mb-spacer"></div>
         {/if}
         <div class="mb-right">
-          <button
-            class="mb-btn"
-            class:mb-on={!app.readonly}
-            onclick={toggleReadonly}
-            title={app.readonly ? 'Read-only mode' : 'Edit mode'}
-          >
-            {#if app.readonly}<Icon name="read-mode" size={18} />{:else}<Icon
-                name="edit-mode"
-                size={18}
-              />{/if}
-          </button>
+          {#if app.isAdmin}
+            <button
+              class="mb-btn"
+              class:mb-on={!app.readonly}
+              onclick={toggleReadonly}
+              title={app.readonly ? 'Read-only mode' : 'Edit mode'}
+            >
+              {#if app.readonly}<Icon name="read-mode" size={18} />{:else}<Icon
+                  name="edit-mode"
+                  size={18}
+                />{/if}
+            </button>
+          {/if}
           <button class="mb-btn" onclick={toggleTheme} title="Theme">
             <Icon name="theme" size={18} />
           </button>

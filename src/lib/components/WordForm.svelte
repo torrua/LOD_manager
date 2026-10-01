@@ -30,7 +30,7 @@
   }
 
   async function submit() {
-    if (!validate() || saving) return;
+    if (app.readonly || !validate() || saving) return;
     saving = true;
     try {
       await saveWord(w?.id ?? null, {
@@ -56,6 +56,12 @@
     app.panel = w ? 'word' : 'welcome';
     if (!w) app.mobileShowList = true;
   }
+
+  $effect(() => {
+    if (app.readonly) {
+      cancel();
+    }
+  });
 
   function addAffix() {
     const a = newAffix.trim().toLowerCase();

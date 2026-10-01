@@ -41,7 +41,8 @@ export const app = $state({
   dbPath: '',
   wordCount: 0,
   theme: (localStorage.getItem('lod-theme') || 'dark') as 'dark' | 'light',
-  readonly: localStorage.getItem('lod-ro') === '1',
+  isAdmin: isTauri as boolean,
+  readonly: isTauri ? localStorage.getItem('lod-ro') === '1' : true,
   tab: 'words' as Tab,
   words: [] as WordListItem[],
   filteredWords: [] as WordListItem[],
@@ -125,6 +126,10 @@ export function toggleTheme() {
   document.documentElement.dataset.theme = app.theme;
 }
 export function toggleReadonly() {
+  if (!app.isAdmin) {
+    toast('Editing is restricted to administrators', 'info');
+    return;
+  }
   app.readonly = !app.readonly;
   localStorage.setItem('lod-ro', app.readonly ? '1' : '0');
 }
@@ -149,6 +154,14 @@ export async function initWebMode() {
   const envUrl = (import.meta.env.VITE_API_URL as string | undefined) ?? '';
   app.dbPath = envUrl || (typeof window !== 'undefined' ? window.location.origin : 'Remote API');
   try {
+    if (adapter.checkAdminStatus) {
+      app.isAdmin = await adapter.checkAdminStatus();
+    } else {
+      app.isAdmin = false;
+    }
+    if (!app.isAdmin) {
+      app.readonly = true;
+    }
     await loadAll();
     await autoSelectLatestEvent();
     loadDbStats().catch(() => {});
@@ -435,6 +448,7 @@ export async function selectAffixByName(affix: string) {
 }
 
 export async function saveWord(id: number | null, data: object) {
+  if (app.readonly) return;
   const w: WordDetail = await adapter.saveWord(id, data);
   toast(id ? 'Saved!' : 'Created!', 'ok');
   app.curWord = w;
@@ -444,6 +458,7 @@ export async function saveWord(id: number | null, data: object) {
 }
 
 export async function deleteWord(id: number) {
+  if (app.readonly) return;
   await adapter.deleteWord(id);
   toast('Deleted', 'ok');
   app.curWord = null;
@@ -453,11 +468,13 @@ export async function deleteWord(id: number) {
 }
 
 export async function saveDef(id: number | null, wordId: number, data: object) {
+  if (app.readonly) return;
   app.curWord = await adapter.saveDefinition(id, wordId, data);
   toast(id ? 'Updated' : 'Added', 'ok');
 }
 
 export async function deleteDef(id: number, wordId: number) {
+  if (app.readonly) return;
   app.curWord = await adapter.deleteDefinition(id, wordId);
   toast('Deleted', 'ok');
 }
@@ -510,6 +527,7 @@ export async function selectEvent(id: number, pushHist = true) {
 }
 
 export async function saveEvent(id: number | null, data: object) {
+  if (app.readonly) return;
   if (adapter.saveEvent) {
     const ev = await adapter.saveEvent(id, data);
     toast(id ? 'Saved!' : 'Created!', 'ok');
@@ -529,6 +547,7 @@ export async function saveEvent(id: number | null, data: object) {
 }
 
 export async function deleteEvent(id: number) {
+  if (app.readonly) return;
   if (adapter.deleteEvent) {
     await adapter.deleteEvent(id);
   } else if (isTauri) {
@@ -553,6 +572,7 @@ export async function loadTypes() {
 }
 
 export async function saveType(id: number | null, data: object) {
+  if (app.readonly) return;
   if (adapter.saveType) {
     app.types = await adapter.saveType(id, data);
   } else if (isTauri) {
@@ -563,6 +583,7 @@ export async function saveType(id: number | null, data: object) {
 }
 
 export async function deleteType(id: number) {
+  if (app.readonly) return;
   if (adapter.deleteType) {
     app.types = await adapter.deleteType(id);
   } else if (isTauri) {
@@ -583,6 +604,7 @@ export async function loadAuthors() {
 }
 
 export async function saveAuthor(id: number | null, data: object) {
+  if (app.readonly) return;
   if (adapter.saveAuthor) {
     app.authors = await adapter.saveAuthor(id, data);
   } else if (isTauri) {
@@ -593,6 +615,7 @@ export async function saveAuthor(id: number | null, data: object) {
 }
 
 export async function deleteAuthor(id: number) {
+  if (app.readonly) return;
   if (adapter.deleteAuthor) {
     app.authors = await adapter.deleteAuthor(id);
   } else if (isTauri) {

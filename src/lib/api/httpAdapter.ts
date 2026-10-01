@@ -255,6 +255,64 @@ export class HttpAdapter implements DataAdapter {
     }
   }
 
+  async checkAdminStatus(): Promise<boolean> {
+    try {
+      const res = await this.request<{ is_admin?: boolean }>('/api/v1/auth/me');
+      return Boolean(res?.is_admin);
+    } catch {
+      return false;
+    }
+  }
+
+  async saveEvent(id: number | null, data: object): Promise<EventItem> {
+    const method = id ? 'PUT' : 'POST';
+    const path = id ? `/api/v1/events/${id}` : '/api/v1/events';
+    return this.request<EventItem>(path, {
+      method,
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteEvent(id: number): Promise<void> {
+    await this.request<void>(`/api/v1/events/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async saveType(id: number | null, data: object): Promise<TypeItem[]> {
+    const method = id ? 'PUT' : 'POST';
+    const path = id ? `/api/v1/types/${id}` : '/api/v1/types';
+    await this.request<TypeItem>(path, {
+      method,
+      body: JSON.stringify(data),
+    });
+    return this.getTypes();
+  }
+
+  async deleteType(id: number): Promise<TypeItem[]> {
+    await this.request<void>(`/api/v1/types/${id}`, {
+      method: 'DELETE',
+    });
+    return this.getTypes();
+  }
+
+  async saveAuthor(id: number | null, data: object): Promise<AuthorItem[]> {
+    const method = id ? 'PUT' : 'POST';
+    const path = id ? `/api/v1/authors/${id}` : '/api/v1/authors';
+    await this.request<AuthorItem>(path, {
+      method,
+      body: JSON.stringify(data),
+    });
+    return this.getAuthors();
+  }
+
+  async deleteAuthor(id: number): Promise<AuthorItem[]> {
+    await this.request<void>(`/api/v1/authors/${id}`, {
+      method: 'DELETE',
+    });
+    return this.getAuthors();
+  }
+
   async ftsIsReady(): Promise<boolean> {
     return true;
   }
