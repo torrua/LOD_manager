@@ -247,7 +247,7 @@ export async function loadDbStats() {
 
 async function loadAll() {
   try {
-    await Promise.all([loadWords(), loadTypes(), loadEvents(), loadAuthors()]);
+    await Promise.allSettled([loadWords(), loadTypes(), loadEvents(), loadAuthors()]);
   } catch (e) {
     console.error('loadAll:', e);
   }
@@ -260,11 +260,14 @@ export async function loadWords() {
       typeFilter: '',
       eventId: app.prefs.eventFilter ?? null,
     });
-    app.words = words;
+    app.words = Array.isArray(words) ? words : [];
     app.wordCount = app.words.length;
     applyFilter();
   } catch (error) {
     console.error('loadWords: error:', error);
+    app.words = [];
+    app.wordCount = 0;
+    applyFilter();
   }
 }
 
@@ -460,7 +463,13 @@ export async function deleteDef(id: number, wordId: number) {
 }
 
 export async function loadEvents() {
-  app.events = await adapter.getEvents();
+  try {
+    const evs = await adapter.getEvents();
+    app.events = Array.isArray(evs) ? evs : [];
+  } catch (e) {
+    console.error('loadEvents error:', e);
+    app.events = [];
+  }
 }
 
 // Automatically select the latest event if no filter is set
@@ -534,7 +543,13 @@ export async function deleteEvent(id: number) {
 }
 
 export async function loadTypes() {
-  app.types = await adapter.getTypes();
+  try {
+    const types = await adapter.getTypes();
+    app.types = Array.isArray(types) ? types : [];
+  } catch (e) {
+    console.error('loadTypes error:', e);
+    app.types = [];
+  }
 }
 
 export async function saveType(id: number | null, data: object) {
@@ -558,7 +573,13 @@ export async function deleteType(id: number) {
 }
 
 export async function loadAuthors() {
-  app.authors = await adapter.getAuthors();
+  try {
+    const authors = await adapter.getAuthors();
+    app.authors = Array.isArray(authors) ? authors : [];
+  } catch (e) {
+    console.error('loadAuthors error:', e);
+    app.authors = [];
+  }
 }
 
 export async function saveAuthor(id: number | null, data: object) {

@@ -109,7 +109,8 @@ export class HttpAdapter implements DataAdapter {
     }
     const qStr = query.toString();
     const path = `/api/v1/words${qStr ? `?${qStr}` : ''}`;
-    return this.request<WordListItem[]>(path);
+    const items = await this.request<WordListItem[]>(path);
+    return Array.isArray(items) ? items : [];
   }
 
   async getWord(id: number): Promise<WordDetail> {

@@ -40,10 +40,10 @@
     clientH = $state(600);
   const vStart = $derived(Math.max(0, Math.floor(scrollTop / ROW_H) - 10));
   const vEnd = $derived(
-    Math.min(app.filteredWords.length, Math.ceil((scrollTop + clientH) / ROW_H) + 10)
+    Math.min(app.filteredWords?.length ?? 0, Math.ceil((scrollTop + clientH) / ROW_H) + 10)
   );
   const topPad = $derived(vStart * ROW_H);
-  const botPad = $derived(Math.max(0, (app.filteredWords.length - vEnd) * ROW_H));
+  const botPad = $derived(Math.max(0, ((app.filteredWords?.length ?? 0) - vEnd) * ROW_H));
 
   // Auto-scroll functionality removed
 
@@ -138,8 +138,8 @@
     if (e.key === 'ArrowDown') {
       e.preventDefault();
       const nxt = absIdx + 1;
-      const nxtWord = app.filteredWords[nxt];
-      if (nxt < app.filteredWords.length && nxtWord) {
+      const nxtWord = app.filteredWords?.[nxt];
+      if (nxt < (app.filteredWords?.length ?? 0) && nxtWord) {
         selectWord(nxtWord.id);
         focusItem(nxt);
       }
@@ -202,8 +202,8 @@
         return '';
       }
       // L→E
-      const f = app.filteredWords.length,
-        t = app.words.length;
+      const f = app.filteredWords?.length ?? 0,
+        t = app.words?.length ?? 0;
       const active = app.searchQ.trim() || app.typeFilter;
       if (active && f < t) return `${f} / ${t}`;
       return t > 0 ? t.toLocaleString() : '';
@@ -355,7 +355,7 @@
       {#if app.tab === 'words'}
         {#if app.searchMode === 'el'}
           <ELResults />
-        {:else if app.filteredWords.length === 0}
+        {:else if !app.filteredWords || app.filteredWords.length === 0}
           <div class="empty">No words found</div>
         {:else}
           <div style="height:{topPad}px;flex-shrink:0"></div>
