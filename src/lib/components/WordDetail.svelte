@@ -187,6 +187,29 @@
 
   // Avoid duplicating words that are already shown in "Used In" section
   const nonUsedChildren = $derived(word.children.filter((w) => !word.used_in.includes(w)));
+
+  function sortParentsByOrigin(parents: string[], origin: string | null): string[] {
+    if (parents.length <= 1 || !origin) return [...parents].sort();
+    const clean = origin.replace(/[()/+ ]/g, '').toLowerCase();
+    const posOf = (p: string) => {
+      const stem = p.replace(/^-+|-+$/g, '').toLowerCase();
+      if (!stem) return 999999;
+      const idx = clean.indexOf(stem);
+      if (idx !== -1) return idx;
+      if (stem.length >= 4) {
+        const idx4 = clean.indexOf(stem.slice(0, 4));
+        if (idx4 !== -1) return idx4;
+      }
+      if (stem.length >= 3) {
+        const idx3 = clean.indexOf(stem.slice(0, 3));
+        if (idx3 !== -1) return idx3;
+      }
+      return 999999;
+    };
+    return [...parents].sort((a, b) => posOf(a) - posOf(b) || a.localeCompare(b));
+  }
+
+  const sortedParents = $derived(sortParentsByOrigin(word.parents, word.origin));
 </script>
 
 <article class="wd" class:wd-loading={loading}>
@@ -347,17 +370,17 @@
   {/if}
 
   <!-- ── PARENTS ───────────────────────────────────────────────── -->
-  {#if word.parents.length > 0}
+  {#if sortedParents.length > 0}
     <div class="sec-row no-rule">
       <button class="sec-toggle" onclick={() => (parentsOpen = !parentsOpen)}>
         <span class="sec-title">Parents</span>
-        <span class="sec-cnt">{word.parents.length}</span>
+        <span class="sec-cnt">{sortedParents.length}</span>
         <span class="sec-arrow" class:open={parentsOpen}>›</span>
       </button>
     </div>
     {#if parentsOpen}
       <div class="used-in">
-        {#each word.parents as w}
+        {#each sortedParents as w}
           <button class="ui-word" onclick={() => selectWordByName(w)}>
             {w}
           </button>
