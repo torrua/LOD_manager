@@ -184,6 +184,9 @@
       { key: 'until', label: 'Until', val: word.event_end_name },
     ].filter((f) => app.prefs.visibleMeta.includes(f.key) && f.val)
   );
+
+  // Avoid duplicating words that are already shown in "Used In" section
+  const nonUsedChildren = $derived(word.children.filter((w) => !word.used_in.includes(w)));
 </script>
 
 <article class="wd" class:wd-loading={loading}>
@@ -364,17 +367,17 @@
   {/if}
 
   <!-- ── CHILDREN ──────────────────────────────────────────────── -->
-  {#if word.children.length > 0}
+  {#if nonUsedChildren.length > 0}
     <div class="sec-row no-rule">
       <button class="sec-toggle" onclick={() => (childrenOpen = !childrenOpen)}>
         <span class="sec-title">Children</span>
-        <span class="sec-cnt">{word.children.length}</span>
+        <span class="sec-cnt">{nonUsedChildren.length}</span>
         <span class="sec-arrow" class:open={childrenOpen}>›</span>
       </button>
     </div>
     {#if childrenOpen}
       <div class="used-in">
-        {#each word.children as w}
+        {#each nonUsedChildren as w}
           <button class="ui-word" onclick={() => selectWordByName(w)}>
             {w}
           </button>
