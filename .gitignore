@@ -1,0 +1,38 @@
+# Node
+node_modules/
+dist/
+
+# Rust / Tauri build artifacts
+src-tauri/target/
+src-tauri/gen/
+
+# Svelte
+.svelte-kit/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.iml
+
+# Env files with secrets
+.env
+.env.local
+
+*.db
+*.db-shm
+*.db-wal
+release.jks
+release.jks.base64
+keys signature.txt
+
+# AI / Local worktrees & crash logs
+.claude/
+hs_err_pid*.log
+*.profraw
+affix_count.txt
+*.apk
+*.idsig

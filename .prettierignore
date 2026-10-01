@@ -1,0 +1,11 @@
+dist/
+src-tauri/gen/
+src-tauri/target/
+node_modules/
+*.min.*
+.github/
+tables/*.html
+tables/*.db
+tables/*.txt
+.claude/
+.planning/

@@ -1,0 +1,57 @@
+name: Auto-format
+
+# Runs on pushes to main/develop (not PRs — can't push back to fork PRs).
+# If Prettier finds anything to fix, changes are committed back
+# automatically with the [autoformat] tag so CI doesn't re-trigger itself.
+#
+# NOTE: Rust formatting is skipped in autoformat - it requires heavy system
+# dependencies (GTK, webkit) not available on GitHub runners. Use CI workflow
+# for full rustfmt checks.
+on:
+  push:
+    branches: [main, develop]
+
+# Prevent parallel runs
+concurrency:
+  group: autoformat-${{ github.ref }}
+  cancel-in-progress: true
+
+# Need write access to push the formatting commit back.
+permissions:
+  contents: write
+
+jobs:
+  autoformat:
+    name: Prettier
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    # Don't re-run on our own formatting commits (prevents infinite loops)
+    if: "!contains(github.event.head_commit.message, '[autoformat]')"
+
+    steps:
+      - uses: actions/checkout@v6
+
+      # ── JavaScript / Svelte ──────────────────────────────────────────────
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install JS dependencies
+        run: npm install
+
+      # ── Prettier only (no Rust - requires GTK deps not available) ────────
+      - name: Format code
+        run: npm run format || true
+
+      # ── Commit back if anything changed ──────────────────────────────────
+      - name: Commit formatting changes (if any)
+        uses: stefanzweifel/git-auto-commit-action@v7
+        with:
+          commit_message: 'style: auto-format [autoformat]'
+          commit_author: 'github-actions[bot] <github-actions[bot]@users.noreply.github.com>'
+          # Exclude .github/ — GITHUB_TOKEN cannot push workflow file changes
+          # without the `workflows` permission, and CI files shouldn't be
+          # auto-formatted anyway.
+          file_pattern: '. :!.github'

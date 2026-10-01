@@ -1,0 +1,52 @@
+name: CI
+
+# Run after autoformat completes (to get the corrected code)
+# Or directly on PRs to check code before merge.
+on:
+  workflow_run:
+    workflows: [Auto-format]
+    branches: [main, develop]
+    types: [completed]
+  pull_request:
+    branches: [main, develop]
+
+# Cancel outdated runs for the same branch
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ─────────────────────────────────────────────────────────────
+  # Frontend: ESLint + Prettier check + svelte-check (TypeScript)
+  # Only runs on pull requests or after autoformat completes
+  # ─────────────────────────────────────────────────────────────
+  frontend:
+    name: Frontend checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    if: github.event_name == 'pull_request' || github.event.workflow_run.conclusion != 'failure'
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Prettier + ESLint + TypeScript
+        run: npm run ci:check
+
+  # ─────────────────────────────────────────────────────────────
+  # Rust checks: Skip in CI due to GTK/webkit dependencies
+  # Use local checks: cargo fmt + cargo clippy + cargo test
+  # ─────────────────────────────────────────────────────────────
+  # NOTE: Rust checks are disabled in CI because Tauri requires
+  # heavy system dependencies (GTK, webkit2gtk) not available
+  # on GitHub runners. Run these locally before pushing:
+  #   npm run rust:fmt
+  #   npm run rust:lint
+  #   cargo test --manifest-path src-tauri/Cargo.toml
