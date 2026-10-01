@@ -823,6 +823,7 @@
     flex-direction: column;
     box-shadow: -4px 0 24px var(--shd-lg);
     animation: td-in 160ms ease;
+    overflow: hidden;
   }
   @keyframes td-in {
     from {
@@ -843,9 +844,13 @@
       border-left: none;
       border-top: 1px solid var(--border);
       border-radius: 16px 16px 0 0;
-      /* Allow full expansion via swipe — starts at 60%, can expand to 95% */
-      max-height: 95vh;
-      min-height: 55vh;
+      height: 85vh;
+      height: 85dvh;
+      max-height: calc(100vh - 32px);
+      max-height: calc(100dvh - 32px);
+      min-height: 50vh;
+      min-height: 50dvh;
+      overflow: hidden;
       animation: td-up 200ms ease;
     }
     @keyframes td-up {
@@ -855,6 +860,14 @@
       to {
         transform: translateY(0);
       }
+    }
+    .td-hdr {
+      padding-top: 1.25rem;
+      padding-bottom: 0.5rem;
+    }
+    .td-tab {
+      height: 32px;
+      font-size: 0.65rem;
     }
   }
   /* Drag handle pill — mobile only */
@@ -922,8 +935,11 @@
   }
   .td-body {
     flex: 1;
+    min-height: 0;
     overflow-y: auto;
-    padding: 0.75rem 0.85rem;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
+    padding: 0.75rem 0.85rem calc(1.5rem + env(safe-area-inset-bottom, 0px));
     display: flex;
     flex-direction: column;
     gap: 0.55rem;
