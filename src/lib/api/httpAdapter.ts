@@ -130,12 +130,26 @@ export class HttpAdapter implements DataAdapter {
     const cacheKey = 'events_list';
     try {
       const events = await this.request<EventItem[]>('/api/v1/events');
-      await setCached(cacheKey, events);
-      return events;
-    } catch (e) {
+      const list = Array.isArray(events) ? events : [];
+      await setCached(cacheKey, list);
+      return list;
+    } catch {
       const cached = await getCached<EventItem[]>(cacheKey);
-      if (cached) return cached;
-      throw e;
+      if (cached && Array.isArray(cached)) return cached;
+      return [];
+    }
+  }
+
+  async getEventWords(eventId: number): Promise<[string[], string[]]> {
+    try {
+      const data = await this.request<[string[], string[]]>(`/api/v1/events/${eventId}/words`);
+      if (Array.isArray(data) && Array.isArray(data[0]) && Array.isArray(data[1])) {
+        return data;
+      }
+      return [[], []];
+    } catch (e) {
+      console.warn(`Failed to fetch event words for event ${eventId}:`, e);
+      return [[], []];
     }
   }
 
@@ -143,12 +157,13 @@ export class HttpAdapter implements DataAdapter {
     const cacheKey = 'types_list';
     try {
       const types = await this.request<TypeItem[]>('/api/v1/types');
-      await setCached(cacheKey, types);
-      return types;
-    } catch (e) {
+      const list = Array.isArray(types) ? types : [];
+      await setCached(cacheKey, list);
+      return list;
+    } catch {
       const cached = await getCached<TypeItem[]>(cacheKey);
-      if (cached) return cached;
-      throw e;
+      if (cached && Array.isArray(cached)) return cached;
+      return [];
     }
   }
 
@@ -156,12 +171,13 @@ export class HttpAdapter implements DataAdapter {
     const cacheKey = 'authors_list';
     try {
       const authors = await this.request<AuthorItem[]>('/api/v1/authors');
-      await setCached(cacheKey, authors);
-      return authors;
-    } catch (e) {
+      const list = Array.isArray(authors) ? authors : [];
+      await setCached(cacheKey, list);
+      return list;
+    } catch {
       const cached = await getCached<AuthorItem[]>(cacheKey);
-      if (cached) return cached;
-      throw e;
+      if (cached && Array.isArray(cached)) return cached;
+      return [];
     }
   }
 
