@@ -12,11 +12,8 @@ export const isTauri: boolean =
 export const isTelegram: boolean =
   !isTauri &&
   typeof window !== 'undefined' &&
-  Boolean(
-    (window.Telegram?.WebApp?.initData && window.Telegram.WebApp.initData.length > 0) ||
-    (window.Telegram?.WebApp?.platform && window.Telegram.WebApp.platform !== 'unknown')
-  );
+  Boolean(window.Telegram?.WebApp?.initData && window.Telegram.WebApp.initData.length > 0);
 
-export const isWeb: boolean = !isTauri;
+export const isWeb: boolean = !isTauri && !isTelegram;
 
 export const adapter: DataAdapter = isTauri ? new TauriAdapter() : new HttpAdapter();

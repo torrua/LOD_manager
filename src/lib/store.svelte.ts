@@ -1,4 +1,4 @@
-import { adapter, isTauri } from './api';
+import { adapter, isTauri, isTelegram } from './api';
 import {
   getPlatform,
   readBinaryFile,
@@ -154,14 +154,16 @@ export async function initWebMode() {
   const envUrl = (import.meta.env.VITE_API_URL as string | undefined) ?? '';
   app.dbPath = envUrl || (typeof window !== 'undefined' ? window.location.origin : 'Remote API');
   try {
-    if (adapter.checkAdminStatus) {
+    // Editing is strictly prohibited in regular web browsers outside Telegram.
+    // In Telegram Mini App, admin status is checked using Telegram initData credentials.
+    if (isTelegram && adapter.checkAdminStatus) {
       app.isAdmin = await adapter.checkAdminStatus();
     } else {
       app.isAdmin = false;
     }
-    if (!app.isAdmin) {
-      app.readonly = true;
-    }
+
+    // Web and TMA always start in safe read-only mode upon launch
+    app.readonly = true;
     await loadAll();
     await autoSelectLatestEvent();
     loadDbStats().catch(() => {});
@@ -448,7 +450,7 @@ export async function selectAffixByName(affix: string) {
 }
 
 export async function saveWord(id: number | null, data: object) {
-  if (app.readonly) return;
+  if (app.readonly || !app.isAdmin) return;
   const w: WordDetail = await adapter.saveWord(id, data);
   toast(id ? 'Saved!' : 'Created!', 'ok');
   app.curWord = w;
@@ -458,7 +460,7 @@ export async function saveWord(id: number | null, data: object) {
 }
 
 export async function deleteWord(id: number) {
-  if (app.readonly) return;
+  if (app.readonly || !app.isAdmin) return;
   await adapter.deleteWord(id);
   toast('Deleted', 'ok');
   app.curWord = null;
@@ -468,13 +470,13 @@ export async function deleteWord(id: number) {
 }
 
 export async function saveDef(id: number | null, wordId: number, data: object) {
-  if (app.readonly) return;
+  if (app.readonly || !app.isAdmin) return;
   app.curWord = await adapter.saveDefinition(id, wordId, data);
   toast(id ? 'Updated' : 'Added', 'ok');
 }
 
 export async function deleteDef(id: number, wordId: number) {
-  if (app.readonly) return;
+  if (app.readonly || !app.isAdmin) return;
   app.curWord = await adapter.deleteDefinition(id, wordId);
   toast('Deleted', 'ok');
 }
@@ -527,7 +529,7 @@ export async function selectEvent(id: number, pushHist = true) {
 }
 
 export async function saveEvent(id: number | null, data: object) {
-  if (app.readonly) return;
+  if (app.readonly || !app.isAdmin) return;
   if (adapter.saveEvent) {
     const ev = await adapter.saveEvent(id, data);
     toast(id ? 'Saved!' : 'Created!', 'ok');
@@ -547,7 +549,7 @@ export async function saveEvent(id: number | null, data: object) {
 }
 
 export async function deleteEvent(id: number) {
-  if (app.readonly) return;
+  if (app.readonly || !app.isAdmin) return;
   if (adapter.deleteEvent) {
     await adapter.deleteEvent(id);
   } else if (isTauri) {
@@ -572,7 +574,7 @@ export async function loadTypes() {
 }
 
 export async function saveType(id: number | null, data: object) {
-  if (app.readonly) return;
+  if (app.readonly || !app.isAdmin) return;
   if (adapter.saveType) {
     app.types = await adapter.saveType(id, data);
   } else if (isTauri) {
@@ -583,7 +585,7 @@ export async function saveType(id: number | null, data: object) {
 }
 
 export async function deleteType(id: number) {
-  if (app.readonly) return;
+  if (app.readonly || !app.isAdmin) return;
   if (adapter.deleteType) {
     app.types = await adapter.deleteType(id);
   } else if (isTauri) {
@@ -604,7 +606,7 @@ export async function loadAuthors() {
 }
 
 export async function saveAuthor(id: number | null, data: object) {
-  if (app.readonly) return;
+  if (app.readonly || !app.isAdmin) return;
   if (adapter.saveAuthor) {
     app.authors = await adapter.saveAuthor(id, data);
   } else if (isTauri) {
@@ -615,7 +617,7 @@ export async function saveAuthor(id: number | null, data: object) {
 }
 
 export async function deleteAuthor(id: number) {
-  if (app.readonly) return;
+  if (app.readonly || !app.isAdmin) return;
   if (adapter.deleteAuthor) {
     app.authors = await adapter.deleteAuthor(id);
   } else if (isTauri) {
