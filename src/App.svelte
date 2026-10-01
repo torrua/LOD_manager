@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { open as openDialog, save as saveDialog } from '@tauri-apps/plugin-dialog';
+  import { openFilePicker, saveFileDialog } from './lib/tauriBridge';
+  import { isTauri, isTelegram } from './lib/api';
   import {
     app,
     toggleTheme,
@@ -14,6 +15,9 @@
     getDefaultDbPath,
     openDb,
     createDb,
+    initWebMode,
+    selectWord,
+    selectWordByName,
     getActiveEvent,
     applyFilter,
     initPlatform,
@@ -31,6 +35,50 @@
   import ToolsDrawer from './lib/components/ToolsDrawer.svelte';
   import Toast from './lib/components/Toast.svelte';
 
+  function handleStartParam(param: string) {
+    if (!param) return;
+    const cleanParam = param.trim();
+    if (cleanParam.startsWith('w_')) {
+      const val = cleanParam.slice(2);
+      if (/^\d+$/.test(val)) {
+        selectWord(parseInt(val, 10));
+      } else {
+        selectWordByName(val);
+      }
+    } else if (/^\d+$/.test(cleanParam)) {
+      selectWord(parseInt(cleanParam, 10));
+    } else {
+      selectWordByName(cleanParam);
+    }
+  }
+
+  function handleTgBack() {
+    if (app.toolsOpen) {
+      app.toolsOpen = false;
+      return;
+    }
+    if (app.editing) {
+      app.editing = false;
+      app.panel = app.curWord ? 'word' : app.curEvent ? 'event' : 'welcome';
+      return;
+    }
+    if (app.tab !== 'words') {
+      app.tab = 'words';
+      app.panel = 'welcome';
+      app.mobileShowList = true;
+      return;
+    }
+    if (app.curWord !== null || app.panel !== 'welcome') {
+      app.curWord = null;
+      app.panel = 'welcome';
+      app.mobileShowList = true;
+      return;
+    }
+    if (canGoBack()) {
+      goBack();
+    }
+  }
+
   onMount(() => {
     // Initialize mobile detection
     const checkMobile = () => {
@@ -45,8 +93,34 @@
       // Initialize platform detection
       await initPlatform();
 
-      // ── DB auto-open ───────────────────────────────────────────────────────
-      if (app.currentPlatform === 'android') {
+      // Hook into Telegram WebApp lifecycle
+      if (isTelegram && typeof window !== 'undefined' && window.Telegram?.WebApp) {
+        const tg = window.Telegram.WebApp;
+        tg.ready();
+        tg.expand();
+        if (typeof tg.disableVerticalSwipes === 'function') {
+          tg.disableVerticalSwipes();
+        }
+
+        // Sync theme with Telegram
+        const syncTgTheme = () => {
+          if (tg.colorScheme) {
+            app.theme = tg.colorScheme === 'light' ? 'light' : 'dark';
+            localStorage.setItem('lod-theme', app.theme);
+            document.documentElement.dataset.theme = app.theme;
+          }
+        };
+        syncTgTheme();
+        tg.onEvent('themeChanged', syncTgTheme);
+
+        // Native back button handler
+        tg.BackButton.onClick(handleTgBack);
+      }
+
+      // ── DB auto-open / Web mode auto-connect ────────────────────────────────
+      if (!isTauri) {
+        await initWebMode();
+      } else if (app.currentPlatform === 'android') {
         // On Android always open the canonical path inside app_data_dir.
         // This directory survives app updates and is not affected by
         // Scoped Storage restrictions (Android 10+).
@@ -60,11 +134,22 @@
       } else {
         const last = getLastDbPath();
         if (last) {
-          openDb(last).catch(() => {
+          await openDb(last).catch(() => {
             // Path is stale (file moved/deleted) — clear it so next launch is clean
             localStorage.removeItem('lod-last-db');
           });
         }
+      }
+
+      // ── Deep linking via start_param or query params ────────────────────────
+      const startParam =
+        (typeof window !== 'undefined' && window.Telegram?.WebApp?.initDataUnsafe?.start_param) ||
+        (typeof window !== 'undefined' &&
+          (new URLSearchParams(window.location.search).get('tgWebAppStartParam') ||
+            new URLSearchParams(window.location.search).get('startapp') ||
+            new URLSearchParams(window.location.search).get('w')));
+      if (startParam) {
+        handleStartParam(startParam);
       }
     })();
 
@@ -113,7 +198,28 @@
       document.removeEventListener('keydown', handler);
       document.removeEventListener('mouseup', mouseHandler);
       window.removeEventListener('resize', checkMobile);
+      if (isTelegram && typeof window !== 'undefined' && window.Telegram?.WebApp) {
+        window.Telegram.WebApp.BackButton.offClick(handleTgBack);
+      }
     };
+  });
+
+  $effect(() => {
+    if (!isTelegram || typeof window === 'undefined' || !window.Telegram?.WebApp) return;
+    const tg = window.Telegram.WebApp;
+    const shouldShow =
+      app.toolsOpen ||
+      app.editing ||
+      app.tab !== 'words' ||
+      app.curWord !== null ||
+      app.panel !== 'welcome' ||
+      canGoBack();
+
+    if (shouldShow) {
+      tg.BackButton.show();
+    } else {
+      tg.BackButton.hide();
+    }
   });
 
   $effect(() => {
@@ -439,7 +545,12 @@
       <div class="no-db-inner">
         <div class="no-db-icon"><Icon name="words" size={64} /></div>
         <h1>Loglan Online Dictionary</h1>
-        {#if app.currentPlatform === 'android'}
+        {#if !isTauri}
+          <p>Connecting to LOD server…</p>
+          <div class="no-db-btns">
+            <button class="btn btn-au btn-lg" onclick={initWebMode}>Reconnect</button>
+          </div>
+        {:else if app.currentPlatform === 'android'}
           <p>Database is loading…</p>
           <p style="font-size:0.7rem;color:var(--text2);margin-top:0.5rem">
             If this screen persists, tap the button below to import dictionary data.
@@ -466,7 +577,7 @@
             <button
               class="btn btn-au btn-lg"
               onclick={async () => {
-                const p = await openDialog({
+                const p = await openFilePicker({
                   title: 'Open LOD Database',
                   filters: [{ name: 'SQLite', extensions: ['db', 'sqlite', 'sqlite3'] }],
                 });
@@ -476,7 +587,7 @@
             <button
               class="btn btn-g btn-lg"
               onclick={async () => {
-                const p = await saveDialog({
+                const p = await saveFileDialog({
                   title: 'Create New Database',
                   defaultPath: 'loglan.db',
                   filters: [{ name: 'SQLite', extensions: ['db'] }],

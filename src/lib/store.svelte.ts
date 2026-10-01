@@ -1,10 +1,12 @@
-import { invoke } from '@tauri-apps/api/core';
-import { readFile, writeFile } from '@tauri-apps/plugin-fs';
-import { appDataDir, BaseDirectory } from '@tauri-apps/api/path';
-import { platform } from '@tauri-apps/plugin-os';
-import { check, type DownloadEvent } from '@tauri-apps/plugin-updater';
-import { relaunch } from '@tauri-apps/plugin-process';
-// Test comment for pre-commit hook
+import { adapter, isTauri } from './api';
+import {
+  getPlatform,
+  readBinaryFile,
+  writeBinaryFile,
+  getAppDataDirPath,
+  checkAppUpdate,
+  relaunchApp,
+} from './tauriBridge';
 import type {
   WordListItem,
   WordDetail,
@@ -137,28 +139,49 @@ export function toast(msg: string, kind: 'ok' | 'err' | 'info' = 'ok') {
 /// Ask Rust for the canonical default DB path (app_data_dir/lod.db).
 /// This works reliably on Android where JS path construction can mismatch.
 export async function getDefaultDbPath(): Promise<string> {
+  if (!isTauri) return '';
+  const { invoke } = await import('@tauri-apps/api/core');
   return invoke('get_default_db_path');
 }
 
+export async function initWebMode() {
+  app.dbOpen = true;
+  const envUrl = (import.meta.env.VITE_API_URL as string | undefined) ?? '';
+  app.dbPath = envUrl || (typeof window !== 'undefined' ? window.location.origin : 'Remote API');
+  try {
+    await loadAll();
+    await autoSelectLatestEvent();
+    loadDbStats().catch(() => {});
+    checkFts().catch(() => {});
+  } catch (e) {
+    console.error('initWebMode failed:', e);
+    toast(`Failed to load: ${String(e)}`, 'err');
+  }
+}
+
 export async function openDb(path: string) {
+  if (!isTauri) {
+    await initWebMode();
+    return;
+  }
   // Android file picker returns content:// URIs which SQLite cannot open
   // directly. Copy the file into app_data_dir as lod.db (the canonical path)
   // so that it survives app restarts and updates.
   let actualPath = path;
   if (path.startsWith('content://')) {
     try {
-      const bytes = await readFile(path);
+      const bytes = await readBinaryFile(path);
       const destName = 'lod.db';
-      await writeFile(destName, bytes, { baseDir: BaseDirectory.AppData });
-      const dir = await appDataDir();
+      await writeBinaryFile(destName, bytes);
+      const dir = await getAppDataDirPath();
       actualPath = dir.endsWith('/') ? `${dir}${destName}` : `${dir}/${destName}`;
     } catch (e) {
-      // Intentionally throw without cause - Error message is self-explanatory
       throw new Error(
         `Cannot read Android file: ${String(e)}. Try using "Import" from the Tools menu instead.`
       );
     }
   }
+  const { invoke } = await import('@tauri-apps/api/core');
   const info: AppInfo = await invoke('open_database', { path: actualPath });
   app.dbOpen = true;
   app.dbPath = info.db_path;
@@ -175,7 +198,10 @@ export async function openDb(path: string) {
   checkFts().catch(() => {});
   loadDbStats().catch(() => {});
 }
+
 export async function createDb(path: string) {
+  if (!isTauri) return;
+  const { invoke } = await import('@tauri-apps/api/core');
   const info: AppInfo = await invoke('create_database', { path });
   app.dbOpen = true;
   app.dbPath = info.db_path;
@@ -187,9 +213,11 @@ export async function createDb(path: string) {
   toast('New database created', 'ok');
   app.suggestImport = true;
 }
+
 export function getLastDbPath(): string {
   return localStorage.getItem('lod-last-db') || '';
 }
+
 export function closeDb() {
   app.dbOpen = false;
   app.dbPath = '';
@@ -212,8 +240,9 @@ export function closeDb() {
   app.dbStats = null;
   localStorage.removeItem('lod-last-db');
 }
+
 export async function loadDbStats() {
-  app.dbStats = await invoke('get_db_stats');
+  app.dbStats = await adapter.getDbStats();
 }
 
 async function loadAll() {
@@ -226,11 +255,11 @@ async function loadAll() {
 
 export async function loadWords() {
   try {
-    const words = (await invoke('get_words', {
+    const words = await adapter.getWords({
       q: '',
       typeFilter: '',
       eventId: app.prefs.eventFilter ?? null,
-    })) as WordListItem[];
+    });
     app.words = words;
     app.wordCount = app.words.length;
     applyFilter();
@@ -238,10 +267,29 @@ export async function loadWords() {
     console.error('loadWords: error:', error);
   }
 }
+
+if ('onRevalidate' in adapter) {
+  adapter.onRevalidate = (key: string, data: unknown) => {
+    if (key.startsWith('words_')) {
+      const freshWords = data as WordListItem[];
+      if (
+        freshWords &&
+        (freshWords.length !== app.words.length ||
+          freshWords[0]?.id !== app.words[0]?.id ||
+          freshWords[freshWords.length - 1]?.id !== app.words[app.words.length - 1]?.id)
+      ) {
+        app.words = freshWords;
+        app.wordCount = app.words.length;
+        applyFilter();
+      }
+    }
+  };
+}
+
 // Reactive derived — tracks app.events and app.prefs.eventFilter automatically.
-// Export as function since derived values cannot be exported directly from modules
 export const getActiveEvent = () =>
   app.prefs.eventFilter ? (app.events.find((e) => e.id === app.prefs.eventFilter) ?? null) : null;
+
 // Cache for type-group lookups so applyFilter doesn't scan app.types on every word
 const _typeGroupCache = new Map<string, string | undefined>();
 let _typeGroupCacheStamp = 0;
@@ -291,19 +339,16 @@ export function applyFilter() {
 
 export async function selectWord(id: number, pushHist = true) {
   if (!id) return;
-  if (app.loadingWordId === id) return; // Only prevent if already loading this word
+  if (app.loadingWordId === id) return;
   app.loadingWordId = id;
   app.tab = 'words';
-  // Don't hide mobile list to prevent scrolling
-  // app.mobileShowList = false;
   try {
-    const word: WordDetail = await invoke('get_word', { id });
-    if (app.loadingWordId !== id) return; // race: newer request took over
+    const word: WordDetail = await adapter.getWord(id);
+    if (app.loadingWordId !== id) return;
     app.curWord = word;
     app.editing = false;
     app.panel = 'word';
     if (pushHist) pushHistory({ tab: 'words', id });
-    // No auto-scroll - let keyboard navigation handle it
   } catch (error) {
     console.error('selectWord: error:', error);
     toast('Word not found', 'err');
@@ -334,11 +379,11 @@ export async function selectWordByName(name: string) {
   if (!clean) return;
   try {
     const q = clean.includes('*') || clean.includes('?') ? clean : `*${clean}*`;
-    const matches = (await invoke('get_words', {
+    const matches = await adapter.getWords({
       q,
       typeFilter: '',
       eventId: null,
-    })) as WordListItem[];
+    });
     const exact = findWordByName(matches, name, affixTypes);
     if (exact) {
       await selectWord(exact.id);
@@ -362,11 +407,11 @@ export async function selectAffixByName(affix: string) {
 
   try {
     const q = clean.includes('*') || clean.includes('?') ? clean : `*${clean}*`;
-    const matches = (await invoke('get_words', {
+    const matches = await adapter.getWords({
       q,
       typeFilter: '',
       eventId: null,
-    })) as WordListItem[];
+    });
     const dbMatch = findAffixWord(matches, affix, affixTypes);
     if (dbMatch) {
       await selectWord(dbMatch.id);
@@ -385,33 +430,37 @@ export async function selectAffixByName(affix: string) {
     await selectWord(filteredMatch.id);
   }
 }
+
 export async function saveWord(id: number | null, data: object) {
-  const w: WordDetail = await invoke('save_word', { id, data });
+  const w: WordDetail = await adapter.saveWord(id, data);
   toast(id ? 'Saved!' : 'Created!', 'ok');
   app.curWord = w;
   app.editing = false;
   app.panel = 'word';
   await loadWords();
 }
+
 export async function deleteWord(id: number) {
-  await invoke('delete_word', { id });
+  await adapter.deleteWord(id);
   toast('Deleted', 'ok');
   app.curWord = null;
   app.panel = 'welcome';
   app.mobileShowList = true;
   await loadWords();
 }
+
 export async function saveDef(id: number | null, wordId: number, data: object) {
-  app.curWord = await invoke('save_definition', { id, wordId, data });
+  app.curWord = await adapter.saveDefinition(id, wordId, data);
   toast(id ? 'Updated' : 'Added', 'ok');
 }
+
 export async function deleteDef(id: number, wordId: number) {
-  app.curWord = await invoke('delete_definition', { id, wordId });
+  app.curWord = await adapter.deleteDefinition(id, wordId);
   toast('Deleted', 'ok');
 }
 
 export async function loadEvents() {
-  app.events = await invoke('get_events');
+  app.events = await adapter.getEvents();
 }
 
 // Automatically select the latest event if no filter is set
@@ -441,6 +490,7 @@ export async function autoSelectLatestEvent() {
     await loadWords(); // Refresh word list with new filter
   }
 }
+
 export async function selectEvent(id: number, pushHist = true) {
   app.curEvent = app.events.find((e) => e.id === id) || null;
   app.editing = false;
@@ -449,16 +499,33 @@ export async function selectEvent(id: number, pushHist = true) {
   app.mobileShowList = false;
   if (pushHist) pushHistory({ tab: 'events', id });
 }
+
 export async function saveEvent(id: number | null, data: object) {
-  const ev: EventItem = await invoke('save_event', { id, data });
-  toast(id ? 'Saved!' : 'Created!', 'ok');
-  await loadEvents();
-  app.curEvent = app.events.find((e) => e.id === ev.id) || null;
-  app.editing = false;
-  app.panel = 'event';
+  if (adapter.saveEvent) {
+    const ev = await adapter.saveEvent(id, data);
+    toast(id ? 'Saved!' : 'Created!', 'ok');
+    await loadEvents();
+    app.curEvent = app.events.find((e) => e.id === ev.id) || null;
+    app.editing = false;
+    app.panel = 'event';
+  } else if (isTauri) {
+    const { invoke } = await import('@tauri-apps/api/core');
+    const ev: EventItem = await invoke('save_event', { id, data });
+    toast(id ? 'Saved!' : 'Created!', 'ok');
+    await loadEvents();
+    app.curEvent = app.events.find((e) => e.id === ev.id) || null;
+    app.editing = false;
+    app.panel = 'event';
+  }
 }
+
 export async function deleteEvent(id: number) {
-  await invoke('delete_event', { id });
+  if (adapter.deleteEvent) {
+    await adapter.deleteEvent(id);
+  } else if (isTauri) {
+    const { invoke } = await import('@tauri-apps/api/core');
+    await invoke('delete_event', { id });
+  }
   toast('Deleted', 'ok');
   app.curEvent = null;
   app.panel = 'welcome';
@@ -467,30 +534,59 @@ export async function deleteEvent(id: number) {
 }
 
 export async function loadTypes() {
-  app.types = await invoke('get_types');
+  app.types = await adapter.getTypes();
 }
+
 export async function saveType(id: number | null, data: object) {
-  app.types = await invoke('save_type', { id, data });
+  if (adapter.saveType) {
+    app.types = await adapter.saveType(id, data);
+  } else if (isTauri) {
+    const { invoke } = await import('@tauri-apps/api/core');
+    app.types = await invoke('save_type', { id, data });
+  }
   toast(id ? 'Updated!' : 'Created!', 'ok');
 }
+
 export async function deleteType(id: number) {
-  app.types = await invoke('delete_type', { id });
+  if (adapter.deleteType) {
+    app.types = await adapter.deleteType(id);
+  } else if (isTauri) {
+    const { invoke } = await import('@tauri-apps/api/core');
+    app.types = await invoke('delete_type', { id });
+  }
   toast('Deleted', 'ok');
 }
 
 export async function loadAuthors() {
-  app.authors = (await invoke('get_authors')) as AuthorItem[];
+  app.authors = await adapter.getAuthors();
 }
+
 export async function saveAuthor(id: number | null, data: object) {
-  app.authors = await invoke('save_author', { id, data });
+  if (adapter.saveAuthor) {
+    app.authors = await adapter.saveAuthor(id, data);
+  } else if (isTauri) {
+    const { invoke } = await import('@tauri-apps/api/core');
+    app.authors = await invoke('save_author', { id, data });
+  }
   toast(id ? 'Updated!' : 'Added!', 'ok');
 }
+
 export async function deleteAuthor(id: number) {
-  app.authors = await invoke('delete_author', { id });
+  if (adapter.deleteAuthor) {
+    app.authors = await adapter.deleteAuthor(id);
+  } else if (isTauri) {
+    const { invoke } = await import('@tauri-apps/api/core');
+    app.authors = await invoke('delete_author', { id });
+  }
   toast('Deleted', 'ok');
 }
 
 export async function importFiles(paths: string[], fileNames?: string[]) {
+  if (!isTauri) {
+    throw new Error('Import is only supported on Desktop / Android');
+  }
+  const { invoke } = await import('@tauri-apps/api/core');
+
   // Check for different URI types
   const hasContentUris = paths.some(
     (p) => p.startsWith('content://') || p.startsWith('msf:') || p.includes('%3A')
@@ -499,14 +595,12 @@ export async function importFiles(paths: string[], fileNames?: string[]) {
 
   let result;
   if (hasGitHubUris) {
-    // Handle GitHub downloads - content is embedded in the URI
     const files: [string, string][] = [];
     for (let i = 0; i < paths.length; i++) {
       const p = paths[i];
       if (!p || !p.startsWith('github://')) continue;
 
-      // Parse github://filename:content format
-      const colonIndex = p.indexOf(':', 9); // 9 = length of "github://"
+      const colonIndex = p.indexOf(':', 9);
       if (colonIndex === -1) continue;
 
       const name = p.substring(9, colonIndex);
@@ -516,36 +610,30 @@ export async function importFiles(paths: string[], fileNames?: string[]) {
     }
     result = await invoke('import_lod_contents', { files });
   } else if (hasContentUris) {
-    // Read each file as text in JS, pair with its name for the Rust importer
     const files: [string, string][] = [];
     for (let i = 0; i < paths.length; i++) {
       const p = paths[i];
-      if (!p) continue; // Skip empty paths
-      // Use provided filename or derive from path/index
+      if (!p) continue;
       let name = fileNames?.[i];
       if (!name) {
         if (p.startsWith('content://')) {
-          // For Android content URIs, try to extract meaningful filename
           const decoded = decodeURIComponent(p);
           const uriParts = decoded.split('/');
           const lastPart = uriParts[uriParts.length - 1];
           const cleanName = lastPart?.split('?')[0]?.split('#')[0] || '';
-          // If it looks like a filename, use it; otherwise use generic name
           if (cleanName && (cleanName.includes('.') || cleanName.length > 10)) {
             name = cleanName;
           } else {
-            // Try to get document ID or use timestamp-based name
             const docId = uriParts.find((part) => part.includes('document'))?.split('document/')[1];
             name = docId ? `file_${docId}.txt` : `android_file_${Date.now()}_${i}.txt`;
           }
         } else {
-          // For regular file paths
           name = p.split(/[/\\]/).pop() || `file_${i}.txt`;
         }
       }
       if (!name.endsWith('.txt')) name = `${name}.txt`;
       try {
-        const bytes = await readFile(p);
+        const bytes = await readBinaryFile(p);
         const text = new TextDecoder('utf-8').decode(bytes);
         files.push([name, text]);
       } catch (e) {
@@ -563,6 +651,10 @@ export async function importFiles(paths: string[], fileNames?: string[]) {
 }
 
 export async function convertTextFiles(textDir: string): Promise<ImportResult> {
+  if (!isTauri) {
+    throw new Error('Converter is only supported on Desktop / Android');
+  }
+  const { invoke } = await import('@tauri-apps/api/core');
   const result = (await invoke('convert_text_files', { textDir })) as ImportResult;
   await loadAll();
   await autoSelectLatestEvent();
@@ -571,6 +663,10 @@ export async function convertTextFiles(textDir: string): Promise<ImportResult> {
 }
 
 export async function exportHtmlToFile(path: string, eventName: string | null): Promise<void> {
+  if (!isTauri) {
+    throw new Error('Export is only supported on Desktop / Android');
+  }
+  const { invoke } = await import('@tauri-apps/api/core');
   await invoke('export_html_to_file', { path, eventName });
 }
 
@@ -587,14 +683,14 @@ export function setSearchMode(mode: SearchMode) {
 
 export async function checkFts() {
   if (!app.dbOpen) return;
-  app.elFtsReady = await invoke('fts_is_ready');
+  app.elFtsReady = adapter.ftsIsReady ? await adapter.ftsIsReady() : true;
 }
 
 export async function rebuildFts() {
   if (!app.dbOpen) return;
   toast('Rebuilding FTS index…', 'info');
   try {
-    const count: number = await invoke('rebuild_fts');
+    const count: number = adapter.rebuildFts ? await adapter.rebuildFts() : 0;
     app.elFtsReady = true;
     toast(`FTS ready — ${count.toLocaleString()} entries`, 'ok');
   } catch (e) {
@@ -606,7 +702,7 @@ export async function compactDb() {
   if (!app.dbOpen) return;
   toast('Compacting database…', 'info');
   try {
-    const size: string = await invoke('compact_db');
+    const size: string = adapter.compactDb ? await adapter.compactDb() : '0 B';
     toast(`Database compacted — ${size}`, 'ok');
   } catch (e) {
     toast(String(e), 'err');
@@ -627,24 +723,20 @@ export async function searchEnglishNow(q = app.elQuery) {
   if (!q.trim() || !app.dbOpen) return;
   app.elSearching = true;
   try {
-    app.elResults = await invoke('search_english', {
-      params: {
-        query: q,
-        use_like: app.prefs.elUseLike,
-        use_keywords_only: app.prefs.elUseKeywords,
-        limit: 300,
-      },
+    app.elResults = await adapter.searchEnglish({
+      query: q,
+      use_like: app.prefs.elUseLike,
+      use_keywords_only: app.prefs.elUseKeywords,
+      limit: 300,
     });
   } catch {
     // FTS may fail on syntax error — re-try with LIKE
     try {
-      app.elResults = await invoke('search_english', {
-        params: {
-          query: q,
-          use_like: true,
-          use_keywords_only: app.prefs.elUseKeywords,
-          limit: 300,
-        },
+      app.elResults = await adapter.searchEnglish({
+        query: q,
+        use_like: true,
+        use_keywords_only: app.prefs.elUseKeywords,
+        limit: 300,
       });
     } catch {
       app.elResults = [];
@@ -680,19 +772,26 @@ export const canGoBack = () => app.historyIdx > 0;
 export const canGoForward = () => app.historyIdx < app.history.length - 1;
 
 export async function getEventWords(eventId: number): Promise<[string[], string[]]> {
-  return invoke('get_event_words', { eventId });
+  if (adapter.getEventWords) {
+    return adapter.getEventWords(eventId);
+  }
+  if (isTauri) {
+    const { invoke } = await import('@tauri-apps/api/core');
+    return invoke('get_event_words', { eventId });
+  }
+  return [[], []];
 }
 
 export async function initPlatform() {
   try {
-    app.currentPlatform = await platform();
+    app.currentPlatform = await getPlatform();
   } catch {
     app.currentPlatform = 'unknown';
   }
 }
 
 export async function checkForUpdate() {
-  if (app.currentPlatform === 'android' || app.currentPlatform === 'ios') return;
+  if (!isTauri || app.currentPlatform === 'android' || app.currentPlatform === 'ios') return;
 
   const log = (msg: string) => {
     const timestamp = new Date().toLocaleTimeString();
@@ -704,14 +803,15 @@ export async function checkForUpdate() {
 
   // Call Rust debug endpoint for more verbose logging
   try {
+    const { invoke } = await import('@tauri-apps/api/core');
     const rustResult: string = await invoke('debug_update_check');
     log(`Rust check: ${rustResult}`);
   } catch (e) {
-    log(`Rust check error: ${e}`);
+    log(`Rust check error: ${String(e)}`);
   }
 
   try {
-    const update = await check();
+    const update = await checkAppUpdate();
     if (update) {
       app.updateAvailable = true;
       app.updateVersion = update.version;
@@ -723,34 +823,25 @@ export async function checkForUpdate() {
     }
   } catch (e) {
     console.error('Update check failed:', e);
-    log(`ERROR: ${e}`);
-    if (e instanceof Error) {
-      log(`Error name: ${e.name}`);
-      log(`Error message: ${e.message}`);
-      const errAny = e as unknown as Record<string, unknown>;
-      if (errAny.cause) log(`Error cause: ${String(errAny.cause)}`);
-      if (e.stack) {
-        const stackLines = e.stack.split('\n').slice(0, 5).join('\n');
-        log(`Stack: ${stackLines}`);
-      }
-    }
+    log(`ERROR: ${String(e)}`);
     const errMsg = e instanceof Error ? e.message : String(e);
     toast(`Update failed: ${errMsg}`, 'err');
   }
 }
 
 export async function installUpdate() {
+  if (!isTauri) return;
   try {
     app.updateDownloading = true;
     app.updateProgress = 0;
-    const update = await check();
+    const update = await checkAppUpdate();
     if (!update) {
       app.updateDownloading = false;
       return;
     }
     let downloaded = 0;
     let contentLength = 0;
-    await update.downloadAndInstall((event: DownloadEvent) => {
+    await update.downloadAndInstall((event) => {
       switch (event.event) {
         case 'Started':
           contentLength = event.data.contentLength ?? 0;
@@ -766,7 +857,7 @@ export async function installUpdate() {
           break;
       }
     });
-    await relaunch();
+    await relaunchApp();
   } catch (e) {
     console.error('Update install failed:', e);
     toast('Update failed', 'err');

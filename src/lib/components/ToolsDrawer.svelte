@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { save as saveDialog, open as openFilePicker } from '@tauri-apps/plugin-dialog';
-  import { getVersion } from '@tauri-apps/api/app';
+  import { openFilePicker, saveFileDialog, getAppVersion } from '../tauriBridge';
+  import { isTauri } from '../api';
   import Icon from './Icon.svelte';
   import {
     app,
@@ -24,7 +24,7 @@
 
   // ── App version ───────────────────────────────────────────────────────────
   let appVersion = $state('…');
-  getVersion()
+  getAppVersion()
     .then((v) => (appVersion = v))
     .catch(() => (appVersion = '—'));
 
@@ -227,7 +227,7 @@
 
   async function runExport() {
     if (expRunning || !app.dbOpen) return;
-    const dest = await saveDialog({
+    const dest = await saveFileDialog({
       title: 'Save HTML Dictionary',
       defaultPath: buildExportName(),
       filters: [{ name: 'HTML', extensions: ['html'] }],
@@ -254,7 +254,7 @@
     if (p) await openDb(p as string).catch((e) => toast(String(e), 'err'));
   }
   async function handleNew() {
-    const p = await saveDialog({
+    const p = await saveFileDialog({
       title: 'Create New LOD Database',
       defaultPath: 'loglan.db',
       filters: [{ name: 'SQLite', extensions: ['db'] }],
@@ -320,6 +320,9 @@
     // Swipe down ≥80px in <400ms → close
     if (dt < 400 && dy > 80) app.toolsOpen = false;
   }
+  const toolsTabs = isTauri
+    ? (['settings', 'database', 'import', 'export'] as const)
+    : (['settings', 'database'] as const);
 </script>
 
 <button class="td-backdrop" onclick={() => (app.toolsOpen = false)} aria-label="Close tools"
@@ -334,7 +337,7 @@
   </div>
 
   <nav class="td-tabs">
-    {#each ['settings', 'database', 'import', 'export'] as const as t}
+    {#each toolsTabs as t}
       <button class="td-tab" class:on={app.toolsTab === t} onclick={() => (app.toolsTab = t)}>
         {t.charAt(0).toUpperCase() + t.slice(1)}
       </button>
@@ -380,32 +383,34 @@
             <span class="dsl">Words</span><span class="dsv">{app.wordCount.toLocaleString()}</span>
           {/if}
         </div>
-        <!-- issue #1: no ellipsis on buttons -->
-        {#if app.currentPlatform !== 'android'}
-          <div class="td-acts">
-            <button class="btn btn-au btn-sm" onclick={handleSwitch}
-              ><Icon name="database" size={16} /> Switch DB</button
-            >
-            <button class="btn btn-g btn-sm" onclick={handleNew}
-              ><Icon name="plus" size={16} /> New DB</button
-            >
-            <button class="btn btn-r btn-sm" onclick={closeDb}
-              ><Icon name="close" size={16} /> Close</button
-            >
+        {#if isTauri}
+          <!-- issue #1: no ellipsis on buttons -->
+          {#if app.currentPlatform !== 'android'}
+            <div class="td-acts">
+              <button class="btn btn-au btn-sm" onclick={handleSwitch}
+                ><Icon name="database" size={16} /> Switch DB</button
+              >
+              <button class="btn btn-g btn-sm" onclick={handleNew}
+                ><Icon name="plus" size={16} /> New DB</button
+              >
+              <button class="btn btn-r btn-sm" onclick={closeDb}
+                ><Icon name="close" size={16} /> Close</button
+              >
+            </div>
+          {/if}
+          <div class="db-maintenance" style="margin-top:1rem">
+            <div class="sg-title" style="font-size:var(--fs-sm);margin-bottom:.4rem">
+              Database Maintenance
+            </div>
+            <div style="display:flex;flex-wrap:wrap;gap:.5rem">
+              <button class="btn btn-sm" onclick={() => rebuildFts()}>Rebuild FTS Index</button>
+              <button class="btn btn-sm" onclick={() => compactDb()}>Compact DB</button>
+            </div>
+            <p class="td-hint" style="margin-top:.35rem">
+              Rebuild FTS repairs the search index. Compact DB reclaims space from deleted entries.
+            </p>
           </div>
         {/if}
-        <div class="db-maintenance" style="margin-top:1rem">
-          <div class="sg-title" style="font-size:var(--fs-sm);margin-bottom:.4rem">
-            Database Maintenance
-          </div>
-          <div style="display:flex;flex-wrap:wrap;gap:.5rem">
-            <button class="btn btn-sm" onclick={() => rebuildFts()}>Rebuild FTS Index</button>
-            <button class="btn btn-sm" onclick={() => compactDb()}>Compact DB</button>
-          </div>
-          <p class="td-hint" style="margin-top:.35rem">
-            Rebuild FTS repairs the search index. Compact DB reclaims space from deleted entries.
-          </p>
-        </div>
       {:else}
         {#if app.currentPlatform === 'android'}
           <p class="td-hint">Database is loading…</p>
@@ -749,7 +754,7 @@
       <!-- App version -->
       <div class="settings-group version-group">
         <span class="version-label">LOD Manager v{appVersion}</span>
-        {#if app.currentPlatform !== 'android' && app.currentPlatform !== 'ios'}
+        {#if isTauri && app.currentPlatform !== 'android' && app.currentPlatform !== 'ios'}
           {#if app.updateAvailable}
             <button
               class="btn btn-sm"

@@ -34,3 +34,5 @@ keys signature.txt
 hs_err_pid*.log
 *.profraw
 affix_count.txt
+*.apk
+*.idsig
