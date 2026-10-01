@@ -50,26 +50,37 @@
 
   {#if creating}{@render typeForm('New Type')}{/if}
 
-  <table class="data-table">
-    <thead
-      ><tr>
-        <th>Name</th><th>Abbrev</th><th>Group</th>
-        <th style="text-align:right">Words</th>
-        {#if !app.readonly}<th></th>{/if}
-      </tr></thead
-    >
+  <table class="data-table types-table">
+    <colgroup>
+      <col class="col-type-name" />
+      <col class="col-type-x" />
+      <col class="col-type-group" />
+      <col class="col-type-words" />
+      {#if !app.readonly}<col class="col-acts" />{/if}
+    </colgroup>
+    <thead>
+      <tr>
+        <th class="col-type-name">Name</th>
+        <th class="col-type-x">Abbrev</th>
+        <th class="col-type-group">Group</th>
+        <th class="col-type-words" style="text-align:right">Words</th>
+        {#if !app.readonly}<th class="col-acts"></th>{/if}
+      </tr>
+    </thead>
     <tbody>
       {#each app.types as t}
         {#if editing === t.id}
-          <tr><td colspan="5">{@render typeForm(`Edit: ${t.name}`)}</td></tr>
+          <tr><td colspan={app.readonly ? 4 : 5}>{@render typeForm(`Edit: ${t.name}`)}</td></tr>
         {:else}
           <tr>
-            <td><span class="td-name">{t.name}</span></td>
-            <td><span class="td-sub">{t.type_x || '—'}</span></td>
-            <td><span class="td-sub">{t.group_ || '—'}</span></td>
-            <td style="text-align:right"><span class="td-sub">{t.word_count}</span></td>
+            <td class="col-type-name"><span class="td-name">{t.name}</span></td>
+            <td class="col-type-x"><span class="td-sub">{t.type_x || '—'}</span></td>
+            <td class="col-type-group"><span class="td-sub">{t.group_ || '—'}</span></td>
+            <td class="col-type-words" style="text-align:right"
+              ><span class="td-sub">{t.word_count}</span></td
+            >
             {#if !app.readonly}
-              <td>
+              <td class="col-acts">
                 <div class="row-acts edit-only">
                   <button class="btn btn-ic btn-ghost" onclick={() => startEdit(t.id)}
                     ><Icon name="edit" size={16} /></button
@@ -125,4 +136,38 @@
 
 <style>
   /* .inline-form and .if-title are global classes */
+  .types-table {
+    table-layout: fixed;
+    width: 100%;
+    max-width: 100%;
+  }
+  .col-type-name {
+    width: 30%;
+  }
+  .col-type-x {
+    width: 24%;
+  }
+  .col-type-group {
+    width: 24%;
+  }
+  .col-type-words {
+    width: 68px;
+  }
+  .col-acts {
+    width: 56px;
+    text-align: right;
+  }
+  :global(.types-table td) {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    vertical-align: top;
+  }
+  @media (max-width: 640px) {
+    .col-type-words {
+      width: 50px;
+    }
+    .col-acts {
+      width: 48px;
+    }
+  }
 </style>

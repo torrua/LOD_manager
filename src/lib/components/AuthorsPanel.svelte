@@ -50,24 +50,34 @@
 
   {#if creating}{@render authorForm('New Author')}{/if}
 
-  <table class="data-table">
-    <thead
-      ><tr>
-        <th>Initials</th><th>Full name</th><th>Notes</th>
-        {#if !app.readonly}<th></th>{/if}
-      </tr></thead
-    >
+  <table class="data-table authors-table">
+    <colgroup>
+      <col class="col-initials" />
+      <col class="col-name" />
+      <col class="col-notes" />
+      {#if !app.readonly}<col class="col-acts" />{/if}
+    </colgroup>
+    <thead>
+      <tr>
+        <th class="col-initials">Initials</th>
+        <th class="col-name">Full name</th>
+        <th class="col-notes">Notes</th>
+        {#if !app.readonly}<th class="col-acts"></th>{/if}
+      </tr>
+    </thead>
     <tbody>
       {#each app.authors as a}
         {#if editing === a.id}
-          <tr><td colspan="4">{@render authorForm(`Edit: ${a.initials}`)}</td></tr>
+          <tr
+            ><td colspan={app.readonly ? 3 : 4}>{@render authorForm(`Edit: ${a.initials}`)}</td></tr
+          >
         {:else}
           <tr>
-            <td><span class="td-name">{a.initials}</span></td>
-            <td><span class="td-sub">{a.full_name || '—'}</span></td>
-            <td><span class="td-sub">{a.notes || ''}</span></td>
+            <td class="col-initials"><span class="td-name">{a.initials}</span></td>
+            <td class="col-name"><span class="td-sub">{a.full_name || '—'}</span></td>
+            <td class="col-notes"><span class="td-sub td-notes">{a.notes || ''}</span></td>
             {#if !app.readonly}
-              <td>
+              <td class="col-acts">
                 <div class="row-acts edit-only">
                   <button class="btn btn-ic btn-ghost" onclick={() => startEdit(a.id)}
                     ><Icon name="edit" size={16} /></button
@@ -124,4 +134,46 @@
 
 <style>
   /* .inline-form and .if-title are global classes */
+  .authors-table {
+    table-layout: fixed;
+    width: 100%;
+    max-width: 100%;
+  }
+  .col-initials {
+    width: 68px;
+  }
+  .col-name {
+    width: 32%;
+  }
+  .col-notes {
+    width: auto;
+  }
+  .col-acts {
+    width: 56px;
+    text-align: right;
+  }
+  :global(.authors-table td) {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    vertical-align: top;
+  }
+  :global(.authors-table .td-notes) {
+    display: inline-block;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    white-space: pre-wrap;
+    line-height: 1.4;
+  }
+  @media (max-width: 640px) {
+    .col-initials {
+      width: 48px;
+    }
+    .col-name {
+      width: 34%;
+    }
+    .col-acts {
+      width: 48px;
+    }
+  }
 </style>

@@ -1097,8 +1097,15 @@
   }
   :global(.data-table) {
     width: 100%;
+    max-width: 100%;
     border-collapse: collapse;
     font-size: 0.77rem;
+    table-layout: fixed;
+  }
+  :global(.data-table th),
+  :global(.data-table td) {
+    overflow-wrap: anywhere;
+    word-break: break-word;
   }
   :global(.data-table th) {
     text-align: left;
@@ -1124,10 +1131,14 @@
     color: var(--gold);
     font-weight: 600;
     font-size: 0.78rem;
+    overflow-wrap: anywhere;
+    word-break: break-word;
   }
   :global(.td-sub) {
     color: var(--text2);
     font-size: 0.7rem;
+    overflow-wrap: anywhere;
+    word-break: break-word;
   }
   :global(.row-acts) {
     opacity: 0;
@@ -1677,6 +1688,10 @@
       display: block;
       flex: 1;
       padding: 0.6rem 0.75rem;
+      overflow-y: auto;
+      overflow-x: hidden;
+      min-width: 0;
+      max-width: 100%;
     }
   }
 
