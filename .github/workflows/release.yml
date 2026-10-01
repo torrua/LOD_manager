@@ -153,12 +153,14 @@ jobs:
           java-version: '17'
           distribution: temurin
 
-      - uses: android-actions/setup-android@v3
-
-      - name: Set NDK_HOME to pre-installed NDK
+      - name: Setup Android SDK and NDK
         run: |
+          export ANDROID_HOME="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          echo "ANDROID_HOME=$ANDROID_HOME" >> $GITHUB_ENV
           NDK_VER=$(ls "$ANDROID_HOME/ndk" | sort -V | tail -1)
           echo "NDK_HOME=$ANDROID_HOME/ndk/$NDK_VER" >> $GITHUB_ENV
+          echo "Using Android SDK: $ANDROID_HOME"
+          echo "Using Android NDK: $ANDROID_HOME/ndk/$NDK_VER"
 
       - run: cargo install cargo-ndk --locked
       - run: npm install
@@ -247,7 +249,7 @@ jobs:
           grep -v -i pass keystore.properties
 
       - name: Build Android APK
-        run: npx tauri android build --target aarch64
+        run: npx tauri android build --target aarch64 --apk
         env:
           NDK_HOME: ${{ env.NDK_HOME }}
 
