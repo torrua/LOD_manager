@@ -152,7 +152,9 @@ export async function getDefaultDbPath(): Promise<string> {
 export async function initWebMode() {
   app.dbOpen = true;
   const envUrl = (import.meta.env.VITE_API_URL as string | undefined) ?? '';
-  app.dbPath = envUrl || (typeof window !== 'undefined' ? window.location.origin : 'Remote API');
+  const customUrl = typeof window !== 'undefined' ? localStorage.getItem('lod_api_url') : null;
+  app.dbPath =
+    customUrl || envUrl || (typeof window !== 'undefined' ? window.location.origin : 'Remote API');
   try {
     // Editing is strictly prohibited in regular web browsers outside Telegram.
     // In Telegram Mini App, admin status is checked using Telegram initData credentials.

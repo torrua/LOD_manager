@@ -11,9 +11,23 @@ import type {
 import type { DataAdapter, GetWordsParams } from './types';
 import { getCached, setCached } from './cache';
 
-function getApiBase(): string {
+export function getApiBase(): string {
+  if (typeof window !== 'undefined') {
+    const custom = localStorage.getItem('lod_api_url');
+    if (custom) return custom.replace(/\/+$/, '');
+  }
   const envUrl = (import.meta.env.VITE_API_URL as string | undefined) ?? '';
   return envUrl ? envUrl.replace(/\/+$/, '') : '';
+}
+
+export function setCustomApiBase(url: string) {
+  if (typeof window !== 'undefined') {
+    if (url.trim()) {
+      localStorage.setItem('lod_api_url', url.trim().replace(/\/+$/, ''));
+    } else {
+      localStorage.removeItem('lod_api_url');
+    }
+  }
 }
 
 function getAuthHeaders(): Record<string, string> {
@@ -31,7 +45,9 @@ function getAuthHeaders(): Record<string, string> {
 }
 
 export class HttpAdapter implements DataAdapter {
-  private base = getApiBase();
+  private get base(): string {
+    return getApiBase();
+  }
   onRevalidate?: ((key: string, data: unknown) => void) | undefined;
 
   private async request<T>(path: string, options: RequestInit = {}): Promise<T> {

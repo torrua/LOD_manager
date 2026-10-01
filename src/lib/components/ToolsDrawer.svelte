@@ -1,6 +1,7 @@
 <script lang="ts">
   import { openFilePicker, saveFileDialog, getAppVersion } from '../tauriBridge';
   import { isTauri } from '../api';
+  import { getApiBase, setCustomApiBase } from '../api/httpAdapter';
   import Icon from './Icon.svelte';
   import {
     app,
@@ -41,6 +42,14 @@
   let convDir = $state('');
   let convRunning = $state(false);
   let convResult = $state<ImportResult | null>(null);
+
+  // ── Custom API base for web/TMA mode ─────────────────────────────────────
+  let customApiInput = $state(getApiBase());
+  async function saveCustomApi() {
+    setCustomApiBase(customApiInput);
+    toast('API Server updated', 'ok');
+    await openDb('');
+  }
 
   async function pickImport() {
     const sel = await openFilePicker({
@@ -409,6 +418,26 @@
             <p class="td-hint" style="margin-top:.35rem">
               Rebuild FTS repairs the search index. Compact DB reclaims space from deleted entries.
             </p>
+          </div>
+        {/if}
+        {#if !isTauri}
+          <div class="db-maintenance" style="margin-top:1rem">
+            <div class="sg-title" style="font-size:var(--fs-sm);margin-bottom:.4rem">
+              API Server
+            </div>
+            <p class="td-hint" style="margin-bottom:.4rem">
+              Endpoint for dictionary data and synchronization.
+            </p>
+            <div style="display:flex;gap:.35rem">
+              <input
+                type="text"
+                class="conv-dir-input"
+                style="flex:1"
+                placeholder="https://api-domain.com"
+                bind:value={customApiInput}
+              />
+              <button class="btn btn-au btn-sm" onclick={saveCustomApi}>Save</button>
+            </div>
           </div>
         {/if}
       {:else}
