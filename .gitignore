@@ -37,3 +37,7 @@ hs_err_pid*.log
 affix_count.txt
 *.apk
 *.idsig
+
+# Python
+__pycache__/
+*.py[cod]

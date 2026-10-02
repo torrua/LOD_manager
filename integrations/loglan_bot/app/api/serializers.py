@@ -209,9 +209,13 @@ def serialize_word_detail(word: Any) -> Dict[str, Any]:
         else _get(word, "event_end_name") or (str(ev_end) if ev_end else None)
     )
 
-    # Affixes & Spellings
-    affixes_raw = _get(word, "affixes", []) or []
-    affixes = [str(_get(a, "name", a)) for a in affixes_raw if a is not None]
+    # Affixes & Spellings (support both djifoa and affixes)
+    affixes_raw = _get(word, "djifoa") or _get(word, "affixes", []) or []
+    affixes = [
+        str(_get(a, "name", a)).replace("-", "")
+        for a in affixes_raw
+        if a is not None and str(_get(a, "name", a)).replace("-", "")
+    ]
 
     spellings_raw = _get(word, "spellings", []) or []
     spellings = [str(_get(s, "name", s)) for s in spellings_raw if s is not None]
