@@ -9,7 +9,7 @@ This directory contains integration templates and deployment configurations conn
 The official, canonical backend and Telegram Bot is maintained in its dedicated repository:
 👉 **[torrua/loglan_bot](https://github.com/torrua/loglan_bot)**
 
-All API endpoints (`/api/v1/*`), database models (`loglan_core`), Telegram webhook handlers, authentication, and test suites are developed and maintained in that repository. 
+All API endpoints (`/api/v1/*`), database models (`loglan_core`), Telegram webhook handlers, authentication, and test suites are developed and maintained in that repository.
 
 To avoid code drift and dual maintenance, Python API sources are not duplicated here.
 
@@ -55,11 +55,11 @@ docker compose up -d
 
 ### Environment Variables
 
-| Variable | Description | Default |
-| :--- | :--- | :--- |
-| `BOT_TOKEN` | Telegram Bot Token from `@BotFather` | Required for TMA authentication |
-| `ADMIN_IDS` | Comma-separated list of admin Telegram IDs | Admin permissions |
-| `CORS_ORIGINS` | Allowed origins for web/TMA access | `https://torrua.github.io,http://localhost:5173` |
+| Variable           | Description                                  | Default                                                                |
+| :----------------- | :------------------------------------------- | :--------------------------------------------------------------------- |
+| `BOT_TOKEN`        | Telegram Bot Token from `@BotFather`         | Required for TMA authentication                                        |
+| `ADMIN_IDS`        | Comma-separated list of admin Telegram IDs   | Admin permissions                                                      |
+| `CORS_ORIGINS`     | Allowed origins for web/TMA access           | `https://torrua.github.io,http://localhost:5173`                       |
 | `LOD_DATABASE_URL` | Async PostgreSQL or SQLite connection string | `postgresql+asyncpg://...` or `sqlite+aiosqlite:///app/data/export.db` |
 
 ---
