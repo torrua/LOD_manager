@@ -359,7 +359,7 @@ pub fn generate_html(conn: &Connection, event_name: Option<&str>) -> rusqlite::R
         let _ = writeln!(
             html,
             "<div class=\"entry\" data-name=\"{}\">",
-            w.name.to_lowercase()
+            esc(&w.name.to_lowercase())
         );
         let _ = write!(html, "<div class=\"entry-name\">{}", esc(&w.name));
         for a in affixes {

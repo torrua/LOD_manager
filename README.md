@@ -80,14 +80,14 @@ npm run tauri android build --debug
    - `package.json` → `"version"`
    - `src-tauri/tauri.conf.json` → `"version"`
    - `src-tauri/Cargo.toml` → `version`
-     (current: `1.7.0`)
+     (current: `1.7.2`)
 
 2. Commit and push a tag:
 
 ```bash
 git add package.json src-tauri/tauri.conf.json src-tauri/Cargo.toml
-git commit -m "chore: bump version to 1.7.0"
-git tag v1.7.0
+git commit -m "chore: bump version to 1.7.2"
+git tag v1.7.2
 git push && git push --tags
 ```
 

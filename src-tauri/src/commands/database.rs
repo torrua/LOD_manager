@@ -24,6 +24,8 @@ pub fn open_database(state: Db, path: String) -> Res<AppInfo> {
 #[tauri::command]
 pub fn create_database(state: Db, path: String) -> Res<AppInfo> {
     let _ = std::fs::remove_file(&path);
+    let _ = std::fs::remove_file(format!("{path}-wal"));
+    let _ = std::fs::remove_file(format!("{path}-shm"));
     open_database(state, path)
 }
 

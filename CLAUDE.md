@@ -6,7 +6,7 @@ Read **[`AGENTS.md`](file:///c:/Users/User/OneDrive/JS/LOD%20Manager/AGENTS.md)*
 
 ## Quick Reference
 
-- **Project**: LOD Manager (`v1.7.0`) — Cross-platform desktop (Windows/Linux/macOS) & mobile (Android) dictionary editor for the Loglan Online Dictionary (LOD).
+- **Project**: LOD Manager (`v1.7.2`) — Cross-platform desktop (Windows/Linux/macOS) & mobile (Android) dictionary editor for the Loglan Online Dictionary (LOD).
 - **Stack**: Tauri v2 · Svelte 5 (Runes) · TypeScript 6 · Vite 8 · Rust (Edition 2024) · `rusqlite` 0.31 (SQLite 3 + FTS5).
 - **Architecture**:
   - Frontend global reactive state: [`src/lib/store.svelte.ts`](file:///c:/Users/User/OneDrive/JS/LOD%20Manager/src/lib/store.svelte.ts)

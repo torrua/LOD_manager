@@ -15,8 +15,18 @@ from quart import current_app, g, jsonify, request
 def get_admin_ids() -> Set[int]:
     """Retrieve allowed admin Telegram user IDs from config or environment."""
     config_admins = current_app.config.get("ADMIN_IDS")
-    if isinstance(config_admins, (set, list, tuple)):
-        return {int(x) for x in config_admins}
+    if config_admins is not None:
+        if isinstance(config_admins, (set, list, tuple)):
+            return {int(x) for x in config_admins if str(x).strip().isdigit()}
+        if isinstance(config_admins, int):
+            return {config_admins}
+        if isinstance(config_admins, str):
+            admins: Set[int] = set()
+            for part in config_admins.split(","):
+                part = part.strip()
+                if part.isdigit():
+                    admins.add(int(part))
+            return admins
 
     env_admins = os.environ.get("ADMIN_IDS", "")
     admins: Set[int] = set()
@@ -104,7 +114,7 @@ def validate_init_data(
 
 
 def get_auth_token_from_request() -> Optional[str]:
-    """Extract raw Telegram initData string from request headers or query params."""
+    """Extract raw Telegram initData string from request headers."""
     # Preferred custom header
     header = request.headers.get("X-Telegram-Init-Data")
     if header:
@@ -114,11 +124,6 @@ def get_auth_token_from_request() -> Optional[str]:
     auth = request.headers.get("Authorization")
     if auth and auth.startswith("tma "):
         return auth[4:].strip()
-
-    # Query param fallback for debugging / direct links
-    param = request.args.get("init_data")
-    if param:
-        return param
 
     return None
 

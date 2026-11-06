@@ -22,12 +22,16 @@
     removedOpen = false;
     getEventWords(id)
       .then(([a, r]) => {
-        wordsAdded = a;
-        wordsRemoved = r;
+        if (event.id === id) {
+          wordsAdded = a;
+          wordsRemoved = r;
+        }
       })
       .catch(() => {})
       .finally(() => {
-        loadingWords = false;
+        if (event.id === id) {
+          loadingWords = false;
+        }
       });
   });
 

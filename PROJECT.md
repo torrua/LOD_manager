@@ -9,7 +9,7 @@
 | Attribute            | Value                                                                 |
 | -------------------- | --------------------------------------------------------------------- |
 | **Name**             | LOD Manager (`com.lod.manager`)                                       |
-| **Version**          | `1.7.0`                                                               |
+| **Version**          | `1.7.2`                                                               |
 | **Application Type** | Cross-platform desktop (Windows/Linux/macOS) & mobile (Android) app   |
 | **Domain**           | Lexicography / Constructed Language ([Loglan](http://www.loglan.org)) |
 | **Frontend Stack**   | Svelte 5 (Runes), TypeScript 6.0, Vite 8.0                            |

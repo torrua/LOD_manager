@@ -1585,11 +1585,8 @@ pub fn fts_update(conn: &Connection, def_id: i64, body: &str) -> rusqlite::Resul
     }
 
     if table_exists(conn, "def_kw_fts") {
-        conn.execute(
-            "INSERT INTO def_kw_fts(def_kw_fts, rowid, keywords) VALUES('delete', ?1, '')",
-            params![def_id],
-        )
-        .ok();
+        conn.execute("DELETE FROM def_kw_fts WHERE rowid = ?1", params![def_id])
+            .ok();
         let kw = extract_keywords(body);
         if !kw.is_empty() {
             conn.execute(

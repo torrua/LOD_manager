@@ -1,7 +1,7 @@
 # ARCHITECTURE.md — LOD Manager System Architecture
 
 > **Senior Architect Reference Document**  
-> **Version**: 1.7.0 | **Stack**: Tauri v2 · Svelte 5 (Runes) · Rust (2024) · SQLite 3 (FTS5)
+> **Version**: 1.7.2 | **Stack**: Tauri v2 · Svelte 5 (Runes) · Rust (2024) · SQLite 3 (FTS5)
 
 ---
 

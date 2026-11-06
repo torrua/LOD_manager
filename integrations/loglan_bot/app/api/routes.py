@@ -6,7 +6,7 @@ import re
 import sqlite3
 from typing import Any, Dict, List, Optional, Tuple
 
-from quart import current_app, jsonify, request
+from quart import current_app, g, jsonify, request
 
 from . import api_bp
 from .auth import optional_auth, require_admin
@@ -80,6 +80,150 @@ async def run_write(sql: str, params: Tuple = ()) -> int:
     """Async wrapper for SQL writes."""
     db_path = get_db_path()
     return await asyncio.to_thread(_run_write_sync, db_path, sql, params)
+
+
+async def table_exists(name: str) -> bool:
+    """Check if an SQLite table exists."""
+    rows = await run_query(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name = ?", (name,)
+    )
+    return bool(rows)
+
+
+def extract_keywords(body: str) -> str:
+    """Extract text from between «» markers in a definition body."""
+    if not body:
+        return ""
+    matches = re.findall(r"«([^»]+)»", body)
+    return " ".join(m.strip() for m in matches if m.strip())
+
+
+async def sync_fts(def_id: int, body: str, old_body: Optional[str] = None) -> None:
+    """Keep def_fts and def_kw_fts in sync when definition is added, updated, or removed."""
+    if await table_exists("def_fts"):
+        if old_body:
+            try:
+                await run_write(
+                    "INSERT INTO def_fts(def_fts, rowid, body) VALUES('delete', ?, ?)",
+                    (def_id, old_body),
+                )
+            except Exception:
+                pass
+        try:
+            await run_write(
+                "INSERT INTO def_fts(def_fts, rowid, body) VALUES('delete', ?, '')",
+                (def_id,),
+            )
+        except Exception:
+            pass
+
+        if body:
+            try:
+                await run_write(
+                    "INSERT INTO def_fts(rowid, body) VALUES(?, ?)",
+                    (def_id, body),
+                )
+            except Exception:
+                pass
+
+    if await table_exists("def_kw_fts"):
+        try:
+            await run_write(
+                "DELETE FROM def_kw_fts WHERE rowid = ?",
+                (def_id,),
+            )
+        except Exception:
+            pass
+        kw = extract_keywords(body)
+        if kw:
+            try:
+                await run_write(
+                    "INSERT INTO def_kw_fts(rowid, keywords) VALUES(?, ?)",
+                    (def_id, kw),
+                )
+            except Exception:
+                pass
+
+
+async def resolve_event_id(
+    event_val: Any,
+    event_id_val: Optional[int] = None,
+    default: Optional[int] = None,
+) -> Optional[int]:
+    """Resolve an event ID from name, string, or explicit event_id."""
+    if event_id_val is not None:
+        return event_id_val
+    if event_val is not None:
+        val_str = str(event_val).strip()
+        if val_str:
+            rows = await run_query(
+                "SELECT event_id FROM events WHERE name = ? OR CAST(event_id AS TEXT) = ? LIMIT 1",
+                (val_str, val_str),
+            )
+            if rows:
+                return rows[0]["event_id"]
+    return default
+
+
+async def sync_word_relationships(word_id: int, data: Dict[str, Any]) -> None:
+    """Sync word affixes, spellings, and connect_words relationships."""
+    # Affixes & connect_words
+    if "affixes" in data and isinstance(data["affixes"], list):
+        if await table_exists("connect_words"):
+            await run_write(
+                """DELETE FROM connect_words
+                   WHERE parent_id = ?
+                     AND child_id IN (
+                         SELECT w.id FROM words w
+                         LEFT JOIN types t ON t.id = w.type
+                         WHERE t.type_x = 'Affix' OR t.type = 'Afx'
+                     )""",
+                (word_id,),
+            )
+            for a in data["affixes"]:
+                clean_a = str(a).strip().strip("-")
+                if clean_a:
+                    await run_write(
+                        """INSERT OR IGNORE INTO connect_words (parent_id, child_id)
+                           SELECT ?, w.id FROM words w
+                           LEFT JOIN types t ON t.id = w.type
+                           WHERE (t.type_x = 'Affix' OR t.type = 'Afx')
+                             AND LOWER(REPLACE(w.name, '-', '')) = LOWER(?)""",
+                        (word_id, clean_a),
+                    )
+
+        if await table_exists("word_affixes"):
+            await run_write("DELETE FROM word_affixes WHERE word_id = ?", (word_id,))
+            for a in data["affixes"]:
+                clean = str(a).strip()
+                if clean:
+                    await run_write(
+                        "INSERT INTO word_affixes (word_id, affix) VALUES (?, ?)",
+                        (word_id, clean),
+                    )
+
+    # Spellings
+    if "spellings" in data and isinstance(data["spellings"], list):
+        if await table_exists("word_spellings"):
+            await run_write("DELETE FROM word_spellings WHERE word_id = ?", (word_id,))
+            for s in data["spellings"]:
+                clean = str(s).strip()
+                if clean:
+                    await run_write(
+                        "INSERT INTO word_spellings (word_id, spelling) VALUES (?, ?)",
+                        (word_id, clean),
+                    )
+
+
+# ─── Auth Status ──────────────────────────────────────────────────────────────
+@api_bp.route("/auth/me", methods=["GET"])
+@optional_auth
+async def get_current_user():
+    """Return authenticated Telegram user info and admin status."""
+    return jsonify({
+        "user": getattr(g, "tg_user", None),
+        "is_admin": getattr(g, "is_admin", False),
+    })
 
 
 # ─── Health check ─────────────────────────────────────────────────────────────
@@ -292,13 +436,25 @@ async def create_word():
         return jsonify({"error": "Word name is required"}), 400
 
     name = data["name"].strip()
-    type_name = data.get("type_name")
+    type_id = data.get("type_id")
+    type_val = data.get("type_name") or data.get("type")
+    if type_val and type_id is None:
+        if isinstance(type_val, int):
+            type_id = type_val
+        elif str(type_val).isdigit():
+            type_id = int(type_val)
+        else:
+            types = await run_query(
+                "SELECT id FROM types WHERE type = ? OR type_x = ? LIMIT 1",
+                (str(type_val).strip(), str(type_val).strip()),
+            )
+            if types:
+                type_id = types[0]["id"]
 
-    type_id = None
-    if type_name:
-        types = await run_query("SELECT id FROM types WHERE type = ?", (type_name,))
-        if types:
-            type_id = types[0]["id"]
+    if type_id is None:
+        first_types = await run_query("SELECT id FROM types ORDER BY id LIMIT 1")
+        if first_types:
+            type_id = first_types[0]["id"]
 
     authors, db_year, db_rank, db_notes = denormalize_word_fields(
         data.get("source"),
@@ -307,9 +463,16 @@ async def create_word():
         data.get("notes"),
     )
 
+    ev_start = await resolve_event_id(
+        data.get("event_start"), data.get("event_start_id"), default=1
+    )
+    ev_end = await resolve_event_id(
+        data.get("event_end"), data.get("event_end_id"), default=None
+    )
+
     insert_sql = """
-        INSERT INTO words (name, type, origin, origin_x, "match", rank, year, notes)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO words (name, type, origin, origin_x, "match", rank, year, notes, event_start, event_end)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """
     new_id = await run_write(
         insert_sql,
@@ -322,11 +485,13 @@ async def create_word():
             db_rank,
             db_year,
             db_notes,
+            ev_start,
+            ev_end,
         ),
     )
 
     # Sync connect_authors
-    if authors:
+    if authors and await table_exists("connect_authors"):
         for abbr in authors:
             await run_write(
                 """INSERT OR IGNORE INTO authors (abbreviation, id)
@@ -339,6 +504,8 @@ async def create_word():
                 (new_id, abbr),
             )
 
+    await sync_word_relationships(new_id, data)
+
     return await get_word_detail(new_id)
 
 
@@ -350,12 +517,20 @@ async def update_word(word_id: int):
     if not data:
         return jsonify({"error": "Missing payload"}), 400
 
-    type_id = None
-    type_name = data.get("type_name")
-    if type_name:
-        types = await run_query("SELECT id FROM types WHERE type = ?", (type_name,))
-        if types:
-            type_id = types[0]["id"]
+    type_id = data.get("type_id")
+    type_val = data.get("type_name") or data.get("type")
+    if type_val and type_id is None:
+        if isinstance(type_val, int):
+            type_id = type_val
+        elif str(type_val).isdigit():
+            type_id = int(type_val)
+        else:
+            types = await run_query(
+                "SELECT id FROM types WHERE type = ? OR type_x = ? LIMIT 1",
+                (str(type_val).strip(), str(type_val).strip()),
+            )
+            if types:
+                type_id = types[0]["id"]
 
     authors, db_year, db_rank, db_notes = denormalize_word_fields(
         data.get("source"),
@@ -364,35 +539,44 @@ async def update_word(word_id: int):
         data.get("notes"),
     )
 
-    update_sql = """
-        UPDATE words
-        SET name = COALESCE(?, name),
-            type = COALESCE(?, type),
-            origin = COALESCE(?, origin),
-            origin_x = COALESCE(?, origin_x),
-            "match" = COALESCE(?, "match"),
-            rank = COALESCE(?, rank),
-            year = COALESCE(?, year),
-            notes = COALESCE(?, notes)
-        WHERE id = ?
-    """
-    await run_write(
-        update_sql,
-        (
-            data.get("name"),
-            type_id,
-            data.get("origin"),
-            data.get("origin_x"),
-            data.get("match_") or data.get("match"),
-            db_rank,
-            db_year,
-            db_notes,
-            word_id,
-        ),
-    )
+    ev_start = await resolve_event_id(data.get("event_start"), data.get("event_start_id"))
+    ev_end = await resolve_event_id(data.get("event_end"), data.get("event_end_id"))
+
+    set_clauses = [
+        "name = COALESCE(?, name)",
+        "type = COALESCE(?, type)",
+        "origin = COALESCE(?, origin)",
+        "origin_x = COALESCE(?, origin_x)",
+        '"match" = COALESCE(?, "match")',
+        "rank = COALESCE(?, rank)",
+        "year = COALESCE(?, year)",
+        "notes = COALESCE(?, notes)",
+    ]
+    set_params: List[Any] = [
+        data.get("name"),
+        type_id,
+        data.get("origin"),
+        data.get("origin_x"),
+        data.get("match_") or data.get("match"),
+        db_rank,
+        db_year,
+        db_notes,
+    ]
+
+    if ("event_start" in data or "event_start_id" in data) and ev_start is not None:
+        set_clauses.append("event_start = ?")
+        set_params.append(ev_start)
+
+    if "event_end" in data or "event_end_id" in data:
+        set_clauses.append("event_end = ?")
+        set_params.append(ev_end)
+
+    set_params.append(word_id)
+    update_sql = f"UPDATE words SET {', '.join(set_clauses)} WHERE id = ?"
+    await run_write(update_sql, tuple(set_params))
 
     # Sync connect_authors if source was passed
-    if "source" in data:
+    if "source" in data and await table_exists("connect_authors"):
         await run_write('DELETE FROM connect_authors WHERE "WID" = ?', (word_id,))
         for abbr in authors:
             await run_write(
@@ -406,6 +590,8 @@ async def update_word(word_id: int):
                 (word_id, abbr),
             )
 
+    await sync_word_relationships(word_id, data)
+
     return await get_word_detail(word_id)
 
 
@@ -413,13 +599,34 @@ async def update_word(word_id: int):
 @require_admin
 async def delete_word(word_id: int):
     """Delete word and related definitions/connections (Admin only)."""
+    # Sync FTS deletion for definitions
+    defs = await run_query("SELECT id, body FROM definitions WHERE word_id = ?", (word_id,))
+    for d in defs:
+        await sync_fts(d["id"], "", old_body=d.get("body"))
+
     # Delete child references first to obey foreign keys
+    if await table_exists("connect_keys"):
+        await run_write(
+            'DELETE FROM connect_keys WHERE "DID" IN (SELECT id FROM definitions WHERE word_id = ?)',
+            (word_id,),
+        )
     await run_write("DELETE FROM definitions WHERE word_id = ?", (word_id,))
-    await run_write(
-        "DELETE FROM connect_words WHERE parent_id = ? OR child_id = ?", (word_id, word_id)
-    )
-    await run_write('DELETE FROM connect_authors WHERE "WID" = ?', (word_id,))
+
+    if await table_exists("connect_words"):
+        await run_write(
+            "DELETE FROM connect_words WHERE parent_id = ? OR child_id = ?", (word_id, word_id)
+        )
+    if await table_exists("connect_authors"):
+        await run_write('DELETE FROM connect_authors WHERE "WID" = ?', (word_id,))
+    if await table_exists("word_usage"):
+        await run_write("DELETE FROM word_usage WHERE word_id = ?", (word_id,))
+    if await table_exists("word_affixes"):
+        await run_write("DELETE FROM word_affixes WHERE word_id = ?", (word_id,))
+    if await table_exists("word_spellings"):
+        await run_write("DELETE FROM word_spellings WHERE word_id = ?", (word_id,))
+
     await run_write("DELETE FROM words WHERE id = ?", (word_id,))
+    return jsonify({"success": True, "deleted_id": word_id})
     return jsonify({"success": True, "deleted_id": word_id})
 
 
@@ -451,7 +658,7 @@ async def add_definition(word_id: int):
         INSERT INTO definitions (word_id, position, body, usage, grammar_code, slots, case_tags)
         VALUES (?, ?, ?, ?, ?, ?, ?)
     """
-    await run_write(
+    new_def_id = await run_write(
         insert_sql,
         (
             word_id,
@@ -463,6 +670,7 @@ async def add_definition(word_id: int):
             data.get("tags"),
         ),
     )
+    await sync_fts(new_def_id, data["body"])
     return await get_word_detail(word_id)
 
 
@@ -473,6 +681,11 @@ async def update_definition(word_id: int, def_id: int):
     data = await request.get_json()
     if not data:
         return jsonify({"error": "Missing payload"}), 400
+
+    old_defs = await run_query(
+        "SELECT body FROM definitions WHERE id = ? AND word_id = ?", (def_id, word_id)
+    )
+    old_body = old_defs[0]["body"] if old_defs else ""
 
     grammar = data.get("grammar")
     slots = None
@@ -506,6 +719,8 @@ async def update_definition(word_id: int, def_id: int):
             word_id,
         ),
     )
+    new_body = data.get("body") if data.get("body") is not None else old_body
+    await sync_fts(def_id, new_body, old_body=old_body)
     return await get_word_detail(word_id)
 
 
@@ -513,7 +728,14 @@ async def update_definition(word_id: int, def_id: int):
 @require_admin
 async def delete_definition(word_id: int, def_id: int):
     """Delete a definition (Admin only)."""
-    await run_write('DELETE FROM connect_keys WHERE "DID" = ?', (def_id,))
+    old_defs = await run_query(
+        "SELECT body FROM definitions WHERE id = ? AND word_id = ?", (def_id, word_id)
+    )
+    old_body = old_defs[0]["body"] if old_defs else ""
+    await sync_fts(def_id, "", old_body=old_body)
+
+    if await table_exists("connect_keys"):
+        await run_write('DELETE FROM connect_keys WHERE "DID" = ?', (def_id,))
     await run_write("DELETE FROM definitions WHERE id = ? AND word_id = ?", (def_id, word_id))
     return await get_word_detail(word_id)
 
@@ -655,6 +877,94 @@ async def get_types():
     return jsonify([serialize_type(r) for r in rows])
 
 
+@api_bp.route("/types", methods=["POST"])
+@require_admin
+async def create_type():
+    """Create a new word type (Admin only)."""
+    data = await request.get_json()
+    if not data or not (data.get("name") or data.get("type")):
+        return jsonify({"error": "Type name is required"}), 400
+
+    name = (data.get("name") or data.get("type")).strip()
+    type_x = data.get("type_x") or ""
+    group_ = data.get("group_") or data.get("group") or ""
+    parentable = data.get("parentable", True)
+    description = data.get("description")
+
+    insert_sql = """
+        INSERT INTO types (type, type_x, "group", parentable, description, id)
+        VALUES (?, ?, ?, ?, ?, (SELECT COALESCE(MAX(id), 0) + 1 FROM types))
+    """
+    new_id = await run_write(
+        insert_sql,
+        (name, type_x, group_, 1 if parentable else 0, description),
+    )
+    rows = await run_query(
+        """SELECT t.id, t.type as name, t.type_x, t."group" as group_, COUNT(w.id) as word_count
+           FROM types t LEFT JOIN words w ON w.type = t.id
+           WHERE t.id = ? GROUP BY t.id""",
+        (new_id,),
+    )
+    return jsonify(serialize_type(rows[0]))
+
+
+@api_bp.route("/types/<int:type_id>", methods=["PUT"])
+@require_admin
+async def update_type(type_id: int):
+    """Update an existing word type (Admin only)."""
+    data = await request.get_json()
+    if not data:
+        return jsonify({"error": "Missing payload"}), 400
+
+    name = data.get("name") or data.get("type")
+    group_ = data.get("group_") if "group_" in data else data.get("group")
+    parentable = data.get("parentable")
+    parentable_val = (1 if parentable else 0) if parentable is not None else None
+
+    update_sql = """
+        UPDATE types
+        SET type = COALESCE(?, type),
+            type_x = COALESCE(?, type_x),
+            "group" = COALESCE(?, "group"),
+            parentable = COALESCE(?, parentable),
+            description = COALESCE(?, description)
+        WHERE id = ?
+    """
+    await run_write(
+        update_sql,
+        (
+            name,
+            data.get("type_x"),
+            group_,
+            parentable_val,
+            data.get("description"),
+            type_id,
+        ),
+    )
+    rows = await run_query(
+        """SELECT t.id, t.type as name, t.type_x, t."group" as group_, COUNT(w.id) as word_count
+           FROM types t LEFT JOIN words w ON w.type = t.id
+           WHERE t.id = ? GROUP BY t.id""",
+        (type_id,),
+    )
+    if not rows:
+        return jsonify({"error": "Type not found"}), 404
+    return jsonify(serialize_type(rows[0]))
+
+
+@api_bp.route("/types/<int:type_id>", methods=["DELETE"])
+@require_admin
+async def delete_type(type_id: int):
+    """Delete a word type (Admin only)."""
+    in_use_rows = await run_query("SELECT COUNT(*) as c FROM words WHERE type = ?", (type_id,))
+    in_use = in_use_rows[0]["c"] if in_use_rows else 0
+    if in_use > 0:
+        return jsonify({"error": f"Cannot delete type: used by {in_use} word(s)"}), 400
+
+    await run_write("DELETE FROM types WHERE id = ?", (type_id,))
+    return jsonify({"success": True, "deleted_id": type_id})
+
+
 # ─── Events ───────────────────────────────────────────────────────────────────
 @api_bp.route("/events", methods=["GET"])
 @optional_auth
@@ -667,6 +977,124 @@ async def get_events():
     """
     rows = await run_query(sql)
     return jsonify([serialize_event(r) for r in rows])
+
+
+@api_bp.route("/events/<int:event_id>/words", methods=["GET"])
+@optional_auth
+async def get_event_words(event_id: int):
+    """Retrieve words added (event_start) and removed (event_end) for an event."""
+    ev_rows = await run_query("SELECT event_id FROM events WHERE id = ?", (event_id,))
+    target_event_id = (
+        ev_rows[0]["event_id"]
+        if ev_rows and ev_rows[0].get("event_id") is not None
+        else event_id
+    )
+
+    added_rows = await run_query(
+        "SELECT w.name FROM words w WHERE w.event_start = ? ORDER BY w.name",
+        (target_event_id,),
+    )
+    removed_rows = await run_query(
+        "SELECT w.name FROM words w WHERE w.event_end = ? ORDER BY w.name",
+        (target_event_id,),
+    )
+    added = [r["name"] for r in added_rows]
+    removed = [r["name"] for r in removed_rows]
+    return jsonify([added, removed])
+
+
+@api_bp.route("/events", methods=["POST"])
+@require_admin
+async def create_event():
+    """Create a new dictionary event (Admin only)."""
+    data = await request.get_json()
+    if not data or not data.get("name"):
+        return jsonify({"error": "Event name is required"}), 400
+
+    next_ev_rows = await run_query("SELECT COALESCE(MAX(event_id), 0) + 1 as next_id FROM events")
+    next_event_id = next_ev_rows[0]["next_id"] if next_ev_rows else 1
+
+    ev_name = data["name"].strip()
+    ev_date = data.get("date") or ""
+    ev_annotation = data.get("annotation") or ""
+    ev_suffix = data.get("suffix") or ""
+    ev_notes = data.get("notes") or data.get("definition") or ""
+
+    insert_sql = """
+        INSERT INTO events (event_id, name, date, definition, annotation, suffix, id)
+        VALUES (?, ?, ?, ?, ?, ?, (SELECT COALESCE(MAX(id), 0) + 1 FROM events))
+    """
+    new_id = await run_write(
+        insert_sql,
+        (next_event_id, ev_name, ev_date, ev_notes, ev_annotation, ev_suffix),
+    )
+    rows = await run_query(
+        "SELECT id, name, date, annotation, suffix, definition as notes FROM events WHERE id = ?",
+        (new_id,),
+    )
+    return jsonify(serialize_event(rows[0]))
+
+
+@api_bp.route("/events/<int:event_id>", methods=["PUT"])
+@require_admin
+async def update_event(event_id: int):
+    """Update an existing event (Admin only)."""
+    data = await request.get_json()
+    if not data:
+        return jsonify({"error": "Missing payload"}), 400
+
+    ev_notes = data.get("notes") if "notes" in data else data.get("definition")
+
+    update_sql = """
+        UPDATE events
+        SET name = COALESCE(?, name),
+            date = COALESCE(?, date),
+            annotation = COALESCE(?, annotation),
+            suffix = COALESCE(?, suffix),
+            definition = COALESCE(?, definition)
+        WHERE id = ?
+    """
+    await run_write(
+        update_sql,
+        (
+            data.get("name"),
+            data.get("date"),
+            data.get("annotation"),
+            data.get("suffix"),
+            ev_notes,
+            event_id,
+        ),
+    )
+    rows = await run_query(
+        "SELECT id, name, date, annotation, suffix, definition as notes FROM events WHERE id = ?",
+        (event_id,),
+    )
+    if not rows:
+        return jsonify({"error": "Event not found"}), 404
+    return jsonify(serialize_event(rows[0]))
+
+
+@api_bp.route("/events/<int:event_id>", methods=["DELETE"])
+@require_admin
+async def delete_event(event_id: int):
+    """Delete an event (Admin only)."""
+    ev_rows = await run_query("SELECT event_id FROM events WHERE id = ?", (event_id,))
+    target_event_id = (
+        ev_rows[0]["event_id"]
+        if ev_rows and ev_rows[0].get("event_id") is not None
+        else event_id
+    )
+
+    in_use_rows = await run_query(
+        "SELECT COUNT(*) as c FROM words WHERE event_start = ? OR event_end = ?",
+        (target_event_id, target_event_id),
+    )
+    in_use = in_use_rows[0]["c"] if in_use_rows else 0
+    if in_use > 0:
+        return jsonify({"error": f"Cannot delete event: used by {in_use} word(s)"}), 400
+
+    await run_write("DELETE FROM events WHERE id = ?", (event_id,))
+    return jsonify({"success": True, "deleted_id": event_id})
 
 
 # ─── Authors ──────────────────────────────────────────────────────────────────
@@ -688,6 +1116,86 @@ async def get_authors():
     """
     rows = await run_query(sql)
     return jsonify([serialize_author(r) for r in rows])
+
+
+@api_bp.route("/authors", methods=["POST"])
+@require_admin
+async def create_author():
+    """Create a new author (Admin only)."""
+    data = await request.get_json()
+    if not data or not (data.get("initials") or data.get("abbreviation")):
+        return jsonify({"error": "Author abbreviation/initials is required"}), 400
+
+    abbr = (data.get("initials") or data.get("abbreviation")).strip()
+    full_name = data.get("full_name")
+    notes = data.get("notes")
+
+    insert_sql = """
+        INSERT INTO authors (abbreviation, full_name, notes, id)
+        VALUES (?, ?, ?, (SELECT COALESCE(MAX(id), 0) + 1 FROM authors))
+    """
+    new_id = await run_write(insert_sql, (abbr, full_name, notes))
+    if await table_exists("connect_authors"):
+        sql = """SELECT a.id, a.abbreviation as initials, a.full_name, a.notes, COUNT(ca."WID") as word_count
+           FROM authors a LEFT JOIN connect_authors ca ON ca."AID" = a.id
+           WHERE a.id = ? GROUP BY a.id"""
+    else:
+        sql = """SELECT a.id, a.abbreviation as initials, a.full_name, a.notes, 0 as word_count
+           FROM authors a WHERE a.id = ?"""
+    rows = await run_query(sql, (new_id,))
+    return jsonify(serialize_author(rows[0]))
+
+
+@api_bp.route("/authors/<int:author_id>", methods=["PUT"])
+@require_admin
+async def update_author(author_id: int):
+    """Update an existing author (Admin only)."""
+    data = await request.get_json()
+    if not data:
+        return jsonify({"error": "Missing payload"}), 400
+
+    abbr = data.get("initials") or data.get("abbreviation")
+
+    update_sql = """
+        UPDATE authors
+        SET abbreviation = COALESCE(?, abbreviation),
+            full_name = COALESCE(?, full_name),
+            notes = COALESCE(?, notes)
+        WHERE id = ?
+    """
+    await run_write(
+        update_sql,
+        (
+            abbr,
+            data.get("full_name"),
+            data.get("notes"),
+            author_id,
+        ),
+    )
+    if await table_exists("connect_authors"):
+        sql = """SELECT a.id, a.abbreviation as initials, a.full_name, a.notes, COUNT(ca."WID") as word_count
+           FROM authors a LEFT JOIN connect_authors ca ON ca."AID" = a.id
+           WHERE a.id = ? GROUP BY a.id"""
+    else:
+        sql = """SELECT a.id, a.abbreviation as initials, a.full_name, a.notes, 0 as word_count
+           FROM authors a WHERE a.id = ?"""
+    rows = await run_query(sql, (author_id,))
+    if not rows:
+        return jsonify({"error": "Author not found"}), 404
+    return jsonify(serialize_author(rows[0]))
+
+
+@api_bp.route("/authors/<int:author_id>", methods=["DELETE"])
+@require_admin
+async def delete_author(author_id: int):
+    """Delete an author (Admin only)."""
+    ca_table = await run_query(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='connect_authors'"
+    )
+    if ca_table:
+        await run_write('DELETE FROM connect_authors WHERE "AID" = ?', (author_id,))
+    await run_write("DELETE FROM authors WHERE id = ?", (author_id,))
+    return jsonify({"success": True, "deleted_id": author_id})
 
 
 # ─── Database Statistics ──────────────────────────────────────────────────────

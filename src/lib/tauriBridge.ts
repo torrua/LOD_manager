@@ -22,7 +22,7 @@ export async function saveFileDialog(options?: {
 }
 
 export async function getAppVersion(): Promise<string> {
-  if (!isTauri) return '1.7.1 (Web)';
+  if (!isTauri) return '1.7.2 (Web)';
   try {
     const { getVersion } = await import('@tauri-apps/api/app');
     return await getVersion();

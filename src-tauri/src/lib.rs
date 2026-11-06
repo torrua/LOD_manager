@@ -34,7 +34,12 @@ pub use converter::converter::convert_text_to_sqlite;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    #[cfg(desktop)]
+    let builder = tauri::Builder::default().plugin(tauri_plugin_process::init());
+    #[cfg(not(desktop))]
+    let builder = tauri::Builder::default();
+
+    builder
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())

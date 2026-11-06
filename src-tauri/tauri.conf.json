@@ -1,6 +1,6 @@
 {
   "productName": "LOD Manager",
-  "version": "1.7.1",
+  "version": "1.7.2",
   "identifier": "com.lod.manager",
   "build": {
     "frontendDist": "../dist",
@@ -49,6 +49,7 @@
     "dialog": null,
     "fs": {},
     "os": null,
+    "process": null,
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDNCQkIxMkJFOTk4QzQ5QTEKUldTaFNZeVp2aEs3TzJPcm5rTisyMm9jTnhPcGFkRm5kNGkzcStCdnpXNk1yRHhkdVJtLzl3ODcK",
       "endpoints": ["https://github.com/torrua/LOD_manager/releases/latest/download/latest.json"],

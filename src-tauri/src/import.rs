@@ -111,7 +111,12 @@ pub fn import_contents(
             s if (s.contains("worddef") || s.contains("definition")) && !s.contains("word.txt") => {
                 def_content = Some(content.as_str());
             }
-            s if s == "word.txt" || s == "words.txt" => word_content = Some(content.as_str()),
+            s if (s.contains("word") || s.contains("words"))
+                && !s.contains("def")
+                && !s.contains("spell") =>
+            {
+                word_content = Some(content.as_str());
+            }
             _ => {}
         }
     }
