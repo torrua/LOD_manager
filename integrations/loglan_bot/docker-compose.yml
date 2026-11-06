@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  loglan_bot:
+    image: ghcr.io/torrua/loglan_bot:latest
+    container_name: loglan_bot
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - BOT_TOKEN=${BOT_TOKEN}
+      - ADMIN_IDS=${ADMIN_IDS}
+      - CORS_ORIGINS=${CORS_ORIGINS:-https://torrua.github.io,http://localhost:5173}
+      - LOD_DATABASE_URL=${LOD_DATABASE_URL:-postgresql+asyncpg://user:password@host/dbname}
+    volumes:
+      - ./data:/app/data
